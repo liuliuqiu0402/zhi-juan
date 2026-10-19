@@ -25,7 +25,7 @@ export const PROPERTIES = [
 
   // ── B 结构组织 ──
   { id: 'B1', name: '段落组织：每题/每项/每条目独立成 <p>，严禁堆叠', probe: '独立成 <p> 段落', scope: 'all', expect: 'must', guard: 'config/textPropertiesRegistry.test.js', note: '★ 2026-10-13 由本清单扫出真缺口并补齐：内容型（preview/summary）原无此判据' },
-  { id: 'B2', name: '并列小项按行分组（不挤成一段）', probe: '按行分组排布', scope: ['exam', 'practice', 'special', 'reading', 'dictation', 'review'], expect: 'must', guard: 'config/textPropertiesRegistry.test.js', note: 'errorbook 走"逐题成组·每个分项独立成段"口径（不含本句）' },
+  { id: 'B2', name: '并列小项分行排布（不挤成一段）', probe: '分行排布', scope: ['exam', 'practice', 'special', 'reading', 'dictation', 'review'], expect: 'must', guard: 'config/textPropertiesRegistry.test.js', note: 'errorbook 走"逐题成组·每个分项独立成段"口径（不含本句）；2026-10-19 由"按行分组"改"分行"——"分组"会引出行号' },
   { id: 'B3', name: '层级样式/序号体系（层级与编号）', probe: '序号体系', scope: 'all', expect: 'must', guard: 'config/questionObjectCaliber.test.js', note: '层级样式单源' },
   { id: 'B4', name: '层级名↔其下内容可判法（真分层·T20①）', probe: '遮住该名称、只看其下各题', scope: 'exam', expect: 'must', guard: 'config/languageSubjectMaterial.test.js', note: 'T20·① 正句（假分层补可判法）' },
   { id: 'B5', name: '同层同型多题＝正规；跨层同型同法＝判重（T20②）', probe: '同一大题、同一层内', scope: 'all', expect: 'must', guard: 'config/languageSubjectMaterial.test.js', note: '对应属主"可以有侧重，但同型题不得跨处重复"口径' },

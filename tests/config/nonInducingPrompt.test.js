@@ -687,7 +687,7 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     //    其下各题的标题）都须点明…"**枚举层级** ⇒ 模型读成"每一层都要有标题"（与【创作要求】"大题标题之外的
     //    题默认不另配标题"相抵，是重复小标题的诱因）⇒ 收敛到**大题标题**单层；小组标题的"怎么答"由
     //    【创作要求】条单源承载，本条不重复。**反向锁**："不论哪一层"不得回潮。
-    expect(examT, '大题标题须点明考查点与作答方式').toContain('点明本组的考查点与作答方式');
+    expect(examT, '大题标题须点明考查点与作答方式').toContain('这组考什么');
     expect(examT, '不得回退"不论哪一层"逐层配标题的诱导').not.toContain('不论哪一层');
     expect(examT, '领域名/大类名可只作范围标识（例外）').toContain('可只作范围标识');
     const pracT = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' }).template;
