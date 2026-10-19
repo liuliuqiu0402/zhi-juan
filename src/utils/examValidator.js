@@ -981,6 +981,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           itemsB.push({ num: nm[1], unit: pm ? pm[1] : '题', price, total: itemTotal });
         }
         if (itemsB.length < 2 || itemsB.some((x) => x.total == null || x.price == null)) return;
+        // 自洽闸（2026-10-19）：题内各题总分之和须等于标题总数；不等 ⇒ **不合成**（不改数、不造分）。
+        //   典型病态：大题标题只有范围名，下面第一条带号行是"作答要求"且带着大题总分的标注——
+        //   若照它合成，会把要求行当成一题，写出"每题X分"。这里宁可不动，让 A 侧的标题缺口暴露。
+        const sumTotals = itemsB.reduce((a, x) => a + x.total, 0);
+        if (Math.abs(sumTotals - parseFloat(totalB)) > 1e-6) return;
         const pricesB = [...new Set(itemsB.map((x) => x.price))];
         const unitsB = [...new Set(itemsB.map((x) => x.unit))];
         const totalsB = itemsB.map((x) => x.total);
