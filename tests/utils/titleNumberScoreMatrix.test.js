@@ -98,7 +98,7 @@ describe('题号×标题×A×B 组合矩阵', () => {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t).toContain('大题下有带题号的题时');
       expect(t).toContain('大题下没有带题号的题时');
-      expect(t, '编号对象前件看标题').toContain('大题标题已经写全作答方式时，其下直接排各项');
+      expect(t, '编号判据：各自是一道要作答的题').toContain('各自是一道要作答的题');
       expect(t, '要求不得写成带号题干').toContain('不得把这条要求写成带题号的题干');
       expect(t, '题号只给真正作答的题').toContain('题号只给真正作答的题');
       expect(t, 'A1 不得为标分新增题干').toContain('只标本来就有的题，不得为此新增题干');
@@ -111,17 +111,24 @@ describe('题号×标题×A×B 组合矩阵', () => {
     expect(t).toContain('只关汉字大题号，不推到题号');
   });
 
-  // 🔴 2026-10-19（真机："四、判断（共10分）" + "9. 判断下面各题，对的画√…"）：范围标识例外被当成
-  //   "标题可以只写题型名"，要求只能落到下一条带号行。例外必须只给**域型名**，作答形式名须就地补齐。
-  it('A 侧：范围标识例外只给域型名（作答形式名须在原标题行内补齐）', () => {
-    for (const stage of ['primary_low', 'middle']) {
-      const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, `${stage}：例外只给课标内容领域名/实践活动名`).toContain('课标内容领域名／实践活动名');
-      expect(t, `${stage}：作答形式名不属例外`).toContain('作答形式名不属此列');
-      expect(t, `${stage}：须在原标题行内补齐`).toContain('原标题行内');
-      expect(t, `${stage}：大类名不得作范围标识例外`).not.toContain('课标内容领域名／大类名');
+  // 🔴 2026-10-19（属主：大类名分小学/中学、位置不一样）：例外不能写成"全局可只作范围标识"。
+  //   小学：大类（部分）层在大题之上，大类名**不得充当大题标题**；大题标题一律完整（无例外）。
+  //   中学：不设大类层，域型名**直接作大题标题**、可只作范围标识；作答形式名两学段都要就地补齐。
+  it('A 侧：大类名的位置按学段分（小学不得作标题；中学域型名直接作标题）', () => {
+    const pri = getPromptTemplate({ grade: 'primary_low', subject: '数学', genType: 'exam' }).template;
+    const mid = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' }).template;
+    // 小学
+    expect(pri, '小学：大类名不得充当大题标题').toContain('不得充当大题标题');
+    expect(pri, '小学：大题标题本身须是完整作答要求').toContain('大题标题本身须是完整的作答要求');
+    expect(pri, '小学：不得出现"只作范围标识、不加作答要求"的例外').not.toContain('只作范围标识、不加作答要求');
+    // 中学
+    expect(mid, '中学：不设大类层').toContain('不设大类层');
+    expect(mid, '中学：域型名只作范围标识').toContain('域型名');
+    expect(mid, '中学：域型名不加作答要求').toContain('只作范围标识、不加作答要求');
+    // 两学段共有：作答形式名就地补齐
+    for (const [name, t] of [['小学', pri], ['中学', mid]]) {
+      expect(t, `${name}：作答形式名须在原标题行内补齐`).toContain('作答形式名须在');
+      expect(t, `${name}：不另起一行`).toContain('原标题行内');
     }
-    expect(getPromptTemplate({ grade: 'primary_low', subject: '数学', genType: 'exam' }).template,
-      '小学段：大类名不得充当大题标题').toContain('不得充当大题标题');
   });
 });
