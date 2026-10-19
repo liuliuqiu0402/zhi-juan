@@ -61,7 +61,7 @@ describe('程序侧不得新增小题号/小题标题', () => {
   it('A 侧条款（两学段）：无题号大题不补题号、不补题干', () => {
     for (const stage of ['primary_low', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, `${stage}：分值不许成为补号/补题干的理由`).toContain('只标本来就有的题');
+      expect(t, `${stage}：分值不许成为补号/补题干的理由`).toContain('只标本来就有的条目');
       expect(t, `${stage}：并列同类项不编号`).toContain('并列的同类作答项');
       expect(t, `${stage}：不另起题号与题干行`).toContain('其下不再另起题号与题干行');
     }

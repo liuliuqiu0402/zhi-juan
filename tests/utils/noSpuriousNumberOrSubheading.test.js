@@ -110,7 +110,7 @@ describe('不该有题号／小题标题的题组：一个号都不许冒出来�
       expect(t, `${stage}：并列同类作答项不编号（哪怕并列多少项）`).toContain('并列的同类作答项');
       expect(t, `${stage}：哪怕并列多少项`).toContain('哪怕并列多少项');
       expect(t, `${stage}：其下不再另起题号与题干行`).toContain('其下不再另起题号与题干行');
-      expect(t, `${stage}：不得为标分新增题号或题干`).toContain('只标本来就有的题');
+      expect(t, `${stage}：不得为标分新增题号或题干`).toContain('只标本来就有的条目');
     }
     expect(QUESTION_OBJECT_CALIBER, '编号对象＝共用一条作答要求一把尺').toMatch(/共用一条作答要求/);
   });
