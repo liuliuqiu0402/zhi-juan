@@ -955,14 +955,71 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.6b. 【已删 · 2026-10-19】B·标题样式的真题化（原 `title-detail-fix` 转换支）──
-  //   删因（属主："分值固定在大标题标注，这个方向有查吗"）：该支的**入口判据**是"标题以（共X分）结尾"
-  //   ＋"题内单价只有一种且每个带号题干都标了单价"——这恰好是 A 侧**有独立题干**那种情况的签名。
-  //   于是 A 按 A+B 写成"标题（共X分）＋每题干后单价"，B 又把单价搬进标题（多档时还写成
-  //   "第1、3小题各1分…"）⇒ 卷面永远呈现"分值在标题"，A+B 的第 1 种情况在产物上被抹掉。
-  //   它本是为"A 侧还只会写（共X分）"的旧态做过渡；A 侧现行已按两种情况直陈（无独立题干时单价随标题），
-  //   本支已无合法对象 ⇒ 整支删除，**只保留 1.6 的"旧式裸（X分）→（共Y分）"形态兜底**（不改数、不搬单价）。
-  //   防回潮：tests/utils/titleScoreStyleB.test.js 改为反向锁——A 的两种标题形态都不得被程序改写。
+  // ── 1.6b. B·真题标分样式（规则 title-detail-fix）──
+  //   A+B 分工（属主 2026-10-19 澄清）：**A 不能直接产出真题样式且保证分值/内容自洽**——
+  //   A 的职责是逐题标出"每〈单位〉X分，共Y分"（自洽由 A 保证）；**B 的职责是把这些标注合成为
+  //   真题写法的标题**。两条路：
+  //     ① 题内单价只有一种 → "（每〈单位〉X分，共Y分）"；
+  //     ② 题内单价有多种 → 分组式 "（第1、3小题各1分，第2、4小题各2分，共6分）"。
+  //   🔴 不改数、不做除法、不删正文：Y 取标题既有总数；题内标注**保留不动**（逐题对账的落点）。
+  //   🔴 归不了类（有题没标价／无编号）→ 不动，标题保持"（共X分）"。
+  //   2026-10-19 扩展：A 对"单判分处"的题只写"（2分）"（无"每"），B 同样能读——
+  //     该题单价＝该题总分，单位按"题"；这样选择题/判断题也能合成"（每题2分，共10分）"。
+  if (has('title-detail-fix')) {
+    try {
+      const tplB = document.createElement('template');
+      tplB.innerHTML = out;
+      const headsB = Array.from(tplB.content.querySelectorAll('h2, h3, h4'));
+      headsB.forEach((h, i) => {
+        const t = (h.textContent || '').trim();
+        const mB = t.match(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
+        if (!mB) return;
+        const totalB = mB[1];
+        const endB = headsB[i + 1] || null;
+        const itemsB = [];
+        for (let node = h.nextSibling; node && node !== endB; node = node.nextSibling) {
+          if (node.nodeType !== 1) continue;
+          const tt = (node.textContent || '').trim();
+          const nm = tt.match(/^(\d{1,2})\s*[.、．]/);
+          if (!nm) continue;
+          const pm = tt.match(/每([^\s，,。；;：:（）()0-9]{1,3})(\d+(?:\.\d+)?)分/);
+          const sm = tt.match(/共\s*(\d+(?:\.\d+)?)\s*分/);
+          const bare = tt.match(/[（(]\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
+          const itemTotal = sm ? parseFloat(sm[1]) : (bare ? parseFloat(bare[1]) : null);
+          // 单价：有"每X分"取 X；只有裸"（Y分）"＝该题单判分处，单价＝该题总分；
+          // 只有"共Y分"而没有单价 ⇒ 判不出单价（不参与合成，防替没标价的题瞎写）。
+          const price = pm ? parseFloat(pm[2]) : (bare ? itemTotal : null);
+          itemsB.push({ num: nm[1], unit: pm ? pm[1] : '题', price, total: itemTotal });
+        }
+        if (itemsB.length < 2 || itemsB.some((x) => x.total == null || x.price == null)) return;
+        const pricesB = [...new Set(itemsB.map((x) => x.price))];
+        let labelB = null;
+        if (pricesB.length === 1) {
+          const unitsB = [...new Set(itemsB.map((x) => x.unit))];
+          if (unitsB.length > 1) return; // 单价同但单位不同（如每空/每处）→ 标题无法用一个单位概括，不动
+          const unitB = unitsB[0];
+          labelB = `（每${unitB}${pricesB[0]}分，共${totalB}分）`;
+        } else {
+          const groups = [];
+          for (const it of itemsB) {
+            let g = groups.find((x) => x.price === it.price);
+            if (!g) { g = { price: it.price, nums: [] }; groups.push(g); }
+            g.nums.push(it.num);
+          }
+          labelB = `（${groups.map((g) => (g.nums.length >= 2
+            ? `第${g.nums.join('、')}小题各${g.price}分`
+            : `第${g.nums[0]}小题${g.price}分`)).join('，')}，共${totalB}分）`;
+        }
+        const nextB = t.replace(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/, labelB);
+        if (nextB !== t) {
+          h.textContent = nextB;
+          issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已改为真题标分样式：${nextB}` });
+          fixed += 1;
+        }
+      });
+      out = tplB.innerHTML;
+    } catch (e) { console.warn('⚠️ 大题标题样式转换失败（不影响其它修复）:', e.message); }
+  }
 
   // ── 2. 大题级：分值账目 + 载体结构校验（DOM 内直接操作，避免字符串与 DOM 序列化差异）──
   {
