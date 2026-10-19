@@ -98,10 +98,10 @@ describe('题号×标题×A×B 组合矩阵', () => {
   it('A 侧：分值说明按"大题标题是否即题干"分两句（两学段）', () => {
     for (const stage of ['primary_low', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, '① 标题即题干 → 单价随标题').toContain('大题标题本身就是这一题的题干');
+      expect(t, '① 标题即题干 → 单价随标题').toContain('大题下只有一道题');
       expect(t, '① 单判分处写（X分）').toContain('该题只有一个判分处时写');
-      expect(t, '② 大题下有独立小题 → 标题共X分＋每题后单价').toContain('大题下有独立小题');
-      expect(t, '② 完整性判据（每道小题都要标）').toContain('每道小题都要标，缺一即不合规');
+      expect(t, '② 大题下有多道题 → 标题共X分＋每题后单价').toContain('大题下有多道题');
+      expect(t, '② 完整性判据（每道小题都要标）').toContain('每道题都要标，缺一即不合规');
       // 反向锁：旧两支／补救句／二者取一 都不得回潮（属主："这么麻烦能搞懂吗"）
       expect(t, '旧"多件/一件"两支不得回潮').not.toContain('这一组是多件');
       expect(t, '旧"补救句"不得回潮').not.toContain('标题若已写成单价');
@@ -109,7 +109,7 @@ describe('题号×标题×A×B 组合矩阵', () => {
       expect(t, '编号判据：各自是一道要作答的题').toContain('各自是一道要作答的题');
       expect(t, '要求不得写成带号题干').toContain('不得把这条要求写成带题号的题干');
       expect(t, '题号只给真正作答的题').toContain('题号只给真正作答的题');
-      expect(t, '小题标分形态（每〈单位〉X分，共X分）').toContain('每个独立小题后写"（每〈单位〉X分，共X分）"');
+      expect(t, '小题标分形态（每〈单位〉X分，共X分）').toContain('每道题后写"（每〈单位〉X分，共X分）"');
       // 🔴 2026-10-19（属主："先写题、后标分，能解决分值不自洽"）：机制必须写明——
       //   题目与作答位写定后再按"单价×判分处数"标分，不得先定分数去凑内容。
       expect(t, 'A 的机制：先成题、后标分').toContain('先成题、后标分');
