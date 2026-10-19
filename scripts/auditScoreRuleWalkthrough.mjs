@@ -29,17 +29,24 @@ let bad = 0;
 for (const c of CASES) {
   if (!c.numbered) {
     const total = c.price * c.count;
-    console.log(`${c.name}\n  → 标题（每${c.unit}${c.price}分，共${total}分）；题内不标（${c.count} 个${c.unit}）`);
-    const ledger = c.price * c.count;
-    if (ledger !== total) { bad += 1; console.log(`  ✗ 账目不闭合：${ledger} ≠ ${total}`); }
+    // 🔴 2026-10-19 属主裁定：整大题只有一个判分处时，标题只写（共X分），不写"每篇15分，共15分"
+    const label = c.count === 1 ? `（共${total}分）` : `（每${c.unit}${c.price}分，共${total}分）`;
+    console.log(`${c.name}\n  → 标题${label}；题内不标（${c.count} 个${c.unit}）`);
+    if (c.count === 1 && /每/.test(label)) { bad += 1; console.log('  ✗ 单判分处不得写单价'); }
   } else {
     const itemTotals = c.items.map((n) => n * c.price);
     const total = itemTotals.reduce((a, b) => a + b, 0);
-    const per = itemTotals.map((y, i) => `${i + 1}.题后（每${c.unit}${c.price}分，共${y}分）`);
+    // 🔴 2026-10-19 属主裁定：该题只有一个判分处时写（X分），不写"每题2分，共2分"
+    const per = c.items.map((n, i) => (n === 1
+      ? `${i + 1}.题后（${c.price * n}分）`
+      : `${i + 1}.题后（每${c.unit}${c.price}分，共${n * c.price}分）`));
     console.log(`${c.name}\n  → 标题（共${total}分）；${per.join('；')}；标注数 ${per.length}＝题号数 ${c.items.length}`);
     // A1 的完整性：条数相等；账目：Σ 各题 Y＝标题总数
     if (per.length !== c.items.length) { bad += 1; console.log('  ✗ 标注数 ≠ 题号数'); }
     if (itemTotals.reduce((a, b) => a + b, 0) !== total) { bad += 1; console.log('  ✗ 账目不闭合'); }
+    c.items.forEach((n, i) => {
+      if (n === 1 && /共\d+分/.test(per[i])) { bad += 1; console.log(`  ✗ 第${i + 1}题单判分处不得写"共X分"`); }
+    });
   }
 }
 console.log(`\n走查 ${CASES.length} 例｜不自洽 ${bad} 例`);
