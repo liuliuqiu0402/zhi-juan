@@ -45,7 +45,7 @@ describe('题号"编号对象"口径', () => {
     //    锁"判据仍在"，并加**反向锁**防枚举回潮。
     // 🔴 2026-10-17（作废旧「计分对象口径」整条）：常量已删，单位判据并入 576（单源）⇒ 断言改锚到模板。
     const exTpl = tpl('exam');
-    expect(exTpl, '分值只约束写法（每〈单位〉X分，共Y分）').toContain('每〈单位〉X分，共Y分');
+    expect(exTpl, '分值只约束写法（每〈单位〉X分，共X分）').toContain('每〈单位〉X分，共X分');
     expect(exTpl, '枚举不得回潮（会诱导往枚举上凑、并漏掉其它作答对象）').not.toMatch(/汉字／词语|词语／数字|数字／字母|字母／选项/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/①|②|（1）|\(1\)/);

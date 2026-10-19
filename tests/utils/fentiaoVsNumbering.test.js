@@ -31,16 +31,17 @@ describe('② A 侧：分值条只按"这一组是多件/是一件"判，不再�
     expect(QUESTION_OBJECT_CALIBER).toMatch(/只属于它的文字表述/);
     expect(QUESTION_OBJECT_CALIBER, '旧"陈述或问题"（不含"文字"）不得回潮').not.toMatch(/只属于它的陈述或问题/);
     const t = tpl('exam', '数学', 'primary_mid');
-    expect(t, '一件支按"没有文字表述"判').toContain('其下各项没有自己的文字表述');
+    expect(t, '分值条：单价能覆盖全组就写单价（算式无文字表述 ⇒ 一组）').toContain('一个单价能说清全组');
   });
 
   it('两支名在位；旧"每道题各自编号"不得回潮（防"每题都要有号"的二次推力）', () => {
     for (const st of ['primary_low', 'middle']) {
       const t = tpl('exam', '数学', st);
-      expect(t, `${st}：多件支`).toContain('这一组是多件');
-      expect(t, `${st}：一件支`).toContain('这一组是一件');
+      expect(t, `${st}：单价能说清全组 → 单价随标题`).toContain('一个单价能说清全组');
+      expect(t, `${st}：说不清 → 标题共X分＋题末（X分）`).toContain('各题分值不一、一个单价说不清');
       expect(t, `${st}：不得再写"每道题各自编号"`).not.toContain('每道题各自编号');
-      expect(t, `${st}：多件支按"各自成题"判`).toContain('其下各自成题');
+      expect(t, `${st}：旧两支不得回潮`).not.toContain('这一组是多件');
+      expect(t, `${st}：旧补救句不得回潮`).not.toContain('标题若已写成单价');
     }
   });
 });
