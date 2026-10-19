@@ -200,7 +200,8 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     //   两半都易误读（"不单独编号"会被读成"连分条自己的序号都不要"）。改为正向：**分条可以有自己的一套序号**、
     //   **与题号相区分**（那是分条序号、不是题号）。三分支（question/exam/errorbook）同步。
     expect(src.split('可以有自己的一套序号').length - 1, 'question/exam/errorbook 三分支各一处').toBe(3);
-    expect(src).toContain('那是分条序号、不是题号');
+    expect(src).toContain('不是题目');
+    expect(src).toContain('与题号相区分');
     expect(src, '旧含糊判词不得回潮').not.toContain('这些分条不单独编号');
     expect(src, '层级边界由编号口径单源承载（不再在渲染段判子层）').toContain('编号的**层级**');
     expect(src, '内容型编号口径仍由 CONTENT_FORMAT 单源').toContain('条目标记与序号只取其一、严禁叠加');

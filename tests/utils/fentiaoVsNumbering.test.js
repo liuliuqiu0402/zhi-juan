@@ -16,7 +16,8 @@ describe('① A 侧：分条序号与题号分开（不是每一种序号都是�
     for (const g of ['exam', 'practice', 'errorbook']) {
       const t = tpl(g);
       expect(t, `${g}：分条可有自己的序号`).toContain('可以有自己的一套序号');
-      expect(t, `${g}：分条序号不是题号`).toContain('那是分条序号、不是题号');
+      expect(t, `${g}：分条不是题目（序号不是题号）`).toContain('不是题目');
+      expect(t, `${g}：分条序号与题号相区分`).toContain('与题号相区分');
       expect(t, `${g}：分条不另配作答区`).toContain('不另配作答区');
       expect(t, `${g}：旧含糊句不得回潮`).not.toContain('这些分条不单独编号');
     }
