@@ -922,20 +922,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const scoreMatch = t.match(/[（(]\s*(\d{1,3})\s*分\s*[)）]\s*$/);
         if (!scoreMatch) return;
         const totalScore = parseInt(scoreMatch[1], 10);
-        let count = 0;
-        let node = h.nextSibling;
-        const end = heads[i + 1] || null;
-        while (node && node !== end) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const tag = node.tagName.toLowerCase();
-            if (tag === 'p' || tag === 'li' || tag === 'div') {
-              const tt = (node.textContent || '').trim();
-              if (/^\d+[.、．]/.test(tt)) count += 1;
-            }
-          }
-          node = node.nextSibling;
-        }
-        if (count <= 0) return;
+        // 2026-10-19：去掉"其下须有带号题"的前置（属主矩阵测试暴露的边界）——裸分标题即使无题号，
+        //   归一为（共X分）也不改数、不造分；否则"无题号+裸分"会停在旧形态。
         // 🔴 2026-10-06（A4 跨处一致·消相抵）：原只补"共N题，共X分"——**明细式**与 cell 分值条
         //    「大题标题分值说明」**相抵**（用户实测"整卷两种标注并存"的另一头）。
         //    🔴 2026-10-10：分值条改「全大题为一题时含单价（写大题标题）、分设多题时只写总分」。
