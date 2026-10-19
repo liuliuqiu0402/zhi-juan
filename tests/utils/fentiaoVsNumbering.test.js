@@ -5,7 +5,7 @@
 //   ② A 侧：分值条两支只用"这一组是多件／是一件"判，**不再写"每道题各自编号"**（防二次推力"每题都要有号"）；
 //   ③ B 侧：题干内条件分条（（1）（2）（3）／"要求："后 1. 2. 3.）不被当成题，不在分条之间插作答载体。
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, QUESTION_OBJECT_CALIBER } from '../../src/config/promptLibrary.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
 
 const tpl = (g = 'exam', sj = '语文', st = 'primary_low') => getPromptTemplate({ grade: st, subject: sj, genType: g }).template;
@@ -24,6 +24,16 @@ describe('① A 侧：分条序号与题号分开（不是每一种序号都是�
 });
 
 describe('② A 侧：分值条只按"这一组是多件/是一件"判，不再强调"每道题各自编号"', () => {
+  it('口算/竖式：一行两式也仍是一组——算式不是"文字表述"，不得各自编号', () => {
+    // 2026-10-19 属主实证：`二、列竖式` 下 `1. 5×6＝　　2. 4×6＝`（同一行两个号）。
+    //   旧判词"每项自带一句只属于它的陈述或问题"会被读成"每个算式也是一个问题" ⇒ 逐式编号；
+    //   现要求"文字表述"——算式只是一串符号，不算。
+    expect(QUESTION_OBJECT_CALIBER).toMatch(/只属于它的文字表述/);
+    expect(QUESTION_OBJECT_CALIBER, '旧"陈述或问题"（不含"文字"）不得回潮').not.toMatch(/只属于它的陈述或问题/);
+    const t = tpl('exam', '数学', 'primary_mid');
+    expect(t, '一件支按"没有文字表述"判').toContain('其下各项没有自己的文字表述');
+  });
+
   it('两支名在位；旧"每道题各自编号"不得回潮（防"每题都要有号"的二次推力）', () => {
     for (const st of ['primary_low', 'middle']) {
       const t = tpl('exam', '数学', st);

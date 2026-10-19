@@ -44,7 +44,7 @@ describe('① 标题声称的提示形态必须与题内一致——结构/要�
 
 describe('② 大题标题已写全时，其下不得再出现带号说明行（判断题组各自编号）', () => {
   it('A 侧：编号对象的正向判据在位——每项自带一句陈述/问题的，即使作答动作相同也各自编号', () => {
-    expect(QUESTION_OBJECT_CALIBER, '正向判据（治"整组编成一个号"）').toMatch(/每项自带一句只属于它的陈述或问题/);
+    expect(QUESTION_OBJECT_CALIBER, '正向判据（治"整组编成一个号"）').toMatch(/每项自带一句只属于它的文字表述/);
     expect(QUESTION_OBJECT_CALIBER, '并列算式/待填位/同类词仍不编号').toMatch(/并列的同类作答项/);
     expect(QUESTION_OBJECT_CALIBER, '不编号组的出口仍在').toMatch(/其下不再另起题号与题干行/);
     // 零题型名（防定形诱导）
