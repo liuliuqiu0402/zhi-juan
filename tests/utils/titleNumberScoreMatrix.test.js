@@ -103,6 +103,7 @@ describe('题号×标题×A×B 组合矩阵', () => {
       expect(t, '题号只给真正作答的题').toContain('题号只给真正作答的题');
       expect(t, 'A1 不得为标分新增题干').toContain('只标本来就有的题，不得为此新增题干');
       expect(t, 'A2 不得补号补题干').toContain('不补题号、不补题干来承载分值');
+      expect(t, 'A2 与编号互斥（二者取一）').toContain('编号与单价二者取一');
     }
   });
 
