@@ -239,7 +239,7 @@ const carrierMustParts = (subject = '', stage = '') => {
     if (sem) parts.push(`${sem.label}必须真实输出${label}（示例：<span class="${r.carrier}">${sem.demo}</span>）`);
     else parts.push(`「${r.keywords.split('|')[0]}」类题必须真实输出${label}`);
   }
-  if (list.includes('square-grid')) parts.push('作图类题用方格纸作答区（示例：<div class="square-grid"></div>）');
+  if (list.includes('square-grid')) parts.push('**要学生在方格上作图**的题才给方格纸作答区（示例：<div class="square-grid"></div>）；图已在题面给出、只需在图上标画或连线的，作答位就是那张图');
   return parts;
 };
 

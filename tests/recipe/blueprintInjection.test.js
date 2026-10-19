@@ -456,14 +456,14 @@ describe('作答空间形态语义全模板覆盖（按答案类型匹配；形�
     expect(enLow.template).toContain('<span class="four-line-three"></span>');
     // 数学小学段：作图方格纸（作图题）
     const mathPri = getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'practice' });
-    expect(mathPri.template).toContain('作图类题用方格纸');
+    expect(mathPri.template).toContain('方格纸作答区');
     expect(mathPri.template).toContain('<div class="square-grid"></div>');
     // 数学中/高学段：2026-10-18（属主"本项目不出答题卡"）**同样注入**方格纸作答区
     //    （原"考试答题纸自带网格 → middle/high 不注入"假设不成立；SQUARE_GRID 已改学段无关单源）
     const mathMid = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'practice' });
-    expect(mathMid.template).toContain('作图类题用方格纸');
+    expect(mathMid.template).toContain('方格纸作答区');
     const mathHigh = getPromptTemplate({ grade: 'high', subject: '数学', genType: 'practice' });
-    expect(mathHigh.template).toContain('作图类题用方格纸');
+    expect(mathHigh.template).toContain('方格纸作答区');
     // 无格子学科（物理）：不注入任何载体示例（含方格纸）
     const physics = getPromptTemplate({ grade: 'middle', subject: '物理', genType: 'practice' });
     expect(physics.template).not.toContain('<span class=');
@@ -573,7 +573,7 @@ describe('载体允许表学科键归一化（道法/政治/信息 → canonical
 describe('回归：写字/抄写硬约束仅语英、载体示例空格子、听力原文仅英语', () => {
   it('数学（有方格纸载体）不注入"写字/抄写"词（防跨学科诱导）', () => {
     const mathLow = getPromptTemplate({ grade: 'primary_low', subject: '数学', genType: 'exam' });
-    expect(mathLow.template).toContain('作图类题用方格纸'); // 载体条款仍在
+    expect(mathLow.template).toContain('方格纸作答区'); // 载体条款仍在
     expect(mathLow.template).not.toContain('写字/抄写类题');
     expect(mathLow.template).not.toContain('抄写类题');
     const mathMid = getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'practice' });
