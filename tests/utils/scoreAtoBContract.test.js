@@ -13,11 +13,11 @@ const titles = (html) => [...html.matchAll(/<h[2-4]>([\s\S]*?)<\/h[2-4]>/g)].map
 const rowsAdded = (html) => (html.match(/<p><br><\/p>|<p class="blank-area"/g) || []).length;
 
 describe('A→B 契约：逐题标注进，真题标题出', () => {
-  it('① 有题号层 + 多判分处：标题合成（每空1分，共24分），题内 6 条原样', () => {
+  it('① 有题号层 + 多判分处：标题按题的总分合成（每小题4分，共24分），题内 6 条原样', () => {
     const items = Array.from({ length: 6 }, (_, i) => `<p>${i + 1}. ____ ____ ____ ____（每空1分，共4分）</p>`);
     const html = ['<h1>阶段测评</h1>', '<h3>一、填空（共24分）</h3>', ...items].join('\n');
     const r = run(html);
-    expect(titles(r.html)).toContain('一、填空（每空1分，共24分）');
+    expect(titles(r.html)).toContain('一、填空（每小题4分，共24分）');
     expect((r.html.match(/每空1分，共4分/g) || []).length, '题内标注全保留').toBe(6);
   });
 
@@ -29,13 +29,14 @@ describe('A→B 契约：逐题标注进，真题标题出', () => {
     expect((r.html.match(/（2分）/g) || []).length, '题内（2分）全保留').toBe(5);
   });
 
-  it('⑥ 填空：各题空数不同（每空1分），单价唯一但每题总分不同 → 标题仍按单位合成（每空1分，共24分）', () => {
+  it('⑥ 填空：各题空数不同（每空1分）→ 标题按**每题总分**分组，不得按空汇总', () => {
     const blanks = [4, 4, 4, 2, 2, 4, 4]; // 7 题共 24 空
     const items = blanks.map((n, i) => `<p>${i + 1}. ${'____ '.repeat(n)}（每空1分，共${n}分）</p>`);
     const html = ['<h1>阶段测评</h1>', '<h3>三、填一填（共24分）</h3>', ...items].join('\n');
     const r = run(html);
-    expect(titles(r.html), '单价唯一 ⇒ 按单位合成，不得拿"每小题X分"冒充').toContain('三、填一填（每空1分，共24分）');
-    expect((r.html.match(/每空1分，共\d+分/g) || []).length, '逐题标注全保留（7 条题内 + 标题 1 条）').toBe(8);
+    expect(titles(r.html), '按题的总分分组（4分：1、2、3、6、7；2分：4、5）')
+      .toContain('三、填一填（第1、2、3、6、7小题各4分，第4、5小题各2分，共24分）');
+    expect((r.html.match(/每空1分，共\d+分/g) || []).length, '逐题标注全保留（7 条，标题不再写"每空"）').toBe(7);
   });
 
   it('③ 无题号层（整栏）：A 已写在标题，B 不动', () => {

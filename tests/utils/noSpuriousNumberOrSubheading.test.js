@@ -164,7 +164,7 @@ describe('B 侧边界：不猜、不删、不补（缺陷在 A 收口）', () =>
     const out = run(html);
     const hs = heads(out);
     expect(hs[0], '单价组（A2）标题不得被合成改动').toContain('每式1分，共4分');
-    expect(hs[1], '逐题标分组（A1）应被 B 合成真题样式').toMatch(/每空1分，共8分/);
+    expect(hs[1], '逐题标分组（A1）应被 B 按题的总分合成').toMatch(/每小题4分，共8分/);
     expect(numbered(out).length, 'A2 组不得冒出题号（B 不补号）').toBe(2);
     for (const t of ['3×5', '2×6', '4×4', '5×5', '6＋6＋6＋6', '3个5相加']) expect(out).toContain(t);
   });

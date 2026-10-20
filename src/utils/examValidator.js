@@ -947,13 +947,15 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   // ── 1.6b. B·真题标分样式（规则 title-detail-fix）──
   //   A+B 分工（属主 2026-10-19 澄清）：**A 不能直接产出真题样式且保证分值/内容自洽**——
   //   A 的职责是逐题标出"每〈单位〉X分，共Y分"（自洽由 A 保证）；**B 的职责是把这些标注合成为
-  //   真题写法的标题**。两条路：
-  //     ① 题内单价只有一种 → "（每〈单位〉X分，共Y分）"；
-  //     ② 题内单价有多种 → 分组式 "（第1、3小题各1分，第2、4小题各2分，共6分）"。
+  //   真题写法的标题**。
+  //   🔴 2026-10-20（属主纠正）：**合成按"题"的总分，不按"空/单位"**——同一大题下各题空数可能不同
+  //     （每空分值也可能不同），按单位汇总会写出"每空1分，共24分"这种假单价；
+  //     真题样式是分组式：`（第3、5小题各6分，第4、6、7小题各4分，共24分）`。
+  //     故：总分只有一档 → `（每小题X分，共Y分）`（全是裸"（X分）"时用"每题"）；
+  //         总分多档 → 按**每题总分**分组。
   //   🔴 不改数、不做除法、不删正文：Y 取标题既有总数；题内标注**保留不动**（逐题对账的落点）。
-  //   🔴 归不了类（有题没标价／无编号）→ 不动，标题保持"（共X分）"。
-  //   2026-10-19 扩展：A 对"单判分处"的题只写"（2分）"（无"每"），B 同样能读——
-  //     该题单价＝该题总分，单位按"题"；这样选择题/判断题也能合成"（每题2分，共10分）"。
+  //   🔴 归不了类（有题没标总分／无编号）→ 不动，标题保持"（共X分）"。
+  //   2026-10-19 扩展：A 对"单判分处"的题只写"（2分）"（无"每"），B 同样能读——该题总分即该题分值。
   // 🔴 2026-10-19（属主提醒：大类名分学段、位置不同）：中学段**不设大类层**，域型名（课标内容领域名）
   //   直接作大题标题、只作范围标识、**不加作答要求** ⇒ B 不得把单价合成进这类标题。
   //   故合成只在小学段（primary_*）启用；中学段只保留 1.6 的"裸分→（共X分）"归一。
@@ -984,25 +986,22 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const price = pm ? parseFloat(pm[2]) : (bare ? itemTotal : null);
           itemsB.push({ num: nm[1], unit: pm ? pm[1] : '题', price, total: itemTotal });
         }
-        if (itemsB.length < 2 || itemsB.some((x) => x.total == null || x.price == null)) return;
+        if (itemsB.length < 2 || itemsB.some((x) => x.total == null)) return;
         // 自洽闸（2026-10-19）：题内各题总分之和须等于标题总数；不等 ⇒ **不合成**（不改数、不造分）。
         //   典型病态：大题标题只有范围名，下面第一条带号行是"作答要求"且带着大题总分的标注——
         //   若照它合成，会把要求行当成一题，写出"每题X分"。这里宁可不动，让 A 侧的标题缺口暴露。
         const sumTotals = itemsB.reduce((a, x) => a + x.total, 0);
         if (Math.abs(sumTotals - parseFloat(totalB)) > 1e-6) return;
-        const pricesB = [...new Set(itemsB.map((x) => x.price))];
-        const unitsB = [...new Set(itemsB.map((x) => x.unit))];
         const totalsB = itemsB.map((x) => x.total);
+        const uniqTotals = [...new Set(totalsB)];
+        // 只有"每题都是裸（X分）"（无"每…"）时才用"每题"；其余一律"每小题"（按题的总分，不按空）。
+        const allSingleSlot = itemsB.every((x) => x.price === x.total && x.unit === '题');
         let labelB = null;
-        if (unitsB.length === 1 && pricesB.length === 1) {
-          // 全部同单位、同单价（如全是"每空1分，共4分"）→ 按单位汇总
-          labelB = `（每${unitsB[0]}${pricesB[0]}分，共${totalB}分）`;
-        } else if (new Set(totalsB).size === 1) {
-          // 单位/单价不一，但**每题总分相同** → 按"每小题X分"（不得拿单价冒充题分）
-          const u = unitsB.length === 1 && unitsB[0] === '题' ? '题' : '小题';
-          labelB = `（每${u}${totalsB[0]}分，共${totalB}分）`;
+        if (uniqTotals.length === 1) {
+          // 每题总分同一档 → `（每小题X分，共Y分）`；不得回退成"每空1分"（空数不同时会成假单价）
+          labelB = `（每${allSingleSlot ? '题' : '小题'}${uniqTotals[0]}分，共${totalB}分）`;
         } else {
-          // 按**每题总分**分组（不是按单价）：第3、8小题各4分…
+          // 按**每题总分**分组（不是按单价、不是按空）：第3、5小题各6分，第4、6、7小题各4分…
           const groups = [];
           for (const it of itemsB) {
             let g = groups.find((x) => x.total === it.total);
