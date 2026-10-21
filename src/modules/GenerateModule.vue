@@ -1316,12 +1316,15 @@
           <div class="region-select-row" style="gap:16px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;">
               <input v-model="subQuestionNumbering" type="radio" value="per-section">
-              有小题的大题从1起（默认）
+              每大题从1起（默认）
             </label>
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;">
               <input v-model="subQuestionNumbering" type="radio" value="continuous">
-              有小题的大题全卷连续
+              全卷连续
             </label>
+          </div>
+          <div style="margin-top:4px;font-size:11px;color:var(--text-tertiary);line-height:1.5;">
+            只决定小题号的起编方式；其下没有各自成题的行的组不编号。
           </div>
         </div>
         <div class="modal-actions">
@@ -6450,7 +6453,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     genType,                        // 卷别→学业质量水平（高中·按学科分型，非全科统一）：正式卷按卷别映射、教辅锚毕业合格要求（单源 config/levelMapping）
     scopeType: scopeType.value || '', // 升学卷别（gaokao=高考）→ 高考水平；其余正式卷→合格考水平
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
-    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '有小题的大题全卷连续；其下没有子题时不编号' : '有小题的大题从1起；其下没有子题时不编号',
+    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '全卷连续；其下没有各自成题的行的组不编号' : '每大题从1起；其下没有各自成题的行的组不编号',
   });
   // 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
   const tplBodyText = instructionDraft.value;
@@ -6569,7 +6572,7 @@ const restoreDefaultInstruction = async () => {
     genType,                        // 卷别→学业质量水平（高中）：与 loadInstructionFromLibrary 同源
     scopeType: scopeType.value || '',
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
-    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '有小题的大题全卷连续；其下没有子题时不编号' : '有小题的大题从1起；其下没有子题时不编号',
+    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '全卷连续；其下没有各自成题的行的组不编号' : '每大题从1起；其下没有各自成题的行的组不编号',
   });
   // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构（委托正文栏目骨架）
   if (genType !== 'exam') {

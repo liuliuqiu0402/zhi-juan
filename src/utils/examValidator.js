@@ -1002,7 +1002,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           return { el: x.el, per };
         });
         if (scoredP.some((x) => x.per == null || x.per <= 0)) {
-          silentCount('title-unit-misplaced', `大题「${t}」标题写了单价、其下却有带号子题，但判分处数数不出来——程序未逐题补标分（不改动），请抽检`, 'warn');
+          // 2026-10-21 属主纠正：**这不是要程序兜底的事**——逐题标分缺失是生成侧缺陷；
+          //   该题以非空位方式作答（如"在○里填"）时程序数不出判分处，只报不改（不猜数、不改总分）。
+          silentCount('title-unit-misplaced', `大题「${t}」标题写了单价、其下却有带号子题，且逐题标分缺失（生成侧缺陷）——该题作答处不是程序可数的空位，无法核对分值，程序不改动，请重生成或人工补标`, 'warn');
           return;
         }
         const sumP = scoredP.reduce((a, x) => a + x.per, 0);
