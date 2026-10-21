@@ -944,6 +944,84 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
+  // ── 1.6b-pre. B·标题单价的错位下推（标题写了单价、其下却有带号子题、且逐题未标分）──
+  //   病根（2026-10-21 属主真机第三次复现，原话"三、填空（每空1分，共24分）分值标分没生效。
+  //     带题号的那一行没有标分。"）：A 侧"两支只能成立一支"（标题写单价 ⇔ 其下不得有题号）没落地；
+  //     而 1.6b 只认标题"（共X分）"⇒ 这段整段跳过，两端都不管，缺陷永久留在产物里。
+  //   本块的界（**不改数、不猜、不删正文、不改标题**）：
+  //     ① 只补"一行都没标过"的；已有任一行自带标分 → 不补（交给 1.6b 直接合成）；
+  //     ② 每行分值＝标题单价 × 该行判分处数（单位是"空"时判分处数必须数得出，数不出即放弃；
+  //        单位不是"空"且该行无空位载体时，按"一行一个单位"计）；
+  //     ③ **Σ 必须等于标题所写共Y分才补**——对不上整段不动（只在账能对平时纠正，绝不改总分）。
+  //   标题本身仍由 1.6b 按逐题总分合成（本块不碰标题，避免两处改同一处）。
+  if (has('title-detail-fix')) {
+    try {
+      const tplP = document.createElement('template');
+      tplP.innerHTML = out;
+      const answerBoundP = findAnswerBound(tplP.content);
+      const headsP = Array.from(tplP.content.querySelectorAll('h2, h3, h4'));
+      headsP.filter((hh) => !isInAnswerArea(hh, answerBoundP)).forEach((h) => {
+        const t = (h.textContent || '').trim();
+        const mP = t.match(/[（(]\s*每\s*([^\d，,）)]{1,4}?)\s*(\d+(?:\.\d+)?)\s*分\s*[，,]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
+        if (!mP) return;
+        const unitName = mP[1].trim();
+        const unitPrice = parseFloat(mP[2]);
+        const declared = parseFloat(mP[3]);
+        const idxP = headsP.indexOf(h);
+        // 作用域：下一个大题级标题（汉字序号）之前；组内小标题不截断（与 1.6b 同口径）。
+        const endP = headsP.slice(idxP + 1)
+          .find((x) => /^[一二三四五六七八九十]+、/.test((x.textContent || '').trim())) || null;
+        const linesP = [];
+        const seenP = new Set();
+        const collectP = (root) => {
+          if (!root || root.nodeType !== 1) return;
+          const candidates = [];
+          if (root.matches?.('.question, p')) candidates.push(root);
+          root.querySelectorAll?.('.question, p').forEach((el) => candidates.push(el));
+          const leaves = candidates.filter((el) => !candidates.some((other) => other !== el && el.contains(other)));
+          for (const el of leaves) {
+            if (seenP.has(el)) continue;
+            const tt = (el.textContent || '').trim();
+            if (!/^\d{1,2}\s*[.、．]/.test(tt)) continue;
+            const hasOwn = /(?:共\s*\d+(?:\.\d+)?\s*分|[（(]\s*\d+(?:\.\d+)?\s*分)\s*[)）]\s*$/.test(tt);
+            linesP.push({ el, hasOwn });
+            seenP.add(el);
+          }
+        };
+        for (let node = h.nextSibling; node && node !== endP; node = node.nextSibling) {
+          if (answerBoundP && (node === answerBoundP || isInAnswerArea(node, answerBoundP))) break;
+          collectP(node);
+        }
+        if (linesP.length === 0) return;               // 真 0 段：单价随标题是对的，不动
+        if (linesP.some((x) => x.hasOwn)) return;      // 已逐题标分 → 归 1.6b 合成，不重复追加
+        const scoredP = linesP.map((x) => {
+          const n = countBlanks(x.el.innerHTML);
+          let per = null;
+          if (n > 0) per = unitPrice * n;
+          else if (unitName !== '空') per = unitPrice;
+          return { el: x.el, per };
+        });
+        if (scoredP.some((x) => x.per == null || x.per <= 0)) {
+          silentCount('title-unit-misplaced', `大题「${t}」标题写了单价、其下却有带号子题，但判分处数数不出来——程序未逐题补标分（不改动），请抽检`, 'warn');
+          return;
+        }
+        const sumP = scoredP.reduce((a, x) => a + x.per, 0);
+        if (Math.abs(sumP - declared) > 1e-6) {
+          silentCount('title-unit-misplaced', `大题「${t}」标题单价×判分处数＝${sumP}分、与标题所写共${declared}分不符——程序不改动（不改数），请抽检该大题结构`, 'warn');
+          return;
+        }
+        for (const x of scoredP) {
+          const label = (x.per === unitPrice) ? `（${x.per}分）` : `（每${unitName}${unitPrice}分，共${x.per}分）`;
+          x.el.appendChild(document.createTextNode(label));
+        }
+        issues.push({ severity: 'info', type: 'title-detail', message: `标题单价已下推为逐题标分（${t}，补标 ${scoredP.length} 题）` });
+        fixed += 1;
+      });
+      out = tplP.innerHTML;
+    } catch (e) { console.warn('⚠️ 标题单价下推失败（不影响其它修复）:', e.message); }
+  }
+
+
   // ── 1.6b. B·真题标分样式（规则 title-detail-fix）──
   //   A+B 分工（属主 2026-10-19 澄清）：**A 不能直接产出真题样式且保证分值/内容自洽**——
   //   A 的职责是逐题标出"每〈单位〉X分，共Y分"（自洽由 A 保证）；**B 的职责是把这些标注合成为
@@ -967,7 +1045,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const bodyHeadsB = headsB.filter((h) => !isInAnswerArea(h, answerBoundB));
       bodyHeadsB.forEach((h) => {
         const t = (h.textContent || '').trim();
-        const mB = t.match(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
+        // 2026-10-21：标题末的括注认两态——"（共X分）"与"（每〈单位〉X分，共Y分）"。
+        //   后者是 A 侧错把单价写进标题（其下却已有带号子题）的形态；1.6b-pre 已把逐题标分补齐，
+        //   这里照样合成——不这样认，这个形态就永远没程序管（真机连续三次复现的根因）。
+        const mB = t.match(/[（(]\s*(?:每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*)?共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
         if (!mB) return;
         const idx = headsB.indexOf(h);
         // 作用域：下一个**大题级**标题（汉字序号），不是下一个任意标题；
@@ -1018,7 +1099,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             ? `第${g.nums.join('、')}小题各${g.total}分`
             : `第${g.nums[0]}小题${g.total}分`)).join('，')}，共${sumTotals}分）`;
         }
-        const nextB = t.replace(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/, labelB);
+        // 标题末括注的两种形态都整体替换为合成结果（"（共X分）"／"（每〈单位〉X分，共X分）"）。
+        const TAIL_SCORE_RE = /[（(]\s*(?:每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*)?共\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*$/;
+        const nextB = t.replace(TAIL_SCORE_RE, labelB);
         if (nextB !== t) {
           h.textContent = nextB;
           issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已改为真题标分样式：${nextB}` });
@@ -1031,7 +1114,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             && (x.textContent || '').trim().startsWith(`${seqM[1]}、`));
           if (ansHead) {
             const at = (ansHead.textContent || '').trim();
-            const mirrored = at.replace(/[（(]\s*(?:共\s*)?\d+(?:\.\d+)?\s*分\s*[)）]\s*$/, labelB);
+            const mirrored = at.replace(/[（(]\s*(?:每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*)?(?:共\s*)?\d+(?:\.\d+)?\s*分\s*[)）]\s*$/, labelB);
             ansHead.textContent = mirrored === at ? `${at}${labelB}` : mirrored;
           }
         }
