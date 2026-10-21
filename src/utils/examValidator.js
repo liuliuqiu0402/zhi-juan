@@ -1112,10 +1112,25 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           fixed += 1;
         }
         // 答案区同名大题标题镜像同一个分值括注（按汉字序号匹配）。
+        // 🔴 2026-10-21（真机实证）：答案区大题标题常被写成 `<p><strong>一、…（共14分）</strong></p>`（不是标题元素），
+        //   只找 h2/h3/h4 会整段漏掉 ⇒ 正文已合成、答案区仍是「（共14分）」，两处不一致。
+        //   故两级查找：先标题元素，再答案区内**无块级子元素**的 p/div（按「一、」前缀＋末尾分值括注判）。
+        const findAnsTitleB = (seq) => {
+          const byHead = headsB.find((x) => isInAnswerArea(x, answerBoundB)
+            && (x.textContent || '').trim().startsWith(`${seq}、`));
+          if (byHead) return byHead;
+          if (!answerBoundB) return null;
+          return Array.from(tplB.content.querySelectorAll('p, div'))
+            .filter((el) => isInAnswerArea(el, answerBoundB))
+            .filter((el) => !el.querySelector('p, div, h1, h2, h3, h4'))
+            .find((el) => {
+              const tt = (el.textContent || '').trim();
+              return tt.startsWith(`${seq}、`) && /[（(][^（()）]{0,30}分\s*[)）]\s*$/.test(tt);
+            }) || null;
+        };
         const seqM = t.match(/^([一二三四五六七八九十]+)、/);
         if (seqM && answerBoundB) {
-          const ansHead = headsB.find((x) => isInAnswerArea(x, answerBoundB)
-            && (x.textContent || '').trim().startsWith(`${seqM[1]}、`));
+          const ansHead = findAnsTitleB(seqM[1]);
           if (ansHead) {
             const at = (ansHead.textContent || '').trim();
             const mirrored = at.replace(/[（(]\s*(?:每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*)?(?:共\s*)?\d+(?:\.\d+)?\s*分\s*[)）]\s*$/, labelB);
