@@ -951,57 +951,63 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   //   🔴 2026-10-20（属主纠正）：**合成按"题"的总分，不按"空/单位"**——同一大题下各题空数可能不同
   //     （每空分值也可能不同），按单位汇总会写出"每空1分，共24分"这种假单价；
   //     真题样式是分组式：`（第3、5小题各6分，第4、6、7小题各4分，共24分）`。
-  //     故：总分只有一档 → `（每小题X分，共Y分）`（全是裸"（X分）"时用"每题"）；
+  //     故：总分只有一档 → `（每题X分，共Y分）`；
   //         总分多档 → 按**每题总分**分组。
-  //   🔴 不改数、不做除法、不删正文：Y 取标题既有总数；题内标注**保留不动**（逐题对账的落点）。
+  //   🔴 不改数、不做除法、不删正文：Σ 取题内各小题标分之和；标题原总数只作核对，不参与合成。题内标注**保留不动**（逐题对账的落点）。
   //   🔴 归不了类（有题没标总分／无编号）→ 不动，标题保持"（共X分）"。
   //   2026-10-19 扩展：A 对"单判分处"的题只写"（2分）"（无"每"），B 同样能读——该题总分即该题分值。
-  // 🔴 2026-10-19（属主提醒：大类名分学段、位置不同）：中学段**不设大类层**，域型名（课标内容领域名）
-  //   直接作大题标题、只作范围标识、**不加作答要求** ⇒ B 不得把单价合成进这类标题。
-  //   故合成只在小学段（primary_*）启用；中学段只保留 1.6 的"裸分→（共X分）"归一。
-  const isMidHighStageB = /^(middle|high)$/.test(String(stage || '').trim());
-  if (!isMidHighStageB && has('title-detail-fix')) {
+  // 🔴 2026-10-21（属主定稿）：B 按结构开，不按学段开关——小学"第一部分"没有直接小题，自然跳过；
+  //   中学域型名作大题标题、其下直接是小题，照常合成。0 段判定看题内有没有带号带标分的小题。
+  if (has('title-detail-fix')) {
     try {
       const tplB = document.createElement('template');
       tplB.innerHTML = out;
+      const answerBoundB = findAnswerBound(tplB.content);
       const headsB = Array.from(tplB.content.querySelectorAll('h2, h3, h4'));
-      headsB.forEach((h, i) => {
+      const bodyHeadsB = headsB.filter((h) => !isInAnswerArea(h, answerBoundB));
+      bodyHeadsB.forEach((h) => {
         const t = (h.textContent || '').trim();
         const mB = t.match(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
         if (!mB) return;
-        const totalB = mB[1];
-        const endB = headsB[i + 1] || null;
+        const idx = headsB.indexOf(h);
+        // 作用域：下一个**大题级**标题（汉字序号），不是下一个任意标题；
+        // 组内小标题（h3/h4、非汉字序号）不截断。
+        const endB = headsB.slice(idx + 1)
+          .find((x) => /^[一二三四五六七八九十]+、/.test((x.textContent || '').trim())) || null;
         const itemsB = [];
+        const seenB = new Set();
+        const collectB = (root) => {
+          if (!root || root.nodeType !== 1) return;
+          const candidates = [];
+          if (root.matches?.('.question, p')) candidates.push(root);
+          root.querySelectorAll?.('.question, p').forEach((el) => candidates.push(el));
+          const leaves = candidates.filter((el) => !candidates.some((other) => other !== el && el.contains(other)));
+          for (const el of leaves) {
+            if (seenB.has(el)) continue;
+            const tt = (el.textContent || '').trim();
+            const nm = tt.match(/^(\d{1,2})\s*[.、．]/);
+            if (!nm) continue;
+            // 只取带题号那一行末尾的小题总分；题干内部各分条的标分不计入合成。
+            const sm = tt.match(/共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]?\s*$/);
+            const bare = tt.match(/[（(]\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
+            const itemTotal = sm ? parseFloat(sm[1]) : (bare ? parseFloat(bare[1]) : null);
+            itemsB.push({ num: nm[1], total: itemTotal });
+            seenB.add(el);
+          }
+        };
         for (let node = h.nextSibling; node && node !== endB; node = node.nextSibling) {
-          if (node.nodeType !== 1) continue;
-          const tt = (node.textContent || '').trim();
-          const nm = tt.match(/^(\d{1,2})\s*[.、．]/);
-          if (!nm) continue;
-          const pm = tt.match(/每([^\s，,。；;：:（）()0-9]{1,3})(\d+(?:\.\d+)?)分/);
-          const sm = tt.match(/共\s*(\d+(?:\.\d+)?)\s*分/);
-          const bare = tt.match(/[（(]\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
-          const itemTotal = sm ? parseFloat(sm[1]) : (bare ? parseFloat(bare[1]) : null);
-          // 单价：有"每X分"取 X；只有裸"（Y分）"＝该题单判分处，单价＝该题总分；
-          // 只有"共Y分"而没有单价 ⇒ 判不出单价（不参与合成，防替没标价的题瞎写）。
-          const price = pm ? parseFloat(pm[2]) : (bare ? itemTotal : null);
-          itemsB.push({ num: nm[1], unit: pm ? pm[1] : '题', price, total: itemTotal });
+          if (answerBoundB && (node === answerBoundB || isInAnswerArea(node, answerBoundB))) break;
+          collectB(node);
         }
         if (itemsB.length < 2 || itemsB.some((x) => x.total == null)) return;
-        // 自洽闸（2026-10-19）：题内各题总分之和须等于标题总数；不等 ⇒ **不合成**（不改数、不造分）。
-        //   典型病态：大题标题只有范围名，下面第一条带号行是"作答要求"且带着大题总分的标注——
-        //   若照它合成，会把要求行当成一题，写出"每题X分"。这里宁可不动，让 A 侧的标题缺口暴露。
+        // Σ 一律取各小题标分之和；标题原总数只作核对，不参与合成（A 侧负责把账做平）。
         const sumTotals = itemsB.reduce((a, x) => a + x.total, 0);
-        if (Math.abs(sumTotals - parseFloat(totalB)) > 1e-6) return;
-        const totalsB = itemsB.map((x) => x.total);
-        const uniqTotals = [...new Set(totalsB)];
-        // 只有"每题都是裸（X分）"（无"每…"）时才用"每题"；其余一律"每小题"（按题的总分，不按空）。
-        const allSingleSlot = itemsB.every((x) => x.price === x.total && x.unit === '题');
+        const uniqTotals = [...new Set(itemsB.map((x) => x.total))];
         let labelB = null;
         if (uniqTotals.length === 1) {
-          // 每题总分同一档 → `（每小题X分，共Y分）`；不得回退成"每空1分"（空数不同时会成假单价）
-          labelB = `（每${allSingleSlot ? '题' : '小题'}${uniqTotals[0]}分，共${totalB}分）`;
+          labelB = `（每题${uniqTotals[0]}分，共${sumTotals}分）`;
         } else {
-          // 按**每题总分**分组（不是按单价、不是按空）：第3、5小题各6分，第4、6、7小题各4分…
+          // 按每题总分分组；组序＝该档第一次出现的顺序，组内题号升序；≥2 题用“各”，1 题不用。
           const groups = [];
           for (const it of itemsB) {
             let g = groups.find((x) => x.total === it.total);
@@ -1010,13 +1016,24 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           }
           labelB = `（${groups.map((g) => (g.nums.length >= 2
             ? `第${g.nums.join('、')}小题各${g.total}分`
-            : `第${g.nums[0]}小题${g.total}分`)).join('，')}，共${totalB}分）`;
+            : `第${g.nums[0]}小题${g.total}分`)).join('，')}，共${sumTotals}分）`;
         }
         const nextB = t.replace(/[（(]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/, labelB);
         if (nextB !== t) {
           h.textContent = nextB;
           issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已改为真题标分样式：${nextB}` });
           fixed += 1;
+        }
+        // 答案区同名大题标题镜像同一个分值括注（按汉字序号匹配）。
+        const seqM = t.match(/^([一二三四五六七八九十]+)、/);
+        if (seqM && answerBoundB) {
+          const ansHead = headsB.find((x) => isInAnswerArea(x, answerBoundB)
+            && (x.textContent || '').trim().startsWith(`${seqM[1]}、`));
+          if (ansHead) {
+            const at = (ansHead.textContent || '').trim();
+            const mirrored = at.replace(/[（(]\s*(?:共\s*)?\d+(?:\.\d+)?\s*分\s*[)）]\s*$/, labelB);
+            ansHead.textContent = mirrored === at ? `${at}${labelB}` : mirrored;
+          }
         }
       });
       out = tplB.innerHTML;

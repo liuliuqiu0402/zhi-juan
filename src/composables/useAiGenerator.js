@@ -929,10 +929,18 @@ export const isAnswerShell = (content) => {
   return body.length < 10 && !hasAnswerTrace;
 };
 
-/** once 模式答案区补包：<h2>参考答案… 无 answer-section 包裹 → 补包（docx 独立分节，页码不计入正文） */
-export const wrapAnswerSection = (content) => {
-  if (!content || /<div[^>]*class="[^"]*answer-section"/.test(content)) return String(content);
-  return String(content).replace(/(<h[1-6][^>]*>\s*参考答案[\s\S]*?)$/i, (m, ansPart) => `<div class="answer-section">\n${ansPart}</div>`);
+/** once 模式答案区补包：<h2>参考答案… 无 answer-section 包裹 → 补包（docx 独立分节，页码不计入正文）
+ *  同时把模型自带的答案标题按资料类型统一为程序标题（正式卷《参考答案与评分标准》/教辅《参考答案与解析》）。 */
+export const wrapAnswerSection = (content, genType = '') => {
+  if (!content) return String(content);
+  const ansTitle = genType === 'exam' ? '参考答案与评分标准' : '参考答案与解析';
+  let src = String(content).replace(
+    /<h[1-6]\b[^>]*>\s*[^<]{0,40}?参考答案[^<]*<\/h[1-6]>/i,
+    `<h2>${ansTitle}</h2>`,
+  );
+  if (/<div[^>]*class="[^"]*answer-section"/.test(src)) return src;
+  src = src.replace(/(<h[1-6][^>]*>\s*参考答案[\s\S]*?)$/i, (m, ansPart) => `<div class="answer-section">\n${ansPart}</div>`);
+  return src;
 };
 
 /** split 模式正文混答剥离：正文末尾若混入《参考答案…》区（完整或空壳）→ 整体剥离，
@@ -4791,7 +4799,7 @@ ${cardAnalysisText.substring(0, 1000)}
     // 🔧 once 模式答案区包装：模型输出的 <h2>参考答案… 无 answer-section 包裹 → 补包，
     //    docx 导出才能把答案区拆分为独立分节（页码独立、不计入正文页数）
     if (generateMode === 'once' && ansInContent) {
-      content = wrapAnswerSection(content);
+      content = wrapAnswerSection(content, genType);
     }
 
     // 标题根治兜底：移除模型拼入 h1 的任务行类型词（如“ 考卷”），标题只保留命名规范占位符组合

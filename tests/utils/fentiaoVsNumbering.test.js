@@ -29,7 +29,7 @@ describe('② A 侧：分值条只按"这一组是多件/是一件"判，不再�
     // 2026-10-19 属主实证：`二、列竖式` 下 `1. 5×6＝　　2. 4×6＝`（同一行两个号）。
     //   旧判词"每项自带一句只属于它的陈述或问题"会被读成"每个算式也是一个问题" ⇒ 逐式编号；
     //   现要求"文字表述"——算式只是一串符号，不算。
-    expect(QUESTION_OBJECT_CALIBER).toMatch(/只属于它的文字表述/);
+    expect(QUESTION_OBJECT_CALIBER).toMatch(/各自有独立题干/);
     expect(QUESTION_OBJECT_CALIBER, '旧"陈述或问题"（不含"文字"）不得回潮').not.toMatch(/只属于它的陈述或问题/);
     const t = tpl('exam', '数学', 'primary_mid');
     expect(t, '分值条：单价能覆盖全组就写单价（算式无文字表述 ⇒ 一组）').toContain('大题下面没有子题');

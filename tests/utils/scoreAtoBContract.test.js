@@ -13,11 +13,11 @@ const titles = (html) => [...html.matchAll(/<h[2-4]>([\s\S]*?)<\/h[2-4]>/g)].map
 const rowsAdded = (html) => (html.match(/<p><br><\/p>|<p class="blank-area"/g) || []).length;
 
 describe('A→B 契约：逐题标注进，真题标题出', () => {
-  it('① 有题号层 + 多判分处：标题按题的总分合成（每小题4分，共24分），题内 6 条原样', () => {
+  it('① 有题号层 + 多判分处：标题按题的总分合成（每题4分，共24分），题内 6 条原样', () => {
     const items = Array.from({ length: 6 }, (_, i) => `<p>${i + 1}. ____ ____ ____ ____（每空1分，共4分）</p>`);
     const html = ['<h1>阶段测评</h1>', '<h3>一、填空（共24分）</h3>', ...items].join('\n');
     const r = run(html);
-    expect(titles(r.html)).toContain('一、填空（每小题4分，共24分）');
+    expect(titles(r.html)).toContain('一、填空（每题4分，共24分）');
     expect((r.html.match(/每空1分，共4分/g) || []).length, '题内标注全保留').toBe(6);
   });
 

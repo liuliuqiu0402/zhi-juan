@@ -67,16 +67,18 @@ describe('答案完整性·空壳答案区检测（isAnswerShell）', () => {
 });
 
 describe('答案完整性·once 模式补包（wrapAnswerSection）', () => {
-  it('<h2>参考答案 无包裹 → 自动补 answer-section（docx 独立分节）', () => {
+  it('<h2>参考答案 无包裹 → 自动补 answer-section（docx 独立分节），标题归为程序标题', () => {
     const html = '<h2>一、选择题</h2><p>1. A</p><h2>参考答案</h2><p>1. A</p>';
     const out = wrapAnswerSection(html);
     expect(out).toContain('<div class="answer-section">');
-    expect(out).toContain('<h2>参考答案</h2>');
+    expect(out).toContain('<h2>参考答案与解析</h2>');
   });
 
-  it('已包裹 → 幂等不变', () => {
+  it('已包裹 → 再包一次不变（标题归一后幂等）', () => {
     const html = '<h2>一、选择题</h2><p>1. A</p><div class="answer-section"><h2>参考答案</h2><p>1. A</p></div>';
-    expect(wrapAnswerSection(html)).toBe(html);
+    const once = wrapAnswerSection(html);
+    expect(wrapAnswerSection(once)).toBe(once);
+    expect(once).toContain('<h2>参考答案与解析</h2>');
   });
 
   it('无答案区 → 不变', () => {

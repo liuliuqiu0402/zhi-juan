@@ -290,7 +290,7 @@ export const buildMultiTypeDiffBlock = ({ typeName = '', prevTypes = '', covered
 export const buildOutputBlock = ({ subject = '', genType = '', outputMode = 'split' } = {}) => {
   const selfContained = SELF_CONTAINED_TEACHING.includes(genType);
   return outputMode === 'once'
-    ? `\n\n${PAPER_OUTPUT_CONVENTIONS.once(subject, selfContained)}`
+    ? `\n\n${PAPER_OUTPUT_CONVENTIONS.once(subject, selfContained, genType)}`
     : `\n\n${PAPER_OUTPUT_CONVENTIONS.split(subject, selfContained)}`;
 };
 

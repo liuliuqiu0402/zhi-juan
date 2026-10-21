@@ -133,13 +133,13 @@ describe('整卷端到端 · 中学（无大类层，域型名即大题标题）
 
   it('不设大类层：标题数量＝大题数（无额外 h2 层）', () => {
     expect(h2(out)).toEqual([]);
-    expect(h3(out)).toEqual(['一、数与代数（共30分）', '二、图形与几何（共20分）']);
+    expect(h3(out)).toEqual(['一、数与代数（每题10分，共30分）', '二、图形与几何（每题10分，共20分）']);
   });
 
-  it('域型名标题只作范围标识：B 不得加单价', () => {
-    expect(out).not.toContain('每题10分');
-    expect(out).not.toContain('数与代数（每');
-    expect(out).not.toContain('图形与几何（每');
+  it('中学同构：域型名作大题标题，B 照常合成', () => {
+    expect(out).toContain('每题10分');
+    expect(out).toContain('数与代数（每题10分，共30分）');
+    expect(out).toContain('图形与几何（每题10分，共20分）');
   });
 
   it('题内逐题标注原样保留', () => {
