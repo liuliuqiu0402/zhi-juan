@@ -1142,6 +1142,78 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     } catch (e) { console.warn('⚠️ 大题标题样式转换失败（不影响其它修复）:', e.message); }
   }
 
+  // ── 1.6e. 多余题号：**只报不改**（题号归模型侧判；程序不删正文，删了全卷连续号会断）──
+  //   属主 2026-10-21 定：编号只能模型侧判对，程序侧删号会破坏连续序号 ⇒ 这里只做取证/提示。
+  //   两条判据（都只看卷面）：
+  //     ① 标题声明单价（每〈单位〉X分，共Y分）且该组每一行都是**并列算式行**（含等号、无句末标点）、却带着题号
+  //        ⇒ “并列区不该有小题号”；
+  //     ② 某带号行的文字（去号、去分值括注）覆盖标题核心字 ≥80%、长度与核心相近、且无作答载体
+  //        ⇒ “该行只是标题的复述，不是一道题”。
+  //   命中只进 issues（warn），不改 html、不改号。
+  if (has('title-detail-fix')) {
+    try {
+      const tplE = document.createElement('template');
+      tplE.innerHTML = out;
+      const answerBoundE = findAnswerBound(tplE.content);
+      const headsE = Array.from(tplE.content.querySelectorAll('h2, h3, h4'));
+      const normE = (s) => String(s || '')
+        .replace(/[（(][^（()）]{0,40}\d+(?:\.\d+)?\s*分[^（()）]{0,10}[)）]/g, '')
+        .replace(/^[一二三四五六七八九十]+、/, '')
+        .replace(/[\s，。、；：！？,.!?;:（）()「」“”"'’‘]/g, '');
+      headsE.filter((h) => !isInAnswerArea(h, answerBoundE)).forEach((h) => {
+        const t = (h.textContent || '').trim();
+        const idx = headsE.indexOf(h);
+        const endE = headsE.slice(idx + 1)
+          .find((x) => /^[一二三四五六七八九十]+、/.test((x.textContent || '').trim())) || null;
+        const lines = [];
+        for (let n = h.nextSibling; n && n !== endE; n = n.nextSibling) {
+          if (answerBoundE && (n === answerBoundE || isInAnswerArea(n, answerBoundE))) break;
+          const cands = [];
+          if (n.nodeType === 1) {
+            if (n.matches?.('p, .question')) cands.push(n);
+            n.querySelectorAll?.('p, .question').forEach((el) => cands.push(el));
+          }
+          for (const el of cands) {
+            if (lines.includes(el)) continue;
+            if (!/^\s*\d{1,2}\s*[.、．]/.test(el.textContent || '')) continue;
+            lines.push(el);
+          }
+        }
+        if (!lines.length) return;
+        const isUnitTitle = /[（(]\s*每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*共\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*$/.test(t);
+        const allArith = lines.every((el) => {
+          const txt = el.textContent || '';
+          return /[＝=]/.test(txt) && !/[。？！?]/.test(txt);
+        });
+        if (isUnitTitle && allArith) {
+          issues.push({
+            severity: 'warn',
+            type: 'spurious-row-number',
+            message: `大题「${t}」是并列区（整组并列算式），其下却有 ${lines.length} 处小题号——生成侧判错了类别，程序不改正文（删号会断全卷连续序号），请重生成`,
+          });
+          return;
+        }
+        const core = normE(t);
+        if (core.length < 4) return;
+        const coreSet = new Set(core);
+        const restated = lines.filter((el) => {
+          const lineCore = normE(el.textContent || '');
+          const hasCarrier = /blank-|____|＿{2,}|[（(]\s*[　\s]{2,}\s*[)）]/.test(el.innerHTML || '');
+          if (hasCarrier || lineCore.length > core.length + 6) return false;
+          const covered = [...coreSet].filter((ch) => lineCore.includes(ch)).length / coreSet.size;
+          return covered >= 0.8;
+        });
+        if (restated.length) {
+          issues.push({
+            severity: 'warn',
+            type: 'spurious-row-number',
+            message: `大题「${t}」其下有 ${restated.length} 行只是标题的复述、却带着小题号——生成侧把标题写成了带号题干，请重生成`,
+          });
+        }
+      });
+    } catch (e) { console.warn('⚠️ 多余题号取证失败（不影响其它修复）:', e.message); }
+  }
+
   // ── 2. 大题级：分值账目 + 载体结构校验（DOM 内直接操作，避免字符串与 DOM 序列化差异）──
   {
     let tpl = null;
