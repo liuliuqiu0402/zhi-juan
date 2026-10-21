@@ -1009,7 +1009,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         }
         const sumP = scoredP.reduce((a, x) => a + x.per, 0);
         if (Math.abs(sumP - declared) > 1e-6) {
-          silentCount('title-unit-misplaced', `大题「${t}」标题单价×判分处数＝${sumP}分、与标题所写共${declared}分不符——程序不改动（不改数），请抽检该大题结构`, 'warn');
+          // 属主 2026-10-21：这条的本质是**两支互斥被违反**（标题写了单价、其下却有题号），
+          //   不是"程序算不平"。文案按结构缺陷报，避免让人以为该由程序去凑平。
+          silentCount('title-unit-misplaced', `大题「${t}」标题写了单价、其下却有 ${linesP.length} 行带题号（两支互斥：标题写单价时其下不得有任何题号）——生成侧判错了支，程序不改数、不动结构，请重生成`, 'warn');
           return;
         }
         for (const x of scoredP) {
