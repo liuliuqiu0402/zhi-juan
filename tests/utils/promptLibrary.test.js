@@ -771,8 +771,8 @@ describe('小题编号配置注入（有小题的大题从1起 / 全卷连续）
   it('默认有小题的大题从1起；显式传全卷连续时替换为全卷连续', () => {
     const tpl = '· 小题编号：{subQuestionNumbering}';
     const a = buildInjectionInstruction({ template: tpl, grade: '二年级', subject: '数学', genTypeLabel: '正式考卷' });
-    expect(a).toContain('小题编号：有小题的大题从1起；整组只有一条作答要求的不编号');
-    const b = buildInjectionInstruction({ template: tpl, grade: '二年级', subject: '数学', genTypeLabel: '正式考卷', subQuestionNumbering: '有小题的大题全卷连续；整组只有一条作答要求的不编号' });
-    expect(b).toContain('小题编号：有小题的大题全卷连续；整组只有一条作答要求的不编号');
+    expect(a).toContain('小题编号：有小题的大题从1起；其下没有子题时不编号');
+    const b = buildInjectionInstruction({ template: tpl, grade: '二年级', subject: '数学', genTypeLabel: '正式考卷', subQuestionNumbering: '有小题的大题全卷连续；其下没有子题时不编号' });
+    expect(b).toContain('小题编号：有小题的大题全卷连续；其下没有子题时不编号');
   });
 });
