@@ -168,26 +168,54 @@ export const normNodeMinW = (v) => (v === '' || v == null ? null : numOr(v, 40, 
 export const normNodeMinH = (v) => (v === '' || v == null ? null : numOr(v, 24, 800));
 
 /**
- * 行内加粗解析：`**粗**` → 去掉标记的纯文本 + 每字符"是否加粗"的掩码。
- * 只用一对星号包住 1~40 字的片段；**不成对的 `**` 原样保留**（数学里的 `3**2` 之类不会被误吃）。
- * 为什么要单独的解析：折行是按纯文本算的，渲染却要按"每个字粗不粗"切成若干段——
- *   先摊成掩码，折行后再按字符回填（见 mindmap 的 lineRuns）。
+ * 行内样式解析（**局部加粗** ＋ **局部改色**）：
+ *   · `**粗**`                  → 该段 700 字重
+ *   · `{{红:文字}}` / `{{#c00000:文字}}` → 该段换色（红橙绿蓝紫灰金 或十六进制）
+ *   两者可以套：`{{红:**重点**}}`（先按色切段，段内再按 `**` 切）。
+ * 只用成对的标记；**不成对的 `**` / `{{` 原样保留**（数学里的 `3**2`、正文里的花括号不会被误吃）。
+ * 为什么先摊成"逐字掩码"：折行是按纯文本算的，渲染却要按"每个字粗不粗、什么颜色"切成若干段——
+ *   先摊平，折行后再按字符回填（见 mindmap 的 lineRuns）。
  */
 export const BOLD_SPAN_RE = /\*\*([^*\n]{1,40})\*\*/g;
-export const parseBoldRuns = (text) => {
-  const src = String(text == null ? '' : text);
-  let plain = '';
-  const mask = [];
-  let last = 0;
+
+/** 可用的具名颜色（低饱和、黑白打印也能区分深浅；与导图分支色同族） */
+export const NAMED_COLORS = {
+  红: '#c0392b', 橙: '#b06a1f', 绿: '#1f7a5c', 蓝: '#2b5ea7',
+  紫: '#8a4b8a', 灰: '#6b7280', 金: '#a67c00',
+};
+
+/** 行内改色标记：`{{红:…}}` 或 `{{#rrggbb:…}}`（花括号在教学内容里几乎不出现，且必须成对） */
+export const COLOR_SPAN_RE = /\{\{(#[0-9a-fA-F]{3,6}|[红橙绿蓝紫灰金]):([^{}\n]{1,40})\}\}/g;
+
+/** 段内再解析 `**粗**` */
+const pushBoldSeg = (seg, color, plain, bold, colors) => {
   BOLD_SPAN_RE.lastIndex = 0;
+  let last = 0;
   let m;
-  while ((m = BOLD_SPAN_RE.exec(src))) {
-    for (const ch of src.slice(last, m.index)) { plain += ch; mask.push(false); }
-    for (const ch of m[1]) { plain += ch; mask.push(true); }
+  while ((m = BOLD_SPAN_RE.exec(seg))) {
+    for (const ch of seg.slice(last, m.index)) { plain.push(ch); bold.push(false); colors.push(color); }
+    for (const ch of m[1]) { plain.push(ch); bold.push(true); colors.push(color); }
     last = m.index + m[0].length;
   }
-  for (const ch of src.slice(last)) { plain += ch; mask.push(false); }
-  return { plain, mask };
+  for (const ch of seg.slice(last)) { plain.push(ch); bold.push(false); colors.push(color); }
+};
+
+export const parseInlineStyles = (text) => {
+  const src = String(text == null ? '' : text);
+  const plain = [];
+  const bold = [];
+  const colors = [];
+  let last = 0;
+  COLOR_SPAN_RE.lastIndex = 0;
+  let m;
+  while ((m = COLOR_SPAN_RE.exec(src))) {
+    pushBoldSeg(src.slice(last, m.index), '', plain, bold, colors);
+    const c = m[1].startsWith('#') ? normalizeHex(m[1]) : (NAMED_COLORS[m[1]] || '');
+    pushBoldSeg(m[2], c, plain, bold, colors);
+    last = m.index + m[0].length;
+  }
+  pushBoldSeg(src.slice(last), '', plain, bold, colors);
+  return { plain: plain.join(''), bold, colors };
 };
 
 /** 按字号/字重实测或估算一段文字的宽度（无 measurer 时吃 estimateTextWidth 的安全系数） */

@@ -34,7 +34,7 @@ import {
   DEFAULT_PALETTE, INK, PAPER,
   esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper,
   lineBudget, normalizeHex, nodeWeight, weightPadK,
-  normNodeFont, normNodeMinW, normNodeMinH, parseBoldRuns, textWidthOf,
+  normNodeFont, normNodeMinW, normNodeMinH, parseInlineStyles, textWidthOf,
 } from './shared.js';
 
 // 文本工具统一在 shared.js（导图族共用），这里再导出一次，保持图种模块对外 API 一致
@@ -89,8 +89,8 @@ export const layoutBrace = (spec, opts = {}) => {
     //   ③ 节点可带强调色（括号图白底，所以是**文字色**）。
     const weight = nodeWeight(raw, depth, isRoot);
     const exact = typeof measurer === 'function';
-    const { plain, mask } = parseBoldRuns(tf(title));
-    const anyBold = mask.some(Boolean);
+    const { plain, bold: boldMask, colors } = parseInlineStyles(tf(title));
+    const anyBold = boldMask.some(Boolean);
     const effWeight = anyBold ? Math.max(weight, 700) : weight;
     const measure = exact ? (t, f) => measurer(t, f, effWeight) : undefined;
     const boldK = weightPadK(effWeight, exact);
@@ -102,9 +102,11 @@ export const layoutBrace = (spec, opts = {}) => {
       for (const ch of line) {
         while (cur < plain.length && plain[cur] !== ch) cur += 1;
         if (cur < plain.length) cur += 1;
-        const b = mask[cur - 1] === true;
-        if (runs.length && runs[runs.length - 1].bold === b) runs[runs.length - 1].text += ch;
-        else runs.push({ text: ch, bold: b });
+        const b = boldMask[cur - 1] === true;
+        const c = colors[cur - 1] || '';
+        const tail = runs[runs.length - 1];
+        if (tail && tail.bold === b && tail.color === c) tail.text += ch;
+        else runs.push({ text: ch, bold: b, color: c });
       }
       return runs.map((r) => ({ ...r, w: widthOf(r.text, r.bold) }));
     });
@@ -283,7 +285,7 @@ export const buildBraceSvg = (spec, opts = {}) => {
       for (const run of runs) {
         out.push(
           `<text x="${x.toFixed(1)}" y="${y}" font-size="${n.fs}" `
-          + `font-weight="${run.bold ? 700 : weight}" fill="${fill}" text-anchor="start">${esc(run.text)}</text>`,
+          + `font-weight="${run.bold ? 700 : weight}" fill="${run.color || fill}" text-anchor="start">${esc(run.text)}</text>`,
         );
         x += run.w || 0;
       }

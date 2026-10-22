@@ -29,7 +29,7 @@ import {
   DEFAULT_FONT, DEFAULT_PALETTE, INK, HEAD_FILL, PAPER,
   esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper,
   lineBudget, normalizeHex, nodeWeight, weightPadK,
-  normNodeFont, normNodeMinW, normNodeMinH, parseBoldRuns, textWidthOf,
+  normNodeFont, normNodeMinW, normNodeMinH, parseInlineStyles, textWidthOf,
 } from './shared.js';
 
 // 文本工具与配色统一在 shared.js（导图族共用），这里再导出一次，保持本模块原有对外 API 不变
@@ -122,10 +122,11 @@ export const layoutMindmap = (tree, opts = {}) => {
     const str = tf(raw.title);
     const weight = nodeWeight(raw, depth, isRoot);
     const exact = typeof measurer === 'function';
-    // 🔴 2026-10-22（属主："局部加粗可以做"）：`**…**` → 纯文本 + 逐字掩码。
-    //   折行按纯文本算（宽度判据不变），折完再按字符把掩码回填成"每行的若干段"，渲染逐段出字。
-    const { plain, mask } = parseBoldRuns(str);
-    const anyBold = mask.some(Boolean);
+    // 🔴 2026-10-22（属主："局部加粗可以做"＋"局部改字颜色也可以的吧"）：行内样式统一解析——
+    //   `**粗**` 与 `{{红:字}}`／`{{#c00000:字}}`，可嵌套（`{{红:**重点**}}`）。
+    //   折行按纯文本算（宽度判据不变），折完再按字符把"粗/色"掩码回填成"每行的若干段"，渲染逐段出字。
+    const { plain, bold: boldMask, colors } = parseInlineStyles(str);
+    const anyBold = boldMask.some(Boolean);
     const effWeight = anyBold ? Math.max(weight, 700) : weight;
     const measure = exact ? (t, f) => measurer(t, f, effWeight) : undefined;
     const boldK = weightPadK(effWeight, exact);
@@ -142,9 +143,11 @@ export const layoutMindmap = (tree, opts = {}) => {
       for (const ch of line) {
         while (cur < plain.length && plain[cur] !== ch) cur += 1;
         if (cur < plain.length) cur += 1;
-        const b = mask[cur - 1] === true;
-        if (runs.length && runs[runs.length - 1].bold === b) runs[runs.length - 1].text += ch;
-        else runs.push({ text: ch, bold: b });
+        const b = boldMask[cur - 1] === true;
+        const c = colors[cur - 1] || '';
+        const tail = runs[runs.length - 1];
+        if (tail && tail.bold === b && tail.color === c) tail.text += ch;
+        else runs.push({ text: ch, bold: b, color: c });
       }
       return runs.map((r) => ({ ...r, w: widthOf(r.text, r.bold) }));
     });
@@ -459,7 +462,9 @@ export const buildMindmapSvg = (tree, opts = {}) => {
       let x = n.side === -1 ? n.x + n.w - n.padX - total : n.x + n.padX;
       const y = (baseline0 + i * n.lineH).toFixed(1);
       for (const run of runs) {
-        out.push(`<text x="${x.toFixed(1)}" y="${y}" font-size="${n.fs}" font-weight="${run.bold ? 700 : weight}" fill="${fill}" text-anchor="start">${esc(run.text)}</text>`);
+        // 局部改色优先于"节点强调色/默认墨色"（`{{红:…}}` 只管包住的那几个字）
+        const runFill = run.color || fill;
+        out.push(`<text x="${x.toFixed(1)}" y="${y}" font-size="${n.fs}" font-weight="${run.bold ? 700 : weight}" fill="${runFill}" text-anchor="start">${esc(run.text)}</text>`);
         x += run.w || 0;
       }
     });

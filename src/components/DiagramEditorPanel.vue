@@ -156,35 +156,7 @@
                     @change="onNum(e.path, 'fs', $event.target.value)"
                   >
                 </label>
-                <label
-                  class="de-num"
-                  title="手动最小框宽：只会加宽，不会比文字窄（所以裁不到字）"
-                >宽≥
-                  <input
-                    type="number"
-                    min="40"
-                    max="600"
-                    step="10"
-                    :value="e.w"
-                    placeholder="自动"
-                    @change="onNum(e.path, 'w', $event.target.value)"
-                  >
-                </label>
-                <label
-                  class="de-num"
-                  title="手动最小框高：只会加高，富余高度用来上下居中"
-                >高≥
-                  <input
-                    type="number"
-                    min="24"
-                    max="800"
-                    step="10"
-                    :value="e.h"
-                    placeholder="自动"
-                    @change="onNum(e.path, 'h', $event.target.value)"
-                  >
-                </label>
-                <span class="de-hint">局部加粗：用 **…** 包住要加粗的字</span>
+                <span class="de-hint">局部：**粗**　{{ colorSyntax }} 换色（红橙绿蓝紫灰金）</span>
               </div>
             </div>
           </div>
@@ -293,10 +265,13 @@ const onMove = (path, dir) => { const n = moveNode(draft.value, path, dir); if (
 //   （加粗在黑白打印下仍可区分，颜色不会）。
 const onBold = (path, bold) => { const n = setStyleAt(draft.value, path, { bold }); if (n) draft.value = n; };
 const onColor = (path, color) => { const n = setStyleAt(draft.value, path, { color }); if (n) draft.value = n; };
-// 字号 / 手动最小宽高（2026-10-22 属主："节点字号可以做""手工拖框改宽高值得做吧"）
-//   空值＝自动（删字段）；越界由渲染侧同一套 norm 夹到合法区间。
-//   宽/高 在渲染侧是**最小值**：只会加宽加高，所以不可能把字裁掉。
+// 字号（2026-10-22 属主："节点字号可以做"）——空值＝自动（删字段），越界由渲染侧同一套 norm 夹到合法区间。
+// ⚠️ 2026-10-22 属主："我们现在是随字自适配的，所以也不需要改框了吧？" ⇒ **面板撤掉"宽≥/高≥"两个输入**：
+//   自动排版已保证"框随内容、字不出框"，手改只剩"对齐美观"一条用途，不值得常驻占位。
+//   规格与渲染侧的 `w`／`h`（最小值语义，只放大不缩小）**保留**，将来若要"对齐美观"再加回 UI 即可。
 const onNum = (path, key, val) => { const n = setStyleAt(draft.value, path, { [key]: val }); if (n) draft.value = n; };
+/** 面板里的写法示例（放在 JS 常量里，避免 Vue 把 `{{…}}` 当成插值解析） */
+const colorSyntax = '{{红:字}}';
 
 // ⬇️⬆️ 升降层级（确定性按钮：真机上从输入框起拖常常拖不动，故不只依赖拖拽）
 const onIndent = (path) => {

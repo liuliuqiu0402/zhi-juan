@@ -586,6 +586,37 @@ describe('mindmapSvg · 节点字号 / 局部加粗 / 手动宽高', () => {
     expect(n.lines.join('')).toBe(long);
   });
 
+  it('局部改色：`{{红:…}}` / `{{#rrggbb:…}}` 只给包住的字换色，标记不出现在图上', () => {
+    const t = { title: 'r', children: [
+      { title: '重点：{{红:必须验算}}，其余照常' },
+      { title: '指定色：{{#1f7a5c:绿字}}' },
+    ] };
+    const { nodes, svg } = buildMindmapSvg(t, { layout: 'right' });
+    const a = nodes.find((x) => x.title.includes('必须验算'));
+    expect(a.lines.join(''), '花括号标记必须被吃掉').not.toContain('{{');
+    expect(a.lines.join('')).toContain('必须验算');
+    expect(svg, '具名红→低饱和红').toContain('fill="#c0392b"');
+    expect(svg, '十六进制原样生效').toContain('fill="#1f7a5c"');
+    // 同一行里"没包住的字"仍是默认色（不被整条染色）
+    const restRun = a.lineRuns.flat().find((r) => r.text.includes('其余'));
+    expect(restRun, '未包住的字仍是一段').toBeTruthy();
+    expect(restRun.color).toBe('');
+  });
+
+  it('局部加粗与局部改色可嵌套：`{{红:**重点**}}` 同时变粗变红', () => {
+    const { nodes, svg } = buildMindmapSvg({ title: 'r', children: [{ title: '{{红:**重点**}}后面' }] }, { layout: 'right' });
+    const n = nodes.find((x) => x.title.includes('重点'));
+    const run = n.lineRuns.flat().find((r) => r.text.includes('重点'));
+    expect(run.bold).toBe(true);
+    expect(run.color).toBe('#c0392b');
+    expect(svg).toContain('font-weight="700" fill="#c0392b"');
+  });
+
+  it('不成对的 `{{` 原样保留（不吞正文花括号）', () => {
+    const { nodes } = buildMindmapSvg({ title: 'r', children: [{ title: '集合记作 {{x|x>0}' }] }, { layout: 'right' });
+    expect(nodes.find((x) => x.title.includes('集合')).lines.join('')).toContain('{{x|x>0}');
+  });
+
   it('手动加高：框高＝手动值，文字上下居中（不压缩行距）', () => {
     const t = { title: 'r', children: [{ title: '要点', h: 90 }] };
     const { nodes, svg } = buildMindmapSvg(t, { layout: 'right' });
