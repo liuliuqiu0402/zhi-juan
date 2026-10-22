@@ -20,6 +20,7 @@ import {
 import { ERRORBOOK_FACET_NAMES } from '../../src/config/errorbookFacets.js';
 import { EXAM_BLUEPRINTS } from '../../src/config/examPaperBlueprints.js';
 import { GENERIC_SPECIAL_DESC } from '../../src/config/specialDomains.js';
+import { getValidatorRule } from '../../src/config/validatorRules.js';
 import { buildAnswerSpaceInstruction, buildCarrierInstruction, buildLongAnswerCarrierInstruction } from '../../src/config/layoutSpec.js';
 import { buildMaterialUsageBlock, buildOrganizeBlock, buildTailBlocks, TAIL_VARIETY } from '../../src/utils/injectionManifest.js';
 
@@ -634,6 +635,17 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     //   两条退路都要堵死——零块不合规、能进图的不得退回条目清单。
     expect(mf, '零导图块即不合规（防偷懒）').toContain('一块导图都没有即不合规');
     expect(mf, '不得以条目清单代替导图').toContain('不得以条目清单代替导图');
+  });
+
+  // 🔴 2026-10-22（属主："为啥其他组织风格的都没有表格呢？…各种形式都能用的吧"）：
+  //   表格不是禁用，是原句只写了否定半句（"同类并列条目…不建表"）⇒ 模型读成"别用表"。
+  //   现锁：**正反两半都要在**——有行列对应就该用表、没有才不建表。
+  it('表格口径为条件式（有行列对应就该用表／没有才不建表），不得只剩否定半句', () => {
+    const r = getValidatorRule('text-format-fix');
+    expect(r, 'text-format-fix 规则仍在').toBeTruthy();
+    expect(r.promptHint, '正向半句在位').toContain('确有行列对应的内容用');
+    expect(r.promptHint, '反向半句限定为"没有行列对应的并列条目"').toContain('没有行列对应的并列条目');
+    expect(r.promptHint, '不得回退成"同类并列的条目…不建表"的禁令式').not.toContain('同类并列的条目用行内成列、不建表');
   });
 
   // 🔴 2026-09-30（用户裁定·只给课标要求、不给做法）：情境链路的**做法层**守卫。
