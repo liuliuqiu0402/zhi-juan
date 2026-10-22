@@ -157,7 +157,7 @@ describe('判据可判定性：口算/竖式/填空 各自命中且只命中一�
   });
 
   it('填空（有题号）⇒ 有题号支，且该支必须逐题标分', () => {
-    expect(score, '标题不写单价').toContain('（不写单价）');
+    expect(score, '标题写单价也不替代小题标分').toContain('都不替代小题标分');
     expect(score, '每个子题末标分').toContain('每个小题在带题号的那一行末尾写');
     expect(score, '不为此新增题号或题干').toContain('不为此新增题号或题干');
   });
