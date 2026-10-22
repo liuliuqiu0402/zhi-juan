@@ -12,6 +12,7 @@ import {
   renderDiagramBlocks, parseDiagramBlock, toResponsiveSvg, DIAGRAM_BLOCK_CLASS,
   printReadabilityWarning, PRINT_WARN_WIDTH, PRINT_SAFE_WIDTH, PRINT_MIN_SCALE,
 } from '../../src/utils/diagramBlock.js';
+import { buildDiagramSvg } from '../../src/utils/diagrams/index.js';
 
 const OK_BLOCK = '<div class="k-diagram" data-type="mindmap" data-layout="balanced">'
   + '{"title":"函数的概念","children":[{"title":"定义域"},{"title":"值域"}]}'
@@ -151,5 +152,26 @@ describe('diagramBlock · 标记块渲染', () => {
       const c = widthOf(renderDiagramBlocks(b, { measurer: (t, f) => String(t).length * f * 1.6 }).html);
       expect(c, `实测加宽后图应变宽：${b.slice(0, 40)}`).toBeGreaterThan(a);
     }
+  });
+
+  // 🔴 2026-10-22（属主定：A4 版心取 643，且要"按 A4 排版"而不是事后整体缩放）：
+  //   超宽时应收窄折行宽度**重排**（字号不变），图宽落回版心内。
+  it('按 A4 版心（643）重排：宽了收窄折行重排，图宽落回版心内', () => {
+    const deep = {
+      type: 'mindmap',
+      title: '知识梳理',
+      children: [{
+        title: '一级要点内容',
+        children: [{
+          title: '二级要点内容',
+          children: [{ title: '三级要点内容', children: [{ title: '四级要点内容' }] }],
+        }],
+      }],
+    };
+    const raw = buildDiagramSvg(deep, { maxLabelWidth: 150 });
+    const fitted = buildDiagramSvg(deep, { maxLabelWidth: 150, fitWidth: PRINT_SAFE_WIDTH });
+    expect(fitted.width, '不得超出版心').toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
+    expect(fitted.width, '确实发生了重排（不是没生效）').toBeLessThan(raw.width);
+    expect(fitted.svg, '仍是完整 SVG').toContain('</svg>');
   });
 });

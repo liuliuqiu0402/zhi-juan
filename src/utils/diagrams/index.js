@@ -58,7 +58,28 @@ export const buildDiagramSvg = (spec, opts = {}) => {
   const body = spec || {};
   // 思维导图的版式从 spec.layout 取（balanced | right），其余图种忽略
   const merged = type === 'mindmap' ? { ...opts, layout: body.layout || opts.layout || 'balanced' } : opts;
-  const r = BUILDERS[type](body, merged);
+  let r = BUILDERS[type](body, merged);
+  // 🔴 2026-10-22（属主："按 A4 尺寸排版"·取 643 版心）：**先排版、再整体缩放**会让字号跟着变小。
+  //   这里加一步"**按版心宽度重排**"：宽了先收窄折行宽度（maxLabelWidth）再排，最多 8 轮，字号保持不变；
+  //   若仍放不下（balanced 是"以根为中轴、按较宽一侧×2 算画布"，深树必然超宽），
+  //   **改用向右生长（right）**再排一次——宽度不再翻倍；实在收不下（如时间轴按条数排）则保持原样，
+  //   交给导出侧等比收敛并告警。
+  const fit = Number(merged.fitWidth) || 0;
+  if (fit && r.width > fit) {
+    const narrow = (o) => {
+      let mlw = Number(o.maxLabelWidth) || 150;
+      let cur = BUILDERS[type](body, o);
+      for (let i = 0; i < 8 && cur.width > fit && mlw > 56; i += 1) {
+        mlw = Math.max(56, Math.round(mlw * 0.85));
+        cur = BUILDERS[type](body, { ...o, maxLabelWidth: mlw });
+      }
+      return cur;
+    };
+    r = narrow(merged);
+    if (r.width > fit && type === 'mindmap' && merged.layout !== 'right') {
+      r = narrow({ ...merged, layout: 'right' });
+    }
+  }
   return { svg: r.svg, width: r.width, height: r.height, nodes: r.nodes || [], type };
 };
 

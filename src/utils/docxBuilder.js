@@ -6,6 +6,7 @@ import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Width
 // 导图（知识梳理/括号图/流程图/时间轴/鱼骨图/概念关系图）在正文里是**内联 SVG**（PDF 通道靠它保持矢量），
 //    而 docx 的 ImageRun **不支持 svg** → Word 导出前必须把 SVG 光栅化成 PNG，否则图表在 Word 里直接消失。
 import { diagramToPngDataUrl } from './diagrams/index.js';
+import { PRINT_SAFE_WIDTH } from './diagramBlock.js';
 import { TZG_MARKER, TZG_PINYIN_MARKER, MZG_MARKER, MZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, CIRCLE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 import { getMergedSpec, normalizeStage3, blankWriteScale } from '../config/layoutSpec.js';
@@ -2372,8 +2373,13 @@ const rasterizeSvgsForExport = async (container) => {
       const svgText = new XMLSerializer().serializeToString(svgEl);
       const dataUrl = await diagramToPngDataUrl(svgText, { scale: 2 });
       if (!dataUrl) throw new Error('光栅化未返回数据');
-      const w = Number(svgEl.getAttribute('width')) || 600;
-      const h = Number(svgEl.getAttribute('height')) || 400;
+      const w0 = Number(svgEl.getAttribute('width')) || 600;
+      const h0 = Number(svgEl.getAttribute('height')) || 400;
+      // 🔴 2026-10-22（属主："按 A4 尺寸排版·取 643"）：Word 里的图片是**固定尺寸**（px→EMU），
+      //   不像 PDF 有 CSS `max-width:100%` 兜底 ⇒ 超版心的图会直接出界。这里按版心等比收敛：
+      //   只在超宽时缩，宽高同比，绝不拉伸变形。
+      const w = w0 > PRINT_SAFE_WIDTH ? PRINT_SAFE_WIDTH : w0;
+      const h = w0 > PRINT_SAFE_WIDTH ? Math.round((h0 * PRINT_SAFE_WIDTH) / w0) : h0;
       const img = document.createElement('img');
       img.setAttribute('src', dataUrl);
       img.setAttribute('width', String(w));

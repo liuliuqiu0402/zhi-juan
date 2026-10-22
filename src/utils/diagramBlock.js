@@ -81,7 +81,7 @@ export const svgFromSpecAttr = (raw) => {
     //   于是"生成时按实测出框、进编辑器/导出又按估算出框"——两套宽度，后者可能偏窄 ⇒ 又出框。
     //   这里与生成侧用**同一个** canvas 实测（无 canvas 时自动退回估算）。
     const m = getCanvasMeasurer();
-    return buildDiagramSvg(spec, m ? { measurer: m } : {}).svg || '';
+    return buildDiagramSvg(spec, { ...(m ? { measurer: m } : {}), fitWidth: PRINT_SAFE_WIDTH }).svg || '';
   } catch (e) {
     console.warn('⚠️ 导图规格重绘失败：', e?.message || e);
     return '';
@@ -127,12 +127,15 @@ export const buildFigureElement = (spec, docRef, opts = {}) => {
  *    旧阈值却报"印出来可能偏小"，属噪音。现改为按**缩放比**判定：
  *      只有 `版心 ÷ 图宽 < PRINT_MIN_SCALE` 才告警 ⇔ 图宽 > PRINT_WARN_WIDTH(950)。
  */
-export const PRINT_SAFE_WIDTH = 760;
+// 🔴 2026-10-22（属主定：版心取 **643**）：A4 宽 21cm = 794px @96dpi，减 20mm×2 页边距（每侧 75.6px）
+//   ⇒ 正文版心 = 794 − 151.2 ≈ **643px**。旧值 760 是按"几乎无边距"算的，比真实版心宽 117px，
+//   导致 643~950 这段图会被缩到 0.68~1.0 倍却**不告警**（用户实测"字变小了"却看不出原因）。
+export const PRINT_SAFE_WIDTH = 643;
 
 /** 低于此缩放比才算"印出来看不清"（13px × 0.8 = 10.4px ≈ 7.8pt） */
 export const PRINT_MIN_SCALE = 0.8;
 
-/** 告警线：图宽超过它，才会被缩到 PRINT_MIN_SCALE 以下（760 ÷ 0.8 = 950） */
+/** 告警线：图宽超过它，才会被缩到 PRINT_MIN_SCALE 以下（643 ÷ 0.8 ≈ 804） */
 export const PRINT_WARN_WIDTH = Math.round(PRINT_SAFE_WIDTH / PRINT_MIN_SCALE);
 
 /** 导图正文基准字号（px）——各图种共用底座 DEFAULT_FONT，用于折算"缩完相当于几 pt" */
@@ -204,7 +207,7 @@ export const renderDiagramBlocks = (html, opts = {}) => {
   //   仍有字出框。浏览器里能拿到真实字宽，故默认注入一个 **canvas 实测 measurer**（按 字重+字号+字体栈 实测），
   //   版式按实测宽出框；jsdom/无 canvas 环境自动退回估算（纯函数单测仍走估算口径）。
   const measurer = opts.measurer || getCanvasMeasurer();
-  const passOpts = measurer ? { ...opts, measurer } : opts;
+  const passOpts = { ...opts, ...(measurer ? { measurer } : {}), fitWidth: opts.fitWidth || PRINT_SAFE_WIDTH };
   const doc = new DOMParser().parseFromString(`<div id="__k_root">${src}</div>`, 'text/html');
   const root = doc.getElementById('__k_root');
   if (!root) return { html: src, count: 0, failures: [], warnings: [] };

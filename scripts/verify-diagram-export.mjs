@@ -27,9 +27,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const PRINT_SAFE_WIDTH = 760;   // = diagramBlock.PRINT_SAFE_WIDTH（A4 正文版心，px @96dpi）
+const PRINT_SAFE_WIDTH = 643;   // = diagramBlock.PRINT_SAFE_WIDTH（A4 正文版心 px @96dpi＝794 − 20mm×2 边距）
 const PRINT_MIN_SCALE = 0.8;    // = diagramBlock.PRINT_MIN_SCALE（低于此缩放比才算"印出来看不清"）
-const PRINT_WARN_WIDTH = Math.round(PRINT_SAFE_WIDTH / PRINT_MIN_SCALE); // = 950
+const PRINT_WARN_WIDTH = Math.round(PRINT_SAFE_WIDTH / PRINT_MIN_SCALE); // ≈ 804
 const VALID_TYPES = ['mindmap', 'brace', 'flow', 'timeline', 'fishbone', 'concept'];
 const TYPE_LABEL = {
   mindmap: '思维导图', brace: '括号图', flow: '流程图',
