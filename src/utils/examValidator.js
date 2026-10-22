@@ -14,6 +14,7 @@ import { detectAnswerEcho } from './answerEcho.js'; // 答案区复述题干判�
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION, getChoiceBlankPosition } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES, resolveMarkCapability } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）；标记能力（2026-10-22：无能力不报缺图）
+import { CONTENT_GEN_TYPES } from '../config/promptLibrary.js'; // 内容型面集单源（2026-10-22）：该二类不注入图-题一致性条款 ⇒ 图探针不得据此告警（注入什么就验什么）
 import { checkFigurePrompts } from './figurePromptCheck.js'; // 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
 import { isPerBigQuestionNumbering } from './gradeStage.js'; // 题号编法按学段分叉（与指令侧同源，2026-10-05）
 import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer, detectCarrierFormMismatch } from './contentCleaner.js'; // 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；extractBodyQuestionNumbers=同一口径的**题号序列**投影（2026-09-29 答案区逐题对应明细取证用，不新造正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
@@ -1165,7 +1166,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //   2026-10-22 真机实证（判断大题标题双括注）。只折叠**紧邻且完全相同**的分值括注，不动其它文字。
     try {
       const DUP_SCORE_RE = /([（(][^（()）]{0,40}分[)）])\s*\1/g;
-      Array.from(tplB.content.querySelectorAll('h2, h3, h4')).forEach((h) => {
+      // 🔴 2026-10-22（属主："为什么还存在"排查中顺手发现）：原句直接用上一段 `try` 里声明的 `tplB`——
+      //   那是块级作用域内的 const，此处取不到 ⇒ 每次抛 `tplB is not defined` 被 catch 吞掉 ⇒
+      //   **本段自上线起从未真正执行**（静默死代码）。改为本段自建模板，行为不再依赖上下文。
+      const tplD = document.createElement('template');
+      tplD.innerHTML = out;
+      Array.from(tplD.content.querySelectorAll('h2, h3, h4')).forEach((h) => {
         const before = (h.textContent || '').trim();
         let after = before;
         for (let guard = 0; guard < 3; guard += 1) after = after.replace(DUP_SCORE_RE, '$1');
@@ -1175,7 +1181,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           issues.push({ severity: 'info', type: 'title-score-drop', message: `大题标题重复分值括注已折叠：${after}` });
         }
       });
-      out = tplB.innerHTML;
+      out = tplD.innerHTML;
     } catch (e) { console.warn('⚠️ 重复分值括注折叠失败（不影响其它修复）:', e.message); }
   }
 
@@ -1424,6 +1430,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //    （标题侧不再用整卷单一文本：2j-5 改为**逐大题**比对，见下。）
     const stemNoHeadText = bodyNoAnsHtml.replace(/<h[2-4][^>]*>[\s\S]*?<\/h[2-4]>/gi, '\n')
       .replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&emsp;/g, ' ');
+    // 🔴 2026-10-22（属主："这个问题为什么还存在啊？你之前根治的时候，是全局 9 种资料类型都覆盖到了吗"）：
+    //   **面集对齐**——图探针只在"注入侧真的给过图-题一致性条款"的资料类型上生效。
+    //   注入侧的口径单源在 `promptLibrary.outputFormatSections`（`isContent ? '' : qf.markerClause`）：
+    //   内容型（preview 预习导学 / summary 知识总结）走 CONTENT_FORMAT、**不注入**该条款 ⇒ 模型从没被要求
+    //   "写了图语就必须出块"，此处若照报，即"从没要求过却判你没做到"的假告警（属主实测告警即来自此类）。
+    //   集合同源取 `promptLibrary.CONTENT_GEN_TYPES`（不在本文件另写一份名单）。
+    const figureClauseApplies = !CONTENT_GEN_TYPES.includes(genType);
     // 2j-0b 大题标题重名抽检（2026-09-29 用户实证：「三、我的新发现」与「九、我的新发现」撞名）
     //   同一份卷内，**去序号后的题名（"——"前的名字段）**不得两处相同——卷面同名易混，答案区也更难逐题对应。
     //   命名口径唯见 promptLibrary.bigTitleRule 单源；本处只报不改（notice 级，交编辑核对）。
@@ -1485,7 +1498,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //     走 [GRAPH] 不命中、一个 [IMAGE] 也让他处缺失静默。升级：关键词覆盖 看图/读图/看图形/统计图/观察图形/据图，
     //     配图标记同时认 [IMAGE]（画面）与 [GRAPH]（数据/几何图形）；整卷一个图标记都没有但存在此类题 → 必报"待补图"。
     //     只报不改（不改内容不改分），把"题要图没图"从静默变成可核对。
-    if (has('image-block-fix')) {
+    if (has('image-block-fix') && figureClauseApplies) {
       // 2026-09-12：图依赖词改为**单一事实源**（此前本处与指令侧 promptLibrary 各自维护一份且互不相等，
       //    模型认不出"观察下面的图形/看图形/统计图"→不出图，本处却照报缺图，两边不同源故多轮修不掉）。
       const figureKeywordRe = FIGURE_DEPENDENCY_RE;
@@ -1506,7 +1519,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         silentCount('image-missing', '含"看图写话/写话"的题无 [IMAGE] 画面描述标记块，请抽检（程序只提示、不改内容）', 'warn');
       } else if (hasFigureAskStem && !hasImgMark && !hasGraphMark && (canImage || canGraph)) {
         // 看图/读图/看图形/统计图类题，整卷 [IMAGE]+[GRAPH] 全无 → 题干要图却没出图
-        silentCount('image-missing', '存在"看图/读图/看图形"类题，但整卷未输出任何 [IMAGE]（画面描述）或 [GRAPH]（图形/统计图）标记块——题干要图却没出图，请人工补图或核对（程序只提示、不改内容）', 'warn');
+        // 🔴 2026-10-22（属主追问"为什么还存在"）：报出**触发处原文**——原提示只给结论，属主无法在几秒内
+        //   判断"是我卷里哪句话把探针钓起来的"。附短片段后，"真漏图／图语虚写／材料里偶然提到图"一眼可分。
+        const figHitM = stemNoHeadText.match(figureKeywordRe);
+        const figHit = figHitM
+          ? stemNoHeadText.slice(Math.max(0, figHitM.index - 10), figHitM.index + figHitM[0].length + 14)
+            .replace(/\s+/g, ' ').replace(/^[，、。；：,.\s]+|[，、。；：,.\s]+$/g, '').trim()
+          : '';
+        silentCount('image-missing', `存在"看图/读图/看图形"类题，但整卷未输出任何 [IMAGE]（画面描述）或 [GRAPH]（图形/统计图）标记块——题干要图却没出图${figHit ? `（触发处：「${figHit}」）` : ''}，请人工补图或核对（程序只提示、不改内容）`, 'warn');
       }
       // 2j-5 标题与内容不符（2026-09-17 用户实证新增，**全类型通用**：凡标题声称提示/作答方式者）
       //   实证：六年级英语阶段测评「五、根据图片提示或首字母提示，写出正确的单词补全句子」——题内全是

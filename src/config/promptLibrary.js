@@ -1020,8 +1020,12 @@ ${OUTPUT_FORMAT_BLOCK('question', ctx)}${extra}`,
 const MATH_DISCIPLINE_LINE = '概念、法则与规律须显性考查其理解（能辨识含义、适用条件与易混区别），不以机械套算或仅作情境背景代替概念考查；以熟练为目的的运算训练不作此要求。';
 
 /** 内容型资料（preview/summary）走 CONTENT_FORMAT 而非作答载体条款——避免污染；
- * 原先定义在文件后段（buildOutputFormatHint 旁），因守门条款段注册表需要提前求值，上移至此。 */
-const CONTENT_GEN_TYPES = ['preview', 'summary'];
+ * 原先定义在文件后段（buildOutputFormatHint 旁），因守门条款段注册表需要提前求值，上移至此。
+ * 🔴 2026-10-22（属主："这个问题为什么还存在…9 种资料类型都覆盖到了吗"）：本集合**同时是校验侧的面集单源**
+ *   ——内容型不注入题类格式块（含图-题一致性条款，见 `outputFormatSections` 的 `isContent ? '' : qf.markerClause`），
+ *   故校验侧不得据此类告警（`examValidator` 2j-3／2j-5 图探针按本集门控）。此前两处各写一套：
+ *   注入侧 7 类有条款、校验侧 9 类全报 ⇒ preview／summary 出现"从没要求过却报要图没出图"的假告警。 */
+export const CONTENT_GEN_TYPES = ['preview', 'summary'];
 
 /**
  * ✅ A20（2026-09-14 用户定「分开更好」）：**守门条款段注册表（单源）**
