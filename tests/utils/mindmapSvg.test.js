@@ -11,6 +11,47 @@ import { describe, it, expect } from 'vitest';
 import { layoutMindmap, buildMindmapSvg, wrapLabel, estimateTextWidth } from '../../src/utils/diagrams/mindmap.js';
 import { buildDiagramSvg } from '../../src/utils/diagrams/index.js';
 
+/**
+ * 连接线几何体检：数"线段进入任一节点框**内部**"的次数（端点落在边框上不算）。
+ * 2026-10-22 属主："导图连接线也是正常的吧？不会有例外情况吧？"——用版面事实断言，
+ *   而不是数 path 条数（条数是实现细节，改布线就会变，却说明不了"有没有穿框"）。
+ */
+const connectorBoxHits = (svg, nodes) => {
+  const segs = [];
+  for (const m of svg.matchAll(/<path d="([^"]+)"[^>]*stroke-width="1\.6"/g)) {
+    const nums = (m[1].match(/-?\d+(?:\.\d+)?/g) || []).map(Number);
+    if (/C/.test(m[1])) {
+      for (let i = 0; i + 7 < nums.length; i += 8) {
+        const [x0, y0, c1x, c1y, c2x, c2y, x1, y1] = nums.slice(i, i + 8);
+        let prev = [x0, y0];
+        for (let t = 1; t <= 30; t += 1) {
+          const u = t / 30;
+          const v = 1 - u;
+          const x = v * v * v * x0 + 3 * v * v * u * c1x + 3 * v * u * u * c2x + u * u * u * x1;
+          const y = v * v * v * y0 + 3 * v * v * u * c1y + 3 * v * u * u * c2y + u * u * u * y1;
+          segs.push([prev[0], prev[1], x, y]);
+          prev = [x, y];
+        }
+      }
+    } else {
+      const pts = [];
+      for (let i = 0; i + 1 < nums.length; i += 2) pts.push([nums[i], nums[i + 1]]);
+      for (let i = 1; i < pts.length; i += 1) segs.push([pts[i - 1][0], pts[i - 1][1], pts[i][0], pts[i][1]]);
+    }
+  }
+  let hits = 0;
+  for (const [x1, y1, x2, y2] of segs) {
+    for (const b of nodes) {
+      for (let t = 0; t <= 20; t += 1) {
+        const x = x1 + (x2 - x1) * (t / 20);
+        const y = y1 + (y2 - y1) * (t / 20);
+        if (x > b.x + 1 && x < b.x + b.w - 1 && y > b.y + 1 && y < b.y + b.h - 1) { hits += 1; break; }
+      }
+    }
+  }
+  return hits;
+};
+
 /** 一份**真实体量**的高中数学知识梳理（不是三五个占位词） */
 const SAMPLE = {
   title: '函数的概念与性质',
@@ -265,12 +306,24 @@ describe('mindmapSvg · 按内容自动横排（不设横/竖参数）', () => {
     expect(new Set(ks.map((k) => Math.round(k.y))).size).toBe(2);
   });
 
-  it('横排分组的连线走干线式（正交），不从框后穿过', () => {
-    // 2026-10-22 属主："连接线有的跟内容不太合适"（几何侧）——
-    //   4 项横排时若仍"父→每子"各拉一条曲线，去第二行的那几条会从第一行的框后穿过。
-    const { svg } = buildMindmapSvg(KOUJUE, { layout: 'right' });
-    expect((svg.match(/C /g) || []).length, '横排组不再用曲线').toBe(1); // 只剩"根→口诀"那条
-    expect((svg.match(/L /g) || []).length, '干线1段＋纵向1段＋4条支线').toBe(6);
+  it('横排分组的连线＝上方引线：横线在框外、竖线落在框上沿（几何上不穿框）', () => {
+    // 2026-10-22 属主两轮追问："连接线有的跟内容不太合适"→"导图连接线也是正常的吧？不会有例外情况吧？"
+    //   中间版本按"子节点中心高度"横拉，一行里几个框中心同高 ⇒ 去第 2/3/4 个的线**从第 1/2/3 个框里穿过**。
+    //   现口径：逐行在该行上方拉横线，再竖直落到各框上沿 ⇒ 任何列排布都不穿框。
+    //   断言不数 path 个数（那是实现细节），而数"线段进入框内部"的次数（版面事实）。
+    const cases = [
+      ['一行 4 项', KOUJUE],
+      ['两行（6 项）', { title: '口诀表', children: [{ title: '口诀', children: [
+        { title: '一四得四' }, { title: '二四得八' }, { title: '三四十二' }, { title: '四四十六' },
+        { title: '五四二十' }, { title: '六四二十四' },
+      ] }] }],
+    ];
+    for (const [name, tree] of cases) {
+      for (const layout of ['balanced', 'right']) {
+        const r = buildMindmapSvg(tree, { layout });
+        expect(connectorBoxHits(r.svg, r.nodes), `${name}·${layout} 连线穿框`).toBe(0);
+      }
+    }
   });
 
   it('横排后仍不重叠、不出界（两种版式）', () => {
@@ -474,5 +527,30 @@ describe('mindmapSvg · 换行判据按 A4 版心，多支放不下自动竖排'
     const ks = kidsOfTitle(nodes, '口诀');
     expect(new Set(ks.map((k) => Math.round(k.y))).size, '4 项各占一行').toBe(4);
     expect(width, '不超版心').toBeLessThanOrEqual(420);
+  });
+});
+
+// 2026-10-22 属主："导图连接线也是正常的吧？不会有例外情况吧？"
+//   答复分两层：① 普通树形本来就不穿框（本节①守住）；② 横排分组曾有一个例外（支线从中间那几个框里穿过），
+//   已改为"上方引线"，本节②把它钉死——以后任何布线改动只要再穿框，这条就红。
+describe('mindmapSvg · 连接线几何（不穿框）', () => {
+  it('普通树形（多子树/三层）两种版式都不穿框', () => {
+    for (const layout of ['balanced', 'right']) {
+      const r = buildMindmapSvg(SAMPLE, { layout });
+      expect(connectorBoxHits(r.svg, r.nodes), `SAMPLE·${layout}`).toBe(0);
+    }
+  });
+
+  it('横排分组（一行 4 项 / 两行 6 项）不穿框——两版式 × 有/无版心约束', () => {
+    const many = { title: '口诀表', children: [{ title: '口诀', children: [
+      { title: '一四得四' }, { title: '二四得八' }, { title: '三四十二' }, { title: '四四十六' },
+      { title: '五四二十' }, { title: '六四二十四' },
+    ] }] };
+    for (const layout of ['balanced', 'right']) {
+      for (const fitWidth of [0, 643]) {
+        const r = buildMindmapSvg(many, { layout, ...(fitWidth ? { fitWidth } : {}) });
+        expect(connectorBoxHits(r.svg, r.nodes), `${layout}·fit=${fitWidth}`).toBe(0);
+      }
+    }
   });
 });

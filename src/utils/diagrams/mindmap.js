@@ -354,7 +354,9 @@ export const layoutMindmap = (tree, opts = {}) => {
 
 /** 版式 → SVG 字符串（不含 DOCTYPE，可直接内联进 HTML / PDF） */
 export const buildMindmapSvg = (tree, opts = {}) => {
-  const { nodes, width, height } = layoutMindmap(tree, opts);
+  const { nodes, width, height, metrics } = layoutMindmap(tree, opts);
+  // 引线所需的行距取自版式（单一来源，不在此另写一个常数）
+  const gapY = metrics?.gapY || 9;
   const out = [];
   out.push(svgHeader(width, height));
   out.push(svgPaper(width, height));
@@ -364,23 +366,40 @@ export const buildMindmapSvg = (tree, opts = {}) => {
   for (const n of nodes) {
     const kids = n.children || [];
     // 🔴 2026-10-22（属主："连接线有的跟内容不太合适"·几何侧）：一组横排（多行多列）时，
-    //   若仍按"父→每个子"各拉一条贝塞尔，去第二行的那几条会**从第一行的框后穿过**（看着像连错）。
-    //   改为**干线式**布线：父→干线一段、干线纵向贯通整组、再由干线横向接到每个子（正交、不穿框）。
+    //   若按"父→每个子"各拉一条贝塞尔，去第二行的那几条会**从第一行的框后穿过**（看着像连错）。
+    // 🔴 2026-10-22 二次（属主："导图连接线也是正常的吧？不会有例外情况吧？"·实测确有例外）：
+    //   中间版本改成"父→干线→按子节点**中心高度**横拉到每个子框"，但一行里几个框**中心同高**，
+    //   于是去第 2、3、4 个的横线会**从第 1、2、3 个框里穿过去**（被白底框压住，看着像一条线穿糖葫芦；
+    //   几何上"item 2 的线起点落在 item 1 框内"，属真实缺陷；普通树形没有此问题）。
+    //   最终口径＝**上方引线（梳子式）**：干线在组外，逐行在**该行上方**拉一条横线，再由横线**竖直落到各框上沿**——
+    //   横线永远在框外、竖线只落在框顶，无论一行几列都不穿框。
     if (n.grid && kids.length) {
       const leftward = kids[0].side === -1;
       const py = n.y + n.h / 2;
-      const cys = kids.map((c) => c.y + c.h / 2);
+      const from = leftward ? n.x : n.x + n.w;
       const near = leftward
         ? Math.max(...kids.map((c) => c.x + c.w))
         : Math.min(...kids.map((c) => c.x));
-      const from = leftward ? n.x : n.x + n.w;
       const trunk = leftward ? from - (from - near) / 2 : from + (near - from) / 2;
-      seg(`M ${from} ${py} L ${trunk} ${py}`, n.color);
-      seg(`M ${trunk} ${Math.min(py, ...cys)} L ${trunk} ${Math.max(py, ...cys)}`, n.color);
+      // 同一 rowY 的算一行（横排换行后会有多行）
+      const rows = [];
       for (const c of kids) {
-        const cy = c.y + c.h / 2;
-        const to = leftward ? c.x + c.w : c.x;
-        seg(`M ${trunk} ${cy} L ${to} ${cy}`, c.color);
+        const hit = rows.find((r) => Math.abs(r.top - c.y) < 0.5);
+        if (hit) hit.items.push(c);
+        else rows.push({ top: c.y, items: [c] });
+      }
+      const laneY = (r) => r.top - Math.max(4, Math.round(gapY / 2));
+      const lanes = rows.map(laneY);
+      seg(`M ${from} ${py} L ${trunk} ${py}`, n.color);
+      seg(`M ${trunk} ${Math.min(py, ...lanes)} L ${trunk} ${Math.max(py, ...lanes)}`, n.color);
+      for (const r of rows) {
+        const y = laneY(r);
+        const cxs = r.items.map((c) => c.x + c.w / 2);
+        seg(`M ${trunk} ${y} L ${leftward ? Math.min(...cxs) : Math.max(...cxs)} ${y}`, n.color);
+        for (const c of r.items) {
+          const cx = c.x + c.w / 2;
+          seg(`M ${cx} ${y} L ${cx} ${c.y}`, c.color);
+        }
       }
       continue;
     }
