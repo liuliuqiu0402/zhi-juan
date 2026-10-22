@@ -105,6 +105,41 @@ export const wrapLabel = (text, maxWidth, fontSize, measurer, maxLines = 3) => {
   return lines.length ? lines : [''];
 };
 
+/**
+ * 折行行数预算：**按内容量给够**，保证长标签不被省略号截断。
+ * 2026-10-22 属主："导图内容为什么会有换行显示不全的啊？用省略号形式了，但是内容又是全的"——
+ *   `wrapLabel` 的默认上限 3 行是为了"框别长成柱子"，但它对**知识要点这种本来就长**的短语是错的：
+ *   第 4 行起被砍掉、末尾补 `…`，于是所有长标签都恰好 3 行高 ⇒ 顺带把"框长短/高度都一样"也做了出来。
+ *   口径改为：**宽度可以封顶（A4 版心约束），行数不封顶**——长内容变高，不变残缺。
+ *   （fishbone／timeline 早就是这个口径，本函数把它们各自私有的 lineBudget 提上来单源化。）
+ */
+export const lineBudget = (text, maxWidth, fontSize, measurer) =>
+  Math.max(3, Math.ceil(estimateTextWidth(String(text == null ? '' : text), fontSize, measurer) / Math.max(1, maxWidth)) + 2);
+
+/** 颜色值校验：只接受 3/6 位十六进制（防把任意串塞进 SVG 属性；非法一律返回 '' 走默认色） */
+export const normalizeHex = (v) => {
+  const s = String(v == null ? '' : v).trim();
+  if (/^#[0-9a-fA-F]{6}$/.test(s)) return s.toLowerCase();
+  if (/^#[0-9a-fA-F]{3}$/.test(s)) return `#${s.slice(1).split('').map((c) => c + c).join('')}`.toLowerCase();
+  return '';
+};
+
+/**
+ * 节点字重（导图族统一）：**加粗（bold:true）= 700**；否则按层级 600/500/400。
+ * 字重必须在这里定一次——框宽余量、折行宽度、SVG 属性三处都要用同一值（各判一次就会再次"字出框"）。
+ */
+export const nodeWeight = (raw, depth, isRoot) =>
+  (raw && raw.bold ? 700 : (isRoot ? 600 : (depth === 1 ? 500 : 400)));
+
+/** 字重 → 无实测 measurer 时的框宽余量系数（700 比 600 更宽，单列一档） */
+export const weightPadK = (weight, exact) => {
+  if (exact) return 1;
+  if (weight >= 700) return 1.14;
+  if (weight >= 600) return 1.10;
+  if (weight >= 500) return 1.07;
+  return 1.04;
+};
+
 /** SVG 开标签（统一字体与渲染精度；白底由调用方决定是否铺满） */
 export const svgHeader = (width, height, extraAttrs = '') =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" `

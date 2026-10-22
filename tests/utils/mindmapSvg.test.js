@@ -9,6 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { layoutMindmap, buildMindmapSvg, wrapLabel, estimateTextWidth } from '../../src/utils/diagrams/mindmap.js';
+import { buildDiagramSvg } from '../../src/utils/diagrams/index.js';
 
 /** 一份**真实体量**的高中数学知识梳理（不是三五个占位词） */
 const SAMPLE = {
@@ -359,5 +360,119 @@ describe('mindmapSvg · 出图', () => {
       expect(r.height).toBeGreaterThan(0);
       expect(r.svg).toContain('</svg>');
     }
+  });
+});
+
+// 🔴 2026-10-22 属主四条反馈（本节即其回归锁）
+//   ① "导图内容为什么会有换行显示不全的啊？用省略号形式了。但是内容又是全的"
+//   ② "现在是不能拖动层级的吗？只能调整同级顺序？"（结构侧见 diagramSpecEdit.test.js）
+//   ③ "导图里的框长短不一定要统一大小…应该根据实际内容和 A4 尺寸来"
+//   ④ "导图里的文字能编辑，但是目前不能进行加粗、修改颜色等操作吗？"
+describe('mindmapSvg · 长内容不截断、框随内容、加粗与改色', () => {
+  const LONG = '三要素：定义域、值域与对应法则必须同时确定，缺一不可（本句故意写长，用于验证不再被省略号截断）';
+
+  it('长标签**不再出现省略号**：各行拼接（去空白）＝原文字', () => {
+    const { nodes } = layoutMindmap({ title: 'r', children: [{ title: LONG }] }, { layout: 'right' });
+    const n = nodes.find((x) => x.title === LONG);
+    expect(n.lines.length).toBeGreaterThan(3);            // 超过旧的"3 行上限"仍然完整展开
+    expect(n.lines.join('')).not.toContain('…');
+    expect(n.lines.join('').replace(/\s+/g, '')).toBe(LONG.replace(/\s+/g, ''));
+  });
+
+  it('框的长短/高度随内容不同（不再清一色同尺寸）', () => {
+    const { nodes } = layoutMindmap({ title: 'r', children: [{ title: '短项' }, { title: LONG }] }, { layout: 'right' });
+    const a = nodes.find((n) => n.title === '短项');
+    const b = nodes.find((n) => n.title === LONG);
+    expect(a.lines.length).toBe(1);
+    expect(b.lines.length).toBeGreaterThan(1);
+    expect(a.w).toBeLessThan(b.w);
+    expect(a.h).toBeLessThan(b.h);
+  });
+
+  it('略超上限的短语单行成框（宽度随内容，不硬折成两行）', () => {
+    // 13 个汉字 ≈ 169px：超过 150 但不到 1.2 倍 ⇒ 允许单行，框宽随之变大
+    const t = '定义域与值域三要素';
+    const { nodes } = layoutMindmap({ title: 'r', children: [{ title: t }] }, { layout: 'right' });
+    const n = nodes.find((x) => x.title === t);
+    expect(n.lines.length).toBe(1);
+    expect(n.w).toBeGreaterThan(150);
+  });
+
+  it('加粗：节点字重变 700，且框宽留有字重余量（字不出框）', () => {
+    const { svg, nodes } = buildMindmapSvg({ title: 'r', children: [{ title: '加粗要点', bold: true }] }, { layout: 'right' });
+    expect(svg).toContain('font-weight="700"');
+    const n = nodes.find((x) => x.title === '加粗要点');
+    expect(n.w - 2 * n.padX).toBeGreaterThanOrEqual(estimateTextWidth('加粗要点', n.fs));
+  });
+
+  it('改色：非根＝文字色、根＝框底色；非法色值不写进 SVG', () => {
+    const { svg } = buildMindmapSvg(
+      { title: '根', color: '#c00000', children: [{ title: '叶', color: '#1f7a5c' }] },
+      { layout: 'right' },
+    );
+    expect(svg, '根改的是底色').toContain('fill="#c00000"');
+    expect(svg, '叶子改的是文字色').toContain('fill="#1f7a5c"');
+    const bad = buildMindmapSvg({ title: '根', children: [{ title: '叶', color: 'url(x)' }] }, { layout: 'right' });
+    expect(bad.svg).not.toContain('url(x)');
+  });
+
+  it('A4 版心 643：深树重排后宽度不超版心，且仍无省略号（缩的是折行宽度，不是字号）', () => {
+    const mk = (t, d) => (d ? { title: t, children: [mk(`${t}甲`, d - 1), mk(`${t}乙`, d - 1)] } : { title: t });
+    const r = buildDiagramSvg({ type: 'mindmap', root: mk(LONG.slice(0, 12), 4) }, { fitWidth: 643 });
+    expect(r.width).toBeLessThanOrEqual(643);
+    expect(r.svg).not.toContain('…');
+    expect(r.height).toBeGreaterThan(0);
+  });
+});
+
+// 🔴 2026-10-22 属主补充："正常情况应该是在考虑 A4 尺寸的情况下，一行不够才换行吧？
+//   对于多支的，也是这样吗？宽度不够，多支可以切换为竖排同级的吧？"
+//   ⇒ 换行判据＝**版心允许的宽度**（不是写死的 150）；多支横排也一样：能并几项并几项，
+//     连两项都并不下（或本身是长句）⇒ **自动竖排同级**，不做任何硬挤/缩字号。
+describe('mindmapSvg · 换行判据按 A4 版心，多支放不下自动竖排', () => {
+  const MID = '定义域与值域以及对应法则三要素';   // ≈17 字 ≈221px：150 会折行，221 一行够
+  const LONG_TXT = '三要素：定义域、值域与对应法则必须同时确定，缺一不可（本句故意写长，用于验证按版心折行）';
+
+  /** 多支样本：一个"口诀"下 4 个短项（最考验横排/竖排判定） */
+  const KOUJUE_TREE = {
+    title: '4 的乘法口诀',
+    children: [
+      { title: '口诀', children: [
+        { title: '一四得四' }, { title: '二四得八' }, { title: '三四十二' }, { title: '四四十六' },
+      ] },
+    ],
+  };
+  const kidsOfTitle = (nodes, t) => (nodes.find((n) => n.title === t)?.children) || [];
+
+  it('版心允许时不折行：中等长度短语在 643 版心下是单行', () => {
+    const r = buildDiagramSvg({ type: 'mindmap', root: { title: 'r', children: [{ title: MID }] } }, { fitWidth: 643 });
+    const n = r.nodes.find((x) => x.title === MID);
+    expect(n.lines.length, 'A4 一行放得下就不折行').toBe(1);
+
+    // 不给版心信息时按默认折行宽（纯函数默认 150）——判据由版心决定，这一点由上面那句守住
+    const plain = layoutMindmap({ title: 'r', children: [{ title: MID }] }, { layout: 'right' });
+    expect(plain.nodes.find((x) => x.title === MID).lines.length).toBeGreaterThan(1);
+  });
+
+  it('版心放不下才折行，且折完不超版心（字号不变、不省略）', () => {
+    const r = buildDiagramSvg({ type: 'mindmap', root: { title: 'r', children: [{ title: LONG_TXT }] } }, { fitWidth: 420 });
+    const n = r.nodes.find((x) => x.title === LONG_TXT);
+    expect(n.lines.length).toBeGreaterThan(1);
+    expect(n.w).toBeLessThanOrEqual(420);
+    expect(n.fs, '字号不因收窄而变小').toBe(13);
+    expect(n.lines.join('')).not.toContain('…');
+  });
+
+  it('多支横排按版心判定：版心宽裕时同一行并排', () => {
+    const { nodes } = buildDiagramSvg({ type: 'mindmap', root: KOUJUE_TREE }, { fitWidth: 1200 });
+    const ks = kidsOfTitle(nodes, '口诀');
+    expect(new Set(ks.map((k) => Math.round(k.y))).size, '4 项同一行').toBe(1);
+  });
+
+  it('多支放不下时自动改成竖排同级（一项一行，不硬挤）', () => {
+    const { nodes, width } = buildDiagramSvg({ type: 'mindmap', root: KOUJUE_TREE }, { fitWidth: 420 });
+    const ks = kidsOfTitle(nodes, '口诀');
+    expect(new Set(ks.map((k) => Math.round(k.y))).size, '4 项各占一行').toBe(4);
+    expect(width, '不超版心').toBeLessThanOrEqual(420);
   });
 });

@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   collectEntries, setTextAt, removeAt, addChildAt, moveNode, moveNodeTo,
-  rebuildFromTree, changeTreeType,
+  rebuildFromTree, changeTreeType, setStyleAt, indentNode, outdentNode,
 } from '../../src/utils/diagramSpecEdit.js';
 
 const MM = {
@@ -144,5 +144,80 @@ describe('diagramSpecEdit · 其它图种（逐条改文字）', () => {
     const spec = { type: 'timeline', items: [{ when: '1900', text: '甲' }] };
     expect(setTextAt(spec, ['items', 0, 'text'], '乙').items[0].text).toBe('乙');
     expect(spec.items[0].text).toBe('甲');
+  });
+});
+
+// 2026-10-22 属主："现在是不能拖动层级的吗？只能调整同级顺序？"
+//   + "导图里的文字能编辑，但是目前不能进行加粗、修改颜色等操作吗？"
+describe('diagramSpecEdit · 升降层级（不只靠拖拽）', () => {
+  const T = {
+    type: 'mindmap',
+    title: '分数',
+    children: [
+      { title: '意义', children: [{ title: '平均分' }] },
+      { title: '计算', children: [{ title: '通分' }, { title: '约分' }] },
+    ],
+  };
+
+  it('降一级：第二个同级挂到第一个同级之下', () => {
+    const next = indentNode(T, ['children', 1]);
+    expect(next.children.length).toBe(1);
+    expect(next.children[0].title).toBe('意义');
+    expect(next.children[0].children.map((c) => c.title)).toEqual(['平均分', '计算']);
+    expect(T.children.length, '原对象不变').toBe(2);
+  });
+
+  it('降一级：第一个同级没有"上一个"→ 无效', () => {
+    expect(indentNode(T, ['children', 0])).toBeNull();
+    expect(indentNode(T, [])).toBeNull();               // 根不能降级
+  });
+
+  it('升一级：孙节点提到父节点的同级位（紧随父之后）', () => {
+    const next = outdentNode(T, ['children', 1, 'children', 1]);
+    expect(next.children[1].children.map((c) => c.title)).toEqual(['通分']);
+    expect(next.children.map((c) => c.title)).toEqual(['意义', '计算', '约分']);
+    expect(T.children[1].children.length, '原对象不变').toBe(2);
+  });
+
+  it('升一级：一级节点已无父级 → 无效', () => {
+    expect(outdentNode(T, ['children', 1])).toBeNull();
+    expect(outdentNode(T, [])).toBeNull();
+  });
+
+  it('非树形图种不做结构移动', () => {
+    const tl = { type: 'timeline', items: [{ when: '1900', text: '甲' }] };
+    expect(indentNode(tl, ['items', 0])).toBeNull();
+    expect(outdentNode(tl, ['items', 0, 'text'])).toBeNull();
+  });
+});
+
+describe('diagramSpecEdit · 加粗／改色（写进规格，渲染侧照做）', () => {
+  const S = { type: 'mindmap', title: '分数', children: [{ title: '意义' }] };
+
+  it('加粗：写入 bold:true；取消时删除字段（不留 false）', () => {
+    const on = setStyleAt(S, ['children', 0], { bold: true });
+    expect(on.children[0].bold).toBe(true);
+    const off = setStyleAt(on, ['children', 0], { bold: false });
+    expect('bold' in off.children[0]).toBe(false);
+    expect(S.children[0].bold).toBeUndefined();
+  });
+
+  it('改色：十六进制通过校验并小写归一；清空／非法值 → 回落默认（删字段）', () => {
+    const c = setStyleAt(S, ['children', 0], { color: '#C00000' });
+    expect(c.children[0].color).toBe('#c00000');
+    expect(setStyleAt(c, ['children', 0], { color: '' }).children[0].color).toBeUndefined();
+    expect(setStyleAt(c, ['children', 0], { color: 'red' }).children[0].color).toBeUndefined();
+    expect(setStyleAt(c, ['children', 0], { color: 'url(x)' }).children[0].color).toBeUndefined();
+  });
+
+  it('样式可读回：collectEntries 带 bold / color（面板回显控件状态）', () => {
+    const styled = setStyleAt(setStyleAt(S, ['children', 0], { bold: true }), ['children', 0], { color: '#1f7a5c' });
+    const e = collectEntries(styled).find((x) => x.text === '意义');
+    expect(e.bold).toBe(true);
+    expect(e.color).toBe('#1f7a5c');
+  });
+
+  it('非树形图种不写样式（返回 null，不污染时间轴/鱼骨图结构）', () => {
+    expect(setStyleAt({ type: 'timeline', items: [{ when: '1900', text: '甲' }] }, ['items', 0], { bold: true })).toBeNull();
   });
 });

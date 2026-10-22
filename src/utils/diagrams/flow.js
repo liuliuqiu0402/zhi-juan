@@ -20,7 +20,7 @@
 
 import {
   DEFAULT_PALETTE, INK, PAPER,
-  esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper,
+  esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper, lineBudget,
 } from './shared.js';
 
 // 文本工具与配色统一在 shared.js（导图族共用），这里再导出一次，保持本模块对外 API 与 mindmap 一致
@@ -78,7 +78,8 @@ export const layoutFlow = (spec, opts = {}) => {
   const makeStep = (raw, depth, color) => {
     const kind = normKind(raw && raw.kind);
     const title = String(raw && raw.text == null ? '' : raw.text);
-    const lines = wrapLabel(tf(title), maxLabelWidth, fontSize, measurer);
+    // 2026-10-22（属主："内容显示不全，用省略号了"）：行数按内容给够——流程步骤的文字同样是"内容完整优先"
+    const lines = wrapLabel(tf(title), maxLabelWidth, fontSize, measurer, lineBudget(title, maxLabelWidth, fontSize, measurer));
     const textW = lines.reduce((m, l) => Math.max(m, estimateTextWidth(l, fontSize, measurer)), 0);
     const h = Math.round(lines.length * lineH + padY * 2);
     const notch = notchOf(kind, h);

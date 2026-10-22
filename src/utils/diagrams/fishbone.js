@@ -32,7 +32,7 @@
 
 import {
   DEFAULT_PALETTE, INK, HEAD_FILL, PAPER,
-  esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper, boxesOverlap, tint,
+  esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper, boxesOverlap, tint, lineBudget,
 } from './shared.js';
 
 // 文本工具统一在 shared.js（导图族共用），这里再导出一次，与 mindmap.js / timeline.js 保持同形
@@ -80,11 +80,8 @@ const SPACING_MAX_ITER = 40;
 
 const asText = (v) => (v == null ? '' : String(v));
 
-/** 折行行数预算：按内容量给够，避免 `…` 掉在中段（口径同 timeline.js） */
-const lineBudget = (text, fs, maxW, measurer) =>
-  Math.max(3, Math.ceil(estimateTextWidth(text, fs, measurer) / Math.max(1, maxW)) + 2);
-
-const wrap = (src, fs, maxW, measurer) => wrapLabel(src, maxW, fs, measurer, lineBudget(src, fs, maxW, measurer));
+/** 折行行数预算：单源在 shared.lineBudget（2026-10-22 收口；此前 fishbone／timeline 各写一份） */
+const wrap = (src, fs, maxW, measurer) => wrapLabel(src, maxW, fs, measurer, lineBudget(src, maxW, fs, measurer));
 
 const maxLineW = (lines, fs, measurer) =>
   lines.reduce((m, l) => Math.max(m, estimateTextWidth(l, fs, measurer)), 0);

@@ -33,6 +33,7 @@
 import {
   DEFAULT_PALETTE, INK, PAPER,
   esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper,
+  lineBudget, normalizeHex, nodeWeight, weightPadK,
 } from './shared.js';
 
 // 文本工具统一在 shared.js（导图族共用），这里再导出一次，保持图种模块对外 API 一致
@@ -81,14 +82,22 @@ export const layoutBrace = (spec, opts = {}) => {
   const prep = (raw, depth, color, isRoot) => {
     const fs = isRoot ? titleFontSize : fontSize;
     const title = String(raw && raw.title == null ? '' : raw.title);
-    const lines = wrapLabel(tf(title), maxLabelWidth, fs, measurer);
-    const textW = Math.max(...lines.map((l) => estimateTextWidth(l, fs, measurer)), 0);
+    // 🔴 2026-10-22（属主："内容显示不全，用省略号了"＋"不能加粗、改颜色"）：
+    //   ① 行数按内容给够（不再统一截 3 行）；② 字重可加粗（700），框宽余量随字重放大，防字出框；
+    //   ③ 节点可带强调色（括号图白底，所以是**文字色**）。
+    const weight = nodeWeight(raw, depth, isRoot);
+    const exact = typeof measurer === 'function';
+    const measure = exact ? (t, f) => measurer(t, f, weight) : undefined;
+    const boldK = weightPadK(weight, exact);
+    const lines = wrapLabel(tf(title), maxLabelWidth, fs, measure, lineBudget(title, maxLabelWidth, fs, measure));
+    const textW = Math.max(...lines.map((l) => estimateTextWidth(l, fs, measure)), 0) * boldK + (exact ? 2 : 0);
     const lineH = Math.round(fs * 1.42);
     const node = {
       id: seq++,
       title,
       lines,
       fs,
+      weight,
       lineH,
       textW,
       padX,
@@ -96,6 +105,7 @@ export const layoutBrace = (spec, opts = {}) => {
       w: Math.round(textW + padX * 2),
       h: Math.round(lines.length * lineH + padY * 2),
       color,
+      accent: normalizeHex(raw && raw.color),
       isRoot: !!isRoot,
       depth,
       parent: null,
@@ -238,14 +248,15 @@ export const buildBraceSvg = (spec, opts = {}) => {
       `<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="6" `
       + `fill="${PAPER}" stroke="${n.color}" stroke-width="1.3"/>`,
     );
-    // 层级同时用字重强化（黑白打印时颜色差异会消失，字重不会）
-    const weight = n.isRoot ? 600 : (n.depth === 1 ? 500 : 400);
+    // 层级同时用字重强化（黑白打印时颜色差异会消失，字重不会）；加粗（bold）在此生效
+    const weight = n.weight || (n.isRoot ? 600 : (n.depth === 1 ? 500 : 400));
+    const fill = n.accent || INK;
     const tx = n.x + n.padX;
     const baseline0 = n.y + n.padY + n.fs * 1.06;
     n.lines.forEach((line, i) => {
       out.push(
         `<text x="${tx}" y="${(baseline0 + i * n.lineH).toFixed(1)}" font-size="${n.fs}" `
-        + `font-weight="${weight}" fill="${INK}" text-anchor="start">${esc(line)}</text>`,
+        + `font-weight="${weight}" fill="${fill}" text-anchor="start">${esc(line)}</text>`,
       );
     });
   }

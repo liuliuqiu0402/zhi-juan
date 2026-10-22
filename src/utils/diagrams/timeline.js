@@ -27,7 +27,7 @@
 
 import {
   DEFAULT_PALETTE, INK, PAPER,
-  esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper,
+  esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper, lineBudget,
 } from './shared.js';
 
 // 文本工具统一在 shared.js（导图族共用），这里再导出一次，与 mindmap.js 的对外 API 保持同形
@@ -47,9 +47,7 @@ const PAD_Y = 7;
 
 const asText = (v) => (v == null ? '' : String(v));
 
-/** 折行行数预算：按内容量给够，避免 `…` 掉在中段（见文件头 2） */
-const lineBudget = (text, fs, maxLabelWidth, measurer) =>
-  Math.max(3, Math.ceil(estimateTextWidth(text, fs, measurer) / Math.max(1, maxLabelWidth)) + 2);
+/** 折行行数预算：单源在 shared.lineBudget（2026-10-22 收口；此前 fishbone／timeline 各写一份） */
 
 /* ============================ ① 版式计算 ============================ */
 
@@ -98,7 +96,7 @@ export const layoutTimeline = (spec, opts = {}) => {
     const hasDetail = detailRaw.trim() !== '';
 
     const color = palette[index % palette.length];
-    const wrap = (src, fs) => wrapLabel(src, maxLabelWidth, fs, measurer, lineBudget(src, fs, maxLabelWidth, measurer));
+    const wrap = (src, fs) => wrapLabel(src, maxLabelWidth, fs, measurer, lineBudget(src, maxLabelWidth, fs, measurer));
 
     // groups 是"渲染单元"：每段各自折行、各自带字重/颜色。
     // when 在最前（600 字重 + 分支色），其后 text、可选 detail（INK 常规字重）。

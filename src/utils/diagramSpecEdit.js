@@ -12,6 +12,8 @@
  * ============================================================
  */
 
+import { normalizeHex } from './diagrams/shared.js'; // 颜色校验单源（与渲染侧同一个函数，不在此另写一份正则）
+
 /** 结构同构、可互转的"树形"图种（都是 { title, children[] }） */
 export const TREE_TYPES = ['mindmap', 'brace'];
 
@@ -48,6 +50,9 @@ export const collectEntries = (spec) => {
       out.push({
         path, text: String(node.title ?? ''), role: depth === 0 ? 'root' : 'child', depth,
         removable: depth > 0, addable: true,
+        // 样式（2026-10-22 属主："文字能编辑，但不能加粗、改颜色"）：
+        //   树形图种的节点可带 bold / color，面板据此回显控件状态。
+        bold: !!node.bold, color: String(node.color ?? ''),
       });
       (node.children || []).forEach((c, i) => walk(c, [...path, 'children', i], depth + 1));
     };
@@ -119,6 +124,73 @@ export const moveNode = (spec, path, dir) => {
 };
 
 const isPathPrefix = (prefix, path) => prefix.length <= path.length && prefix.every((v, i) => path[i] === v);
+
+/**
+ * 🎨 改条目样式（2026-10-22 属主："导图里的文字能编辑，但是目前不能进行加粗、修改颜色等操作吗？"）
+ *   patch = { bold?: boolean, color?: '#rrggbb' | '' }
+ *   · bold 为真写入 `bold:true`，为假则**删字段**（规格里不残留 false，模型输出的 JSON 更干净）；
+ *   · color 走 `normalizeHex` 校验，非法或空 ⇒ 删字段（回落默认色），绝不把任意串写进 SVG 属性。
+ * 返回新规格；非树形或路径无效 ⇒ null。
+ */
+export const setStyleAt = (spec, path, patch = {}) => {
+  if (!TREE_TYPES.includes(typeOf(spec))) return null;
+  if (!Array.isArray(path)) return null;
+  const next = clone(spec);
+  const node = getAt(next, path);
+  if (!node || typeof node !== 'object') return null;
+  if ('bold' in patch) {
+    if (patch.bold) node.bold = true;
+    else delete node.bold;
+  }
+  if ('color' in patch) {
+    const c = normalizeHex(patch.color);
+    if (c) node.color = c;
+    else delete node.color;
+  }
+  return next;
+};
+
+/**
+ * ⬇️ 降一级（面板「→」）：把该节点挂到**上一个同级**之下，成为它的子项。
+ *   第一个同级没有"上一个" ⇒ 返回 null（面板上该按钮禁用）。
+ *   与拖拽的 `moveNodeTo` 是同一件事的确定性版本——不依赖拖拽（真机上从输入框起拖常常拖不动）。
+ */
+export const indentNode = (spec, path) => {
+  if (!TREE_TYPES.includes(typeOf(spec))) return null;
+  const idx = Array.isArray(path) ? path[path.length - 1] : null;
+  if (typeof idx !== 'number' || idx <= 0) return null;
+  const next = clone(spec);
+  const arr = getAt(next, path.slice(0, -1));
+  if (!Array.isArray(arr) || idx >= arr.length) return null;
+  const [node] = arr.splice(idx, 1);
+  const prev = arr[idx - 1];
+  if (!prev || typeof prev !== 'object') return null;
+  prev.children = Array.isArray(prev.children) ? prev.children : [];
+  prev.children.push(node);
+  return next;
+};
+
+/**
+ * ⬆️ 升一级（面板「←」）：把该节点提到**父节点的下一个同级**位置（父的兄弟位）。
+ *   一级节点（path 长度 2）已无父级可升 ⇒ null。
+ */
+export const outdentNode = (spec, path) => {
+  if (!TREE_TYPES.includes(typeOf(spec))) return null;
+  if (!Array.isArray(path) || path.length < 4) return null;
+  const idx = path[path.length - 1];
+  const parentPath = path.slice(0, -2);
+  const parentArrPath = parentPath.slice(0, -1);
+  const parentIdx = parentPath[parentPath.length - 1];
+  if (typeof idx !== 'number' || typeof parentIdx !== 'number') return null;
+  const next = clone(spec);
+  const arr = getAt(next, path.slice(0, -1));
+  const parentArr = getAt(next, parentArrPath);
+  if (!Array.isArray(arr) || !Array.isArray(parentArr)) return null;
+  if (idx < 0 || idx >= arr.length) return null;
+  const [node] = arr.splice(idx, 1);
+  parentArr.splice(parentIdx + 1, 0, node);
+  return next;
+};
 
 /**
  * 🖱 拖拽改结构（面板内）：把 `fromPath` 指向的节点，挂到 `toParentPath` 指向的节点之下（追加为子项）。
@@ -212,5 +284,5 @@ export const isEditableSpec = (spec) => !!spec && typeof spec === 'object' && ty
 
 export default {
   TREE_TYPES, TREE_REBUILD_TARGETS, collectEntries, setTextAt, removeAt, addChildAt,
-  moveNode, moveNodeTo, rebuildFromTree, changeTreeType, isEditableSpec,
+  moveNode, moveNodeTo, indentNode, outdentNode, setStyleAt, rebuildFromTree, changeTreeType, isEditableSpec,
 };

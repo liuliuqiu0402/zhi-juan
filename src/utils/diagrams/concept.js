@@ -37,7 +37,7 @@
 
 import {
   DEFAULT_PALETTE, INK, PAPER,
-  esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper, boxesOverlap,
+  esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper, boxesOverlap, lineBudget,
 } from './shared.js';
 
 // 文本工具统一在 shared.js（导图族共用），这里再导出一次，与 mindmap.js 的对外 API 保持同形
@@ -209,7 +209,8 @@ export const layoutConcept = (spec, opts = {}) => {
   const info = nodes.map((nd, i) => {
     const isCenter = i === centerIndex;
     const fs = isCenter ? headFs : bodyFs;
-    const lines = wrapLabel(tf(nd.title), maxLabelWidth, fs, measurer);
+    // 2026-10-22（属主："内容显示不全，用省略号了"）：行数按内容给够，概念文本不再被 `…` 砍断
+    const lines = wrapLabel(tf(nd.title), maxLabelWidth, fs, measurer, lineBudget(nd.title, maxLabelWidth, fs, measurer));
     const textW = lines.reduce((m, l) => Math.max(m, estimateTextWidth(l, fs, measurer)), 0);
     const pos = isCenter ? 0 : (ringPos.has(i) ? ringPos.get(i) + 1 : ringCount + 1);
     return {

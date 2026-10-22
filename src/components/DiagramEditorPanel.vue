@@ -38,7 +38,7 @@
             <span
               v-if="isTree"
               class="de-tip"
-            >拖一行到另一行上＝挂成它的子项（不能拖进自己的下级）</span>
+            >拖左侧 ⠿ 到另一行上＝挂成它的子项；也可用 → 降一级 / ← 升一级（不能拖进自己的下级）</span>
             <span
               v-else
               class="de-tip"
@@ -56,14 +56,23 @@
             :key="`${e.path.join('-')}-${i}`"
             class="de-row"
             :class="{ 'drag-over': dragOverPath && dragOverPath.join('-') === e.path.join('-') }"
-            :draggable="isTree && e.depth > 0"
             :style="{ paddingLeft: `${Math.min(e.depth, 4) * 16 + 8}px` }"
-            @dragstart="onDragStart($event, e.path)"
             @dragover.prevent="onDragOver($event, e.path)"
             @dragleave="onDragLeave(e.path)"
             @drop.prevent="onDrop($event, e.path)"
             @dragend="clearDrag"
           >
+            <span
+              v-if="isTree && e.depth > 0"
+              class="de-grip"
+              title="拖动我，放到另一行上＝挂成它的子项"
+              draggable="true"
+              @dragstart="onDragStart($event, e.path)"
+            >⠿</span>
+            <span
+              v-else
+              class="de-grip de-grip-off"
+            />
             <input
               :value="e.text"
               class="de-input"
@@ -71,6 +80,40 @@
               @change="onText(e.path, $event.target.value)"
             >
             <span class="de-ops">
+              <button
+                v-if="isTree"
+                class="de-b"
+                :class="{ on: e.bold }"
+                :title="e.bold ? '取消加粗' : '加粗（打印时比颜色更清楚）'"
+                @click="onBold(e.path, !e.bold)"
+              >B</button>
+              <label
+                v-if="isTree"
+                class="de-color"
+                :title="e.role === 'root' ? '改中心主题的底色' : '改这条文字的颜色'"
+              >
+                <input
+                  type="color"
+                  :value="e.color || (e.role === 'root' ? '#2b3a4a' : '#2f3540')"
+                  @change="onColor(e.path, $event.target.value)"
+                >
+                <span
+                  v-if="e.color"
+                  class="de-color-clear"
+                  title="恢复默认色"
+                  @click.prevent="onColor(e.path, '')"
+                >×</span>
+              </label>
+              <button
+                v-if="isTree && e.depth > 0 && e.path[e.path.length - 1] > 0"
+                title="降一级（挂到上一个同级下面）"
+                @click="onIndent(e.path)"
+              >→</button>
+              <button
+                v-if="isTree && e.depth > 1"
+                title="升一级（提到父节点的同级位）"
+                @click="onOutdent(e.path)"
+              >←</button>
               <button
                 v-if="e.addable"
                 title="在此项下加一个子项"
@@ -83,12 +126,12 @@
               >－</button>
               <button
                 v-if="isTree && e.depth > 0"
-                title="上移"
+                title="上移（同级内换顺序）"
                 @click="onMove(e.path, -1)"
               >↑</button>
               <button
                 v-if="isTree && e.depth > 0"
-                title="下移"
+                title="下移（同级内换顺序）"
                 @click="onMove(e.path, 1)"
               >↓</button>
             </span>
@@ -136,7 +179,7 @@ import { buildDiagramSvg } from '../utils/diagrams/index.js';
 import { getCanvasMeasurer, PRINT_SAFE_WIDTH } from '../utils/diagramBlock.js';
 import {
   TREE_TYPES, TREE_REBUILD_TARGETS, collectEntries, setTextAt, removeAt, addChildAt,
-  moveNode, moveNodeTo, rebuildFromTree, changeTreeType,
+  moveNode, moveNodeTo, rebuildFromTree, changeTreeType, setStyleAt, indentNode, outdentNode,
 } from '../utils/diagramSpecEdit.js';
 
 const props = defineProps({
@@ -192,6 +235,22 @@ const onText = (path, val) => { draft.value = setTextAt(draft.value, path, val);
 const onRemove = (path) => { const n = removeAt(draft.value, path); if (n) draft.value = n; };
 const onAddChild = (path) => { const n = addChildAt(draft.value, path); if (n) draft.value = n; };
 const onMove = (path, dir) => { const n = moveNode(draft.value, path, dir); if (n) draft.value = n; };
+
+// 🎨 加粗／改色（2026-10-22 属主："文字能编辑，但不能加粗、修改颜色等操作吗"）
+//   写的是规格里的节点字段（bold / color），渲染侧照它出字重与颜色——所见即所得，且**打印友好**
+//   （加粗在黑白打印下仍可区分，颜色不会）。
+const onBold = (path, bold) => { const n = setStyleAt(draft.value, path, { bold }); if (n) draft.value = n; };
+const onColor = (path, color) => { const n = setStyleAt(draft.value, path, { color }); if (n) draft.value = n; };
+
+// ⬇️⬆️ 升降层级（确定性按钮：真机上从输入框起拖常常拖不动，故不只依赖拖拽）
+const onIndent = (path) => {
+  const n = indentNode(draft.value, path);
+  if (n) { draft.value = n; convertNote.value = ''; }
+};
+const onOutdent = (path) => {
+  const n = outdentNode(draft.value, path);
+  if (n) { draft.value = n; convertNote.value = ''; }
+};
 
 /** 换图种：同构互转（无损）／按映射重建（近似或有损）／不可转则退回原值并说明原因 */
 const onType = (ev) => {
@@ -274,15 +333,31 @@ const onSave = () => { if (draft.value) emit('save', draft.value); };
   background: #fff7e6; border: 1px solid #ffe0a3; color: #8a5a00; font-size: 12px;
 }
 .de-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; border-radius: 5px; }
-.de-row[draggable="true"] { cursor: grab; }
+.de-grip {
+  width: 14px; flex: 0 0 14px; text-align: center; color: #9aa4b2;
+  cursor: grab; user-select: none; font-size: 13px;
+}
+.de-grip:active { cursor: grabbing; }
+.de-grip-off { cursor: default; visibility: hidden; }
 .de-row.drag-over { outline: 2px dashed #2563eb; outline-offset: 1px; background: #eff6ff; }
 .de-input {
   flex: 1; padding: 5px 8px; border: 1px solid #d9dee5; border-radius: 5px; font-size: 13px;
 }
-.de-ops { display: flex; gap: 2px; }
+.de-ops { display: flex; gap: 2px; align-items: center; }
 .de-ops button {
   width: 22px; height: 22px; line-height: 1; border: 1px solid #d9dee5; background: #f8fafc;
   border-radius: 4px; cursor: pointer; font-size: 12px;
+}
+.de-ops button.on { background: #2563eb; border-color: #2563eb; color: #fff; font-weight: 700; }
+.de-b { font-weight: 700; }
+.de-color { position: relative; width: 22px; height: 22px; flex: 0 0 22px; }
+.de-color input[type="color"] {
+  width: 22px; height: 22px; padding: 0; border: 1px solid #d9dee5; border-radius: 4px;
+  background: #f8fafc; cursor: pointer;
+}
+.de-color-clear {
+  position: absolute; top: -6px; right: -6px; width: 13px; height: 13px; line-height: 12px;
+  text-align: center; border-radius: 50%; background: #64748b; color: #fff; font-size: 10px; cursor: pointer;
 }
 .de-preview { flex: 1 1 48%; border-left: 1px solid #eef1f5; padding-left: 12px; overflow: auto; max-height: 62vh; }
 .de-preview-title { font-size: 12px; color: #6b7280; margin-bottom: 6px; }

@@ -65,15 +65,26 @@ export const buildDiagramSvg = (spec, opts = {}) => {
   //   **改用向右生长（right）**再排一次——宽度不再翻倍；实在收不下（如时间轴按条数排）则保持原样，
   //   交给导出侧等比收敛并告警。
   const fit = Number(merged.fitWidth) || 0;
-  if (fit && r.width > fit) {
+  if (fit) {
+    // 🔴 2026-10-22（属主："框的长短应该根据实际内容和 A4 尺寸来""一行不够才换行吧？"）：
+    //   折行宽度的判据从"写死 150px"改成"**A4 版心允许多宽就用多宽**"——
+    //   在 [56, 版心×0.38] 区间上**二分**，取"仍能装进版心"的最宽值：
+    //     · 一行放得下 ⇒ 不折行（少折行、少空高）；
+    //     · 版心装不下 ⇒ 收到刚好装得下（不缩字号，只调折行宽度）。
+    //   原实现只在"已超宽"时才 ×0.85 硬收窄，既收过头（120 够用会收到 87），也从不肯放宽到 150 以上。
     const narrow = (o) => {
-      let mlw = Number(o.maxLabelWidth) || 150;
-      let cur = BUILDERS[type](body, o);
-      for (let i = 0; i < 8 && cur.width > fit && mlw > 56; i += 1) {
-        mlw = Math.max(56, Math.round(mlw * 0.85));
-        cur = BUILDERS[type](body, { ...o, maxLabelWidth: mlw });
+      const start = Number(o.maxLabelWidth) || 150;
+      const hiCap = Math.max(start, Math.min(260, Math.round(fit * 0.38)));
+      let lo = 56;
+      let hi = hiCap;
+      let best = null;
+      while (lo <= hi) {
+        const mid = Math.round((lo + hi) / 2);
+        const cur = BUILDERS[type](body, { ...o, maxLabelWidth: mid });
+        if (cur.width <= fit) { best = cur; lo = mid + 1; } else { hi = mid - 1; }
       }
-      return cur;
+      // 二分假设"越窄越窄"；个别图种（按条数排的时间轴）不单调 → 兜底再试一次最小宽度，仍超宽就交给导出侧。
+      return best || BUILDERS[type](body, { ...o, maxLabelWidth: 56 });
     };
     r = narrow(merged);
     if (r.width > fit && type === 'mindmap' && merged.layout !== 'right') {

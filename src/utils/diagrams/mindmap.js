@@ -28,6 +28,7 @@
 import {
   DEFAULT_FONT, DEFAULT_PALETTE, INK, HEAD_FILL, PAPER,
   esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper,
+  lineBudget, normalizeHex, nodeWeight, weightPadK,
 } from './shared.js';
 
 // 文本工具与配色统一在 shared.js（导图族共用），这里再导出一次，保持本模块原有对外 API 不变
@@ -118,12 +119,21 @@ export const layoutMindmap = (tree, opts = {}) => {
     //   而根/一级分支是 600/500 字重、再加字体回退差异 ⇒ 实排出来比算的宽，字冲出框。
     //   两层处置：① 有**实测 measurer**（浏览器 canvas，按 字重+字号+字体栈 实测）就按实测出框，只留 2px 余量；
     //   ② 无实测（纯函数/jsdom）时按字重留余量，且**折行宽度同步收窄**，保证折完仍装得下。
-    const weight = isRoot ? 600 : (depth === 1 ? 500 : 400);
+    // 🔴 2026-10-22（属主："内容显示不全，用省略号了""框长短/高度都一样，不符合实际"）：
+    //   框的尺寸**随内容**走，不再"统一截到 3 行"——
+    //     · 行数不封顶（`lineBudget` 按内容量给够）⇒ 长要点变高，不再被 `…` 砍掉；
+    //     · 折行宽度按内容微调：略超上限的短语（≤1.2 倍）不硬折成两行，而是让它单行略宽，
+    //       于是框的"长短"也跟着内容有差别，而不是清一色的 150px。
+    const str = tf(raw.title);
+    const weight = nodeWeight(raw, depth, isRoot);
     const exact = typeof measurer === 'function';
     const measure = exact ? (t, f) => measurer(t, f, weight) : undefined;
-    const boldK = exact ? 1 : (weight >= 600 ? 1.10 : (weight >= 500 ? 1.07 : 1.04));
-    const wrapW = exact ? maxLabelWidth : Math.max(60, Math.floor(maxLabelWidth / boldK));
-    const lines = wrapLabel(tf(raw.title), wrapW, fs, measure);
+    const boldK = weightPadK(weight, exact);
+    const natural = estimateTextWidth(str, fs, measure) * boldK;
+    const capW = natural <= maxLabelWidth ? maxLabelWidth
+      : (natural <= maxLabelWidth * 1.2 ? Math.round(natural) : maxLabelWidth);
+    const wrapW = exact ? capW : Math.max(60, Math.floor(capW / boldK));
+    const lines = wrapLabel(str, wrapW, fs, measure, lineBudget(str, wrapW, fs, measure));
     const textW = Math.max(...lines.map((l) => estimateTextWidth(l, fs, measure))) * boldK + (exact ? 2 : 0);
     return {
       id: seq++,
@@ -138,6 +148,8 @@ export const layoutMindmap = (tree, opts = {}) => {
       w: Math.round(textW + padX * 2),
       h: Math.round(lines.length * lineH + padY * 2),
       color,
+      // 节点强调色（规格里可手改）：非根节点＝**文字色**；根节点是深底白字，所以它＝**框底色**。
+      accent: normalizeHex(raw.color),
       isRoot: !!isRoot,
       depth,
       side: 0,
@@ -155,11 +167,24 @@ export const layoutMindmap = (tree, opts = {}) => {
   //   规则只依赖内容本身，不设横/竖参数：
   //     · 只对**全是叶子**的分组生效（分组内还有下级时不横排，否则子树的列会打架）；
   //     · 按统一字号量每项宽度，能并排几项就并排几项（上限 4 项），放不下换行；
-  //     · 整块宽度卡在 MAX_GRID_W 以内——**靠换行解决宽度，不缩字号**（A4 版心 760px，
-  //       超过 760 才会被整体缩放、超过 950 才告警"印出来偏小"）。
+  //     · 整块宽度卡在**该侧可用宽（按 A4 版心算）**以内——靠换行解决宽度，不缩字号。
+  // 🔴 2026-10-22（属主："对于多支的也是这样吗？宽度不够，多支可以切换为竖排同级吧"）：
+  //   原上限是**写死的 460px**，与版心无关 ⇒ 643 版心下"一侧只剩 200px"时仍按 460 横排，
+  //   结果整块超宽、再被整体收窄。现改为：**先算这一侧在 A4 里能拿多少宽**，能并几项就并几项；
+  //   连两项都并不下（cols<2）或条目本身是长句 ⇒ **自然回落竖排同级**（一项一行），不做任何硬挤。
   const MAX_GRID_W = 460;
   /** 只有"短条目"才横排（≈8 个汉字以内，含内边距后 ≤160px）；长句子仍竖排——横排会把长句挤成窄栏 */
   const MAX_SHORT_W = 160;
+  const fitW = Number(opts.fitWidth) || 0;
+  // 一侧可用的横向预算：balanced 两侧对分（扣掉根与两侧外边距/列间隙）；right 整幅归一侧。
+  //   ⚠️ 只有"真的分成两侧"（一级分支 ≥2）时才减半——单分支的 balanced 其实独占整幅宽，
+  //   按一半算会把多支硬压成竖排（白白浪费半页）。
+  const sideCount = layout === 'balanced' && (root.children || []).length > 1 ? 2 : 1;
+  const sideBudget = fitW
+    ? Math.max(140, Math.round((fitW - 2 * margin - root.w) / sideCount - gapX))
+    : MAX_GRID_W;
+  /** 该分组可用的整块宽：其前还有 node.depth 层列，按"每列至少 56px"保守扣减 */
+  const gridBudgetOf = (node) => Math.max(120, Math.min(MAX_GRID_W, sideBudget - node.depth * (56 + gapX)));
   const gridGeo = (node) => {
     const kids = node.children || [];
     const cols = Math.max(1, Math.min(node.grid.cols, kids.length));
@@ -179,7 +204,9 @@ export const layoutMindmap = (tree, opts = {}) => {
     const kids = node.children || [];
     if (kids.length >= 3 && kids.every((k) => !(k.children || []).length)) {
       const maxW = Math.max(...kids.map((k) => k.w));
-      const cols = Math.min(4, Math.floor((MAX_GRID_W + gapX) / (maxW + gapX)));
+      const budget = gridBudgetOf(node);
+      const cols = Math.min(4, Math.floor((budget + gapX) / (maxW + gapX)));
+      // cols < 2 ⇒ A4 里这一侧放不下两项并排 ⇒ 不横排，自动走"竖排同级"（下方 tidy 布局一项一行）
       if (cols >= 2 && maxW <= MAX_SHORT_W) node.grid = { cols };
     }
     kids.forEach(decideGrid);
@@ -371,15 +398,17 @@ export const buildMindmapSvg = (tree, opts = {}) => {
   // ② 再画节点（保证文字/框不被线穿过）
   for (const n of nodes) {
     const r = n.isRoot ? 8 : 6;
+    // 强调色（属主："文字能编辑，但不能加粗、改颜色"）：非根＝文字色，根＝框底色（根是深底白字，改字色会看不清）
+    const rootFill = n.isRoot && n.accent ? n.accent : HEAD_FILL;
     if (n.isRoot) {
-      out.push(`<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="${r}" fill="${HEAD_FILL}"/>`);
+      out.push(`<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="${r}" fill="${rootFill}"/>`);
     } else {
       out.push(`<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="${r}" fill="${PAPER}" stroke="${n.color}" stroke-width="1.3"/>`);
     }
     // 层级同时用字重强化（黑白打印时颜色差异会消失，字重不会）
     //   字重单源在 layout（prep 里算进框宽余量），此处只取用，防两处各判一次。
     const weight = n.weight || (n.isRoot ? 600 : (n.depth === 1 ? 500 : 400));
-    const fill = n.isRoot ? PAPER : INK;
+    const fill = n.isRoot ? PAPER : (n.accent || INK);
     const anchor = n.side === -1 ? 'end' : 'start';
     const tx = n.side === -1 ? n.x + n.w - n.padX : n.x + n.padX;
     const baseline0 = n.y + n.padY + n.fs * 1.06;
