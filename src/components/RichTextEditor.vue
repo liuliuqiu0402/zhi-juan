@@ -446,6 +446,15 @@
         >
           📊
         </button>
+        <!-- 🧩 编辑导图（2026-10-22 属主："模型生成的内容如果错了，可以改"）：
+             选中正文里的导图后可用；只改规格 JSON 再重画，不重新调模型 -->
+        <button
+          title="编辑选中的导图（改文字/增删要点/换图种）"
+          :disabled="!diagramSel"
+          @click="openDiagramEditor"
+        >
+          🧩
+        </button>
         <!-- 插入作文格（手动·单一事实源 src/utils/zuoWenGrid.js）：
              光标处插入 / 选中横线·短答空位时**替换**（消"横线与格子并存"）；浏览器原生撤销可用 -->
         <button
@@ -539,6 +548,14 @@
     >
       <editor-content :editor="editor" />
     </div>
+
+    <!-- 🧩 导图编辑面板（选中导图后由工具栏打开；只改规格 JSON 再重画，不重新调模型） -->
+    <DiagramEditorPanel
+      :visible="diagramPanelOpen"
+      :spec="diagramSel && diagramSel.parsed"
+      @close="diagramPanelOpen = false"
+      @save="saveDiagramSpec"
+    />
   </div>
 </template>
 
@@ -656,6 +673,8 @@ import { Extension, Mark, Node } from '@tiptap/core';
 // 🧩 导图透传节点：tiptap 的 schema 里没有 svg/figure，程序化注入的导图会被静默剥掉
 //    （与当年 `<div>` 被丢、公式被丢同一类问题）。见 utils/tiptapDiagramFigure 的注释与配套测试。
 import { createDiagramFigureNode } from '../utils/tiptapDiagramFigure.js';
+import { readSpecAttr } from '../utils/diagramBlock.js';
+import DiagramEditorPanel from './DiagramEditorPanel.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { normalizeWhitespaceCarriers, normalizeLeadingMarkers, normalizeMathCircleBlanks, ensureCarrierContent, wrapBareBlankRuns } from '../utils/contentCleaner.js'; // 全局归一：纯空白装饰标记→填空横线 + 行首"项目符号+序号"剥离 + 算式 ○→数学填空圈 + 空载体兜底填充（装载/粘贴统一，旧内容回改） + 裸书写空（全角/em 空格）→填空横线
 import { convertPastedMathInHtml } from '../utils/pastedMath.js'; // 粘贴公式还原：Word OMML / 网页 MathML → $…$ LaTeX（交给 KaTeX 出印刷形态）
@@ -1233,6 +1252,40 @@ const layoutVars = computed(() => {
 //    新增一种形式只改那一处。定义在 useEditor 之前：onSelectionUpdate 回调会引用它，避免 TDZ 报错
 const orderedFormOptions = NUMBER_FORMS;
 const orderedForm = ref('1');
+// 🧩 导图选中态与编辑面板（2026-10-22 属主："模型生成的内容如果错了，可以改"）：
+//    选中导图（NodeSelection 命中 diagramFigure）→ 工具栏🧩可用 → 面板里改文字/增删/换图种 →
+//    保存时把新规格写回节点属性（spec），renderHTML 会用规格重画 SVG。**不重新调模型**。
+const diagramSel = ref(null);
+const diagramPanelOpen = ref(false);
+const syncDiagramSelection = (editorIns) => {
+  const sel = editorIns?.state?.selection;
+  const node = sel && sel.node;
+  diagramSel.value = (node && node.type?.name === 'diagramFigure' && sel.from != null)
+    ? { spec: node.attrs?.spec || '', pos: sel.from }
+    : null;
+};
+/** 打开面板前把属性里的 JSON 解析出来；坏数据不打开（避免把坏数据写回去） */
+const openDiagramEditor = () => {
+  const raw = diagramSel.value?.spec;
+  const spec = readSpecAttr(raw);
+  if (!spec) {
+    // ⚠️ Electron 运行时不支持 window.alert/prompt（本文件既定口径：一律走面板）
+    console.warn('⚠️ 这张导图的规格数据不完整，无法编辑（可删除后重新生成）');
+    return;
+  }
+  diagramSel.value = { ...(diagramSel.value || {}), spec: raw, parsed: spec };
+  diagramPanelOpen.value = true;
+};
+/** 面板保存：规格 → JSON 字符串 → 写回节点属性（走编辑器历史，可撤销） */
+const saveDiagramSpec = (nextSpec) => {
+  const pos = diagramSel.value?.pos;
+  if (!editor.value || pos == null) { diagramPanelOpen.value = false; return; }
+  editor.value.chain().focus()
+    .setNodeSelection(pos)
+    .updateAttributes('diagramFigure', { spec: JSON.stringify(nextSpec) })
+    .run();
+  diagramPanelOpen.value = false;
+};
 /** 工具栏按钮上显示的形式样本（所见即所得：改形式按钮上的字也跟着变） */
 const orderedFormSample = computed(() =>
   (NUMBER_FORMS.find((f) => f.value === orderedForm.value) || NUMBER_FORMS[0]).sample);
@@ -1315,6 +1368,8 @@ const editor = useEditor({
     }, 150);
   },
   onSelectionUpdate: ({ editor }) => {
+    // 🧩 导图选中态：NodeSelection 命中 diagramFigure ⇒ 工具栏🧩可用（其余情况置灰）
+    syncDiagramSelection(editor);
     // 编号形式联动：光标进入某个编号形式的列表时，形式下拉自动同步（含 1/a/A/i/I/（1）/一、/①）
     const olType = editor.getAttributes('orderedList').type;
     if (olType && isOrderedNumberStyle(olType)) orderedForm.value = olType;

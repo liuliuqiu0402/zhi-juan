@@ -1,0 +1,132 @@
+/**
+ * 🧩 导图规格的**编辑用纯函数**（面板 UI 与单测共用；不改渲染内核）
+ * ============================================================
+ * 背景（2026-10-22 属主："目前主要考虑模型生成的内容如果错了，可以改"）：
+ *   导图在正文里是 `<figure class="k-diagram-figure" data-k-spec="{…}">`——**规格 JSON 是唯一事实源**，
+ *   渲染是纯函数（buildDiagramSvg）。所以"改内容"＝改这份 JSON 再重画，**不需要重新调模型**。
+ *
+ * 本模块只做两件事：
+ *   ① 把规格摊平成"可编辑文字条目"（带路径），供面板列出来逐条改；
+ *   ② 按路径改文字 / 删条目 / 加子条目 / 换图种（仅 mindmap ↔ brace），**一律不可变返回新对象**。
+ *   —— 不在这里做排版，也不碰 SVG；排版仍走 utils/diagrams。
+ * ============================================================
+ */
+
+/** 结构同构、可互转的"树形"图种（都是 { title, children[] }） */
+export const TREE_TYPES = ['mindmap', 'brace'];
+
+const clone = (o) => JSON.parse(JSON.stringify(o));
+
+const typeOf = (spec) => (spec && spec.type) || 'mindmap';
+
+/** 取某路径上的值 */
+const getAt = (obj, path) => path.reduce((cur, k) => (cur == null ? undefined : cur[k]), obj);
+
+/** 不可变写入：返回深拷贝后把 path 末端的值改成 text */
+export const setTextAt = (spec, path, text) => {
+  const next = clone(spec);
+  if (!path.length) { next.title = String(text ?? ''); return next; }
+  const parent = getAt(next, path.slice(0, -1));
+  const key = path[path.length - 1];
+  if (parent && typeof parent === 'object') parent[key] = String(text ?? '');
+  return next;
+};
+
+/**
+ * 摊平成可编辑条目：
+ * `{ path, text, role, depth, removable, addable }`
+ *   role: root | child | item | step | branch | effect | category | cause | node | link
+ *   removable/addable: 该条目所属结构是否支持删除/在它下面加子项（仅树形图种为 true）
+ */
+export const collectEntries = (spec) => {
+  const out = [];
+  if (!spec || typeof spec !== 'object') return out;
+  const type = typeOf(spec);
+
+  if (TREE_TYPES.includes(type)) {
+    const walk = (node, path, depth) => {
+      out.push({
+        path, text: String(node.title ?? ''), role: depth === 0 ? 'root' : 'child', depth,
+        removable: depth > 0, addable: true,
+      });
+      (node.children || []).forEach((c, i) => walk(c, [...path, 'children', i], depth + 1));
+    };
+    walk(spec, [], 0);
+    return out;
+  }
+
+  if (type === 'timeline') {
+    (spec.items || []).forEach((it, i) => out.push({ path: ['items', i, 'text'], text: String(it?.text ?? ''), role: 'item', depth: 0, removable: true, addable: false }));
+    return out;
+  }
+  if (type === 'flow') {
+    (spec.steps || []).forEach((st, i) => {
+      out.push({ path: ['steps', i, 'text'], text: String(st?.text ?? ''), role: 'step', depth: 0, removable: true, addable: false });
+      (st?.branches || []).forEach((br, bi) => {
+        (br?.steps || []).forEach((bs, si) => out.push({ path: ['steps', i, 'branches', bi, 'steps', si, 'text'], text: String(bs?.text ?? ''), role: 'branch', depth: 1, removable: true, addable: false }));
+      });
+    });
+    return out;
+  }
+  if (type === 'fishbone') {
+    out.push({ path: ['effect'], text: String(spec.effect ?? ''), role: 'effect', depth: 0, removable: false, addable: false });
+    (spec.categories || []).forEach((cat, i) => {
+      out.push({ path: ['categories', i, 'name'], text: String(cat?.name ?? ''), role: 'category', depth: 1, removable: true, addable: false });
+      (cat?.causes || []).forEach((c, ci) => out.push({ path: ['categories', i, 'causes', ci], text: String(c ?? ''), role: 'cause', depth: 2, removable: true, addable: false }));
+    });
+    return out;
+  }
+  if (type === 'concept') {
+    (spec.nodes || []).forEach((n, i) => out.push({ path: ['nodes', i, 'text'], text: String(n?.text ?? ''), role: 'node', depth: 0, removable: true, addable: false }));
+    (spec.links || []).forEach((l, i) => out.push({ path: ['links', i, 'label'], text: String(l?.label ?? ''), role: 'link', depth: 1, removable: true, addable: false }));
+    return out;
+  }
+  return out;
+};
+
+/** 删除某条目（path 末端是数组下标；根节点与不可删项返回 null） */
+export const removeAt = (spec, path) => {
+  const idx = path[path.length - 1];
+  if (typeof idx !== 'number') return null;
+  const next = clone(spec);
+  const arr = getAt(next, path.slice(0, -1));
+  if (!Array.isArray(arr) || idx < 0 || idx >= arr.length) return null;
+  arr.splice(idx, 1);
+  return next;
+};
+
+/** 在树形图种的某个节点下**加一个子项**（新增项文字先给占位，面板里再改） */
+export const addChildAt = (spec, path, text = '新要点') => {
+  if (!TREE_TYPES.includes(typeOf(spec))) return null;
+  const next = clone(spec);
+  const node = getAt(next, path) || next;
+  node.children = Array.isArray(node.children) ? node.children : [];
+  node.children.push({ title: String(text || '新要点') });
+  return next;
+};
+
+/** 把树形节点上移/下移一位（dir = -1 上移 / +1 下移）；根节点不动 */
+export const moveNode = (spec, path, dir) => {
+  const idx = path[path.length - 1];
+  if (typeof idx !== 'number') return null;
+  const next = clone(spec);
+  const arr = getAt(next, path.slice(0, -1));
+  const to = idx + dir;
+  if (!Array.isArray(arr) || to < 0 || to >= arr.length) return null;
+  const [item] = arr.splice(idx, 1);
+  arr.splice(to, 0, item);
+  return next;
+};
+
+/** 换图种：只允许 mindmap ↔ brace 互转（结构同构）；其它返回 null（面板里禁用） */
+export const changeTreeType = (spec, type) => {
+  if (!TREE_TYPES.includes(typeOf(spec)) || !TREE_TYPES.includes(type)) return null;
+  const next = clone(spec);
+  next.type = type;
+  return next;
+};
+
+/** 校验规格能否编辑（面板打开前把坏 JSON 挡掉） */
+export const isEditableSpec = (spec) => !!spec && typeof spec === 'object' && typeof (spec.type || 'mindmap') === 'string';
+
+export default { TREE_TYPES, collectEntries, setTextAt, removeAt, addChildAt, moveNode, changeTreeType, isEditableSpec };
