@@ -48,6 +48,11 @@ export const esc = (s) => String(s == null ? '' : s)
  * CJK/全角按 1em、拉丁数字按 0.56em、其余标点按 0.42em —— 中文场景足够准；
  * 需要像素级精确时注入 `measurer(text, fontSize)`。
  */
+/** 估算口径的**保守系数**：真实字宽会因字重、字体回退、hinting 略大于按类别估算的值
+ *  （2026-10-22 属主连续两轮反馈"还有字在框外"）⇒ 估算一律放大 4%，宁可略宽也不越框。
+ *  浏览器里有 canvas 实测 measurer（见 utils/diagramBlock.js）时走实测，不吃这个系数。 */
+const SAFETY_K = 1.04;
+
 export const estimateTextWidth = (text, fontSize, measurer) => {
   if (typeof measurer === 'function') return measurer(text, fontSize);
   let w = 0;
@@ -60,7 +65,7 @@ export const estimateTextWidth = (text, fontSize, measurer) => {
     else if (/[a-z0-9]/.test(ch)) w += 0.56;
     else w += 0.42;
   }
-  return w * fontSize;
+  return w * fontSize * SAFETY_K;
 };
 
 /**

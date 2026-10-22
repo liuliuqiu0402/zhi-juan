@@ -128,4 +128,28 @@ describe('diagramBlock · 标记块渲染', () => {
     expect(src).toContain(`const PRINT_MIN_SCALE = ${PRINT_MIN_SCALE};`);
     expect(src).toContain('const PRINT_WARN_WIDTH = Math.round(PRINT_SAFE_WIDTH / PRINT_MIN_SCALE);');
   });
+
+  // 🔴 2026-10-22（属主："为啥还有字会在框外呢？我们不是自适应了吗？"）：
+  //   自适应靠"注入实测 measurer"——必须证明**它真的进到版式里**：量得越宽，图也越宽。
+  //   量得不生效时，这条会红（此前只修了思维导图，其它图种的实测没传字重也会出框）。
+  it('实测 measurer 真的决定版式：同一内容量得越宽，出图越宽', () => {
+    const box = '<div class="k-diagram" data-type="mindmap">{"title":"函数","children":[{"title":"定义域"}]}</div>';
+    const widthOf = (html) => Number((html.match(/<svg[^>]*\bwidth="(\d+)"/) || [])[1]);
+    const narrow = widthOf(renderDiagramBlocks(box, { measurer: (t, f) => String(t).length * f * 0.5 }).html);
+    const wide = widthOf(renderDiagramBlocks(box, { measurer: (t, f) => String(t).length * f * 1.5 }).html);
+    expect(narrow).toBeGreaterThan(0);
+    expect(wide).toBeGreaterThan(narrow);
+  });
+
+  it('括号图/流程图同样吃实测 measurer（它们的字重不同，不得按常规字重量窄）', () => {
+    const brace = '<div class="k-diagram" data-type="brace">{"title":"整数与它的分类","children":[{"title":"正整数与零"},{"title":"负整数"}]}</div>';
+    // 流程图有"最小框宽"，短标签会被 minBoxWidth 兜住看不出差异 ⇒ 用长标签越过它
+    const flow = '<div class="k-diagram" data-type="flow">{"steps":[{"text":"先读题并圈出已知条件","kind":"start"},{"text":"再列式计算并检查","kind":"process"}]}</div>';
+    const widthOf = (html) => Number((html.match(/<svg[^>]*\bwidth="(\d+)"/) || [])[1]);
+    for (const b of [brace, flow]) {
+      const a = widthOf(renderDiagramBlocks(b, { measurer: (t, f) => String(t).length * f * 0.6 }).html);
+      const c = widthOf(renderDiagramBlocks(b, { measurer: (t, f) => String(t).length * f * 1.6 }).html);
+      expect(c, `实测加宽后图应变宽：${b.slice(0, 40)}`).toBeGreaterThan(a);
+    }
+  });
 });

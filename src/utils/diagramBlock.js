@@ -29,12 +29,17 @@ const makeCanvasMeasurer = () => {
     if (typeof document === 'undefined' || typeof CanvasRenderingContext2D === 'undefined') return null;
     const ctx = document.createElement('canvas').getContext('2d');
     if (!ctx || typeof ctx.measureText !== 'function') return null;
-    return (text, fontSize, weight = 400) => {
+    return (text, fontSize, weight) => {
       const t = String(text == null ? '' : text);
       try {
-        ctx.font = `${weight} ${fontSize}px ${DEFAULT_FONT}`;
+        // 🔴 2026-10-22（属主："为啥还有字会在框外呢？我们不是自适应了吗？"）：
+        //   各图种的文字字重不同（mindmap 根 600／一级 500；flow 起止 600；brace 标题 500），
+        //   而多数图种调用 measurer 时**不传字重**。这里把"未指定字重"按**最大字重 600** 实测——
+        //   宁可略宽（不越框），也不要按 400 量出来偏窄导致出框。
+        ctx.font = `${weight == null ? 600 : weight} ${fontSize}px ${DEFAULT_FONT}`;
         const w = ctx.measureText(t).width;
-        return Number.isFinite(w) && w > 0 ? w : t.length * fontSize * 0.6;
+        // 再留 2% + 2px 的余量：不同引擎的 hinting/字距有细微差异，宁可略宽也不越框。
+        return Number.isFinite(w) && w > 0 ? w * 1.02 + 2 : t.length * fontSize * 0.6;
       } catch {
         return t.length * fontSize * 0.6;
       }
@@ -59,12 +64,24 @@ export const SPEC_ATTR = 'data-k-spec';
  *    同时它也是"改版式/换图种不必重新调模型"的地基。
  */
 
+/** 实测 measurer 的按需单例（同一页面复用一个 canvas context；无 canvas 环境缓存 null） */
+let _measurerCache;
+export const getCanvasMeasurer = () => {
+  if (_measurerCache === undefined) _measurerCache = makeCanvasMeasurer();
+  return _measurerCache;
+};
+
 /** 规格属性 → SVG（属性里的 JSON 坏了也不抛错：返回空串并告警，规格本身仍在图上可重画） */
 export const svgFromSpecAttr = (raw) => {
   const spec = readSpecAttr(raw);
   if (!spec) return '';
   try {
-    return buildDiagramSvg(spec).svg || '';
+    // 🔴 2026-10-22（属主："为啥还有字会在框外呢？我们不是自适应了吗？"）：
+    //   编辑器/导出是**从规格重画**（renderHTML → 本函数），原来这条路没带实测 measurer，
+    //   于是"生成时按实测出框、进编辑器/导出又按估算出框"——两套宽度，后者可能偏窄 ⇒ 又出框。
+    //   这里与生成侧用**同一个** canvas 实测（无 canvas 时自动退回估算）。
+    const m = getCanvasMeasurer();
+    return buildDiagramSvg(spec, m ? { measurer: m } : {}).svg || '';
   } catch (e) {
     console.warn('⚠️ 导图规格重绘失败：', e?.message || e);
     return '';
@@ -186,7 +203,7 @@ export const renderDiagramBlocks = (html, opts = {}) => {
   //   框宽原来是**按字符类别估算**（CJK 1em／拉丁 0.56em…），字体回退、字重、连字都会让实排更宽 ⇒
   //   仍有字出框。浏览器里能拿到真实字宽，故默认注入一个 **canvas 实测 measurer**（按 字重+字号+字体栈 实测），
   //   版式按实测宽出框；jsdom/无 canvas 环境自动退回估算（纯函数单测仍走估算口径）。
-  const measurer = opts.measurer || makeCanvasMeasurer();
+  const measurer = opts.measurer || getCanvasMeasurer();
   const passOpts = measurer ? { ...opts, measurer } : opts;
   const doc = new DOMParser().parseFromString(`<div id="__k_root">${src}</div>`, 'text/html');
   const root = doc.getElementById('__k_root');
