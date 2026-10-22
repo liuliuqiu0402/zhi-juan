@@ -5122,7 +5122,23 @@ const {
 const { selectFiles, parseWord, readTextFile } = useFileHandler();
 
 // 计算属性
-const scopeTypeLabel = computed(() => '命题范围');
+// 🔴 2026-10-22（属主："资料类型等，选择了之后顶部不联动显示的吗？目前只有组织风格是联动的吧？"）：
+//   原写法是**常量**——`computed(() => '命题范围')` / `computed(() => '资料类型')`，所以顶栏永远显示
+//   这两个词、不随选择变化（只有组织风格/名称样式/专项是真读状态的）。现改为真读状态：
+//   · 命题范围：用户确认过的范围名（scopeOverride）> 考试类范围词 > 已选章节数 > 兜底"命题范围"；
+//   · 资料类型：读 genTypes（可多选），单个显示名称、多个显示"首个 等N类"。
+const scopeTypeLabel = computed(() => {
+  const override = (scopeOverride.value || '').trim();
+  if (override) return override;
+  const examWord = {
+    midterm: '期中', final: '期末', monthly: '月考', topic: '专题',
+    xiaoshengchu: '小升初', zhongkao: '中考', gaokao: '高考',
+  }[scopeType.value || ''];
+  if (examWord) return examWord;
+  const n = textbookStore.selectedChapterCount || 0;
+  if (n > 0) return `已选 ${n} 章`;
+  return '命题范围';
+});
 const styleLabel = computed(() => {
   if (!propositionStyle.value) return '组织风格';
   const opt = styleOptions.find(o => o.value === propositionStyle.value);
@@ -5203,7 +5219,13 @@ const resetScoreAdjust = () => {
   showScoreAdjustModal.value = false;
   loadInstructionFromLibrary();
 };
-const genTypeLabel = computed(() => '资料类型');
+// 资料类型（可多选，按顺序复生成）：顶栏显示当前选择，不再固定写"资料类型"。
+const genTypeLabel = computed(() => {
+  const strip = (s) => String(s || '').replace(/^[\p{Extended_Pictographic}\uFE0F\s]+/u, '').trim();
+  const names = (genTypes.value || []).map((t) => strip(genTypeTemplates[t]?.name || t)).filter(Boolean);
+  if (!names.length) return '资料类型';
+  return names.length === 1 ? names[0] : `${names[0]} 等${names.length}类`;
+});
 const specialSubTypeLabel = computed(() => {
   const keys = Array.isArray(specialSubType.value) ? specialSubType.value : (specialSubType.value ? [specialSubType.value] : []);
   if (!keys.length) return '';
