@@ -37,9 +37,11 @@ export { estimateTextWidth, wrapLabel };
 
 /**
  * 给「一侧」的子树做 tidy 布局：返回占用高度，并把 y 写回 node.y。
- * 规则：叶子按顺序堆叠；父节点垂直居中于其子节点的跨度。
+ * 规则：叶子按顺序堆叠；**叶子分组够短时按行铺开**（node.grid，行高取该行最高项）；
+ *   父节点垂直居中于整块（父比块高时贴块顶、并把游标推到父底，避免压到下一棵子树）。
+ * @param {Function} geo node → 该分组的格线（列宽/行高/列偏移/行偏移/整块宽高）
  */
-const layoutSide = (nodes, gapY) => {
+const layoutSide = (nodes, gapY, geo) => {
   let cursor = 0;
   const place = (node) => {
     const kids = node.children || [];
@@ -49,6 +51,15 @@ const layoutSide = (nodes, gapY) => {
       return;
     }
     const start = cursor;
+    if (node.grid) {
+      const g = geo(node);
+      kids.forEach((k, i) => { k.y = start + g.rowY[Math.floor(i / g.cols)]; });
+      cursor = start + g.height + gapY;
+      node.y = start + (g.height - node.h) / 2;
+      if (node.y < start) node.y = start;
+      if (node.y + node.h + gapY > cursor) cursor = node.y + node.h + gapY;
+      return;
+    }
     kids.forEach(place);
     const first = kids[0];
     const last = kids[kids.length - 1];
@@ -130,6 +141,41 @@ export const layoutMindmap = (tree, opts = {}) => {
   const bind = (n) => { (n.children || []).forEach((c) => { c.parent = n; bind(c); }); };
   bind(root);
 
+  // ── 叶子分组的"按内容自动横排"（2026-10-22 属主："4 的口诀 4 个可否在一行？按内容实际来排"）──
+  //   规则只依赖内容本身，不设横/竖参数：
+  //     · 只对**全是叶子**的分组生效（分组内还有下级时不横排，否则子树的列会打架）；
+  //     · 按统一字号量每项宽度，能并排几项就并排几项（上限 4 项），放不下换行；
+  //     · 整块宽度卡在 MAX_GRID_W 以内——**靠换行解决宽度，不缩字号**（A4 版心 760px，
+  //       超过 760 才会被整体缩放、超过 950 才告警"印出来偏小"）。
+  const MAX_GRID_W = 460;
+  /** 只有"短条目"才横排（≈8 个汉字以内，含内边距后 ≤160px）；长句子仍竖排——横排会把长句挤成窄栏 */
+  const MAX_SHORT_W = 160;
+  const gridGeo = (node) => {
+    const kids = node.children || [];
+    const cols = Math.max(1, Math.min(node.grid.cols, kids.length));
+    const rows = Math.ceil(kids.length / cols);
+    const colW = Array.from({ length: cols }, (_, c) => Math.max(...kids.filter((_, i) => i % cols === c).map((k) => k.w)));
+    const rowH = Array.from({ length: rows }, (_, r) => Math.max(...kids.slice(r * cols, r * cols + cols).map((k) => k.h)));
+    const colX = [];
+    let ax = 0;
+    for (let c = 0; c < cols; c++) { colX[c] = ax; ax += colW[c] + gapX; }
+    const rowY = [];
+    let ay = 0;
+    for (let r = 0; r < rows; r++) { rowY[r] = ay; ay += rowH[r] + gapY; }
+    return { cols, rows, colW, rowH, colX, rowY, width: ax - gapX, height: ay - gapY };
+  };
+  const decideGrid = (node) => {
+    node.grid = null;
+    const kids = node.children || [];
+    if (kids.length >= 3 && kids.every((k) => !(k.children || []).length)) {
+      const maxW = Math.max(...kids.map((k) => k.w));
+      const cols = Math.min(4, Math.floor((MAX_GRID_W + gapX) / (maxW + gapX)));
+      if (cols >= 2 && maxW <= MAX_SHORT_W) node.grid = { cols };
+    }
+    kids.forEach(decideGrid);
+  };
+  decideGrid(root);
+
   // ── 分两侧：按"子树预估高度"贪心切分（比按数量切更均衡）──
   const all = root.children || [];
   let leftKids = [];
@@ -158,8 +204,8 @@ export const layoutMindmap = (tree, opts = {}) => {
   rightKids.forEach((n) => setSide(n, 1));
 
   // ── 纵向：两侧各自 tidy，各自垂直居中于画布中线 ──
-  const hL = layoutSide(leftKids, gapY);
-  const hR = layoutSide(rightKids, gapY);
+  const hL = layoutSide(leftKids, gapY, gridGeo);
+  const hR = layoutSide(rightKids, gapY, gridGeo);
   const contentH = Math.max(hL, hR, root.h);
   const centerY = contentH / 2;
   const shiftSide = (kids, sideH) => {
@@ -189,6 +235,13 @@ export const layoutMindmap = (tree, opts = {}) => {
     (n.children || []).forEach((c) => collectW(c, d + 1));
   };
   all.forEach((n) => collectW(n, 1));
+  // 横排分组的**整块宽**也要算进它所占的那一层（否则下一层列间距按单节点宽算，
+  //   横排的项会插进下一层的列里、和别的节点压在一起）。
+  const collectGridW = (n) => {
+    if (n.grid) depthW[n.depth + 1] = Math.max(depthW[n.depth + 1] || 0, gridGeo(n).width);
+    (n.children || []).forEach(collectGridW);
+  };
+  all.forEach(collectGridW);
   const colStep = [];
   for (let d = 1; d <= 12; d++) colStep[d] = (depthW[d] || 0) + gapX;
 
@@ -196,15 +249,31 @@ export const layoutMindmap = (tree, opts = {}) => {
   // 根节点自己也要占位！它不参与 placeX（placeX 只排左右两侧的子节点），
   //    漏赋值会让 root.x 停在初始的 0，归一化后整块压到右侧分支上。
   root.x = -halfW;
-  const placeX = (n, side) => {
-    const d = n.depth;
-    // 左侧必须**逐层往左**排（colStep 取负），否则越深的节点越往右跑、
-    //    直接压到根节点和右半区上（实测 balanced 版式会出现 3200px² 的重叠）。
+  /** 第 depth 层、某一侧"靠父节点那一条边"的坐标（右侧＝左边缘，左侧＝右边缘） */
+  const bandEdge = (depth, side) => {
     const dir = side === 1 ? 1 : -1;
     let x = dir * (halfW + gapX);
-    for (let i = 1; i < d; i++) x += dir * (colStep[i] || gapX);
-    n.x = side === 1 ? x : x - n.w;
-    (n.children || []).forEach((c) => placeX(c, side));
+    for (let i = 1; i < depth; i++) x += dir * (colStep[i] || gapX);
+    return x;
+  };
+  const placeX = (n, side, keepX = false) => {
+    // 左侧必须**逐层往左**排（colStep 取负），否则越深的节点越往右跑、
+    //    直接压到根节点和右半区上（实测 balanced 版式会出现 3200px² 的重叠）。
+    if (!keepX) {
+      const e = bandEdge(n.depth, side);
+      n.x = side === 1 ? e : e - n.w;
+    }
+    const childEdge = bandEdge(n.depth + 1, side);
+    if (n.grid) {
+      const g = gridGeo(n);
+      n.children.forEach((c, i) => {
+        const col = i % g.cols;
+        c.x = side === 1 ? childEdge + g.colX[col] : childEdge - g.colX[col] - c.w;
+        placeX(c, side, true);
+      });
+      return;
+    }
+    n.children.forEach((c) => placeX(c, side));
   };
   leftKids.forEach((n) => placeX(n, -1));
   rightKids.forEach((n) => placeX(n, 1));

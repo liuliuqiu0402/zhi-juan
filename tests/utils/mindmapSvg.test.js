@@ -202,6 +202,84 @@ describe('mindmapSvg · 折行与宽度估算', () => {
   });
 });
 
+describe('mindmapSvg · 按内容自动横排（不设横/竖参数）', () => {
+  // 2026-10-22 属主："4 的口诀 4 个可否在一行？排版中根据内容实际来排，不指定竖着或者横着"
+  //   规则：全是叶子且条目短（≈8 字内）的分组，能并排几项就并排几项（上限 4），放不下换行；
+  //   整块宽度卡在 460px 内——靠换行解决宽度，**不缩字号**。
+  const KOUJUE = {
+    title: '4 的乘法口诀',
+    children: [
+      { title: '口诀', children: [
+        { title: '一四得四' }, { title: '二四得八' }, { title: '三四十二' }, { title: '四四十六' },
+      ] },
+    ],
+  };
+  const kidsOf = (nodes, parentTitle) => {
+    const p = nodes.find((n) => n.title === parentTitle);
+    expect(p, `找不到父节点「${parentTitle}」`).toBeTruthy();
+    return p.children || [];
+  };
+
+  it('4 个短口诀排在同一行（同一 y、x 递增）', () => {
+    const { nodes } = layoutMindmap(KOUJUE, { layout: 'right' });
+    const ks = kidsOf(nodes, '口诀');
+    expect(ks.length).toBe(4);
+    expect(new Set(ks.map((k) => Math.round(k.y))).size, '同一行').toBe(1);
+    const xs = ks.map((k) => k.x);
+    expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+  });
+
+  it('短条目放不下就换行（宽度卡在版心内，不靠缩字号）', () => {
+    const many = {
+      title: 'r',
+      children: [{ title: 'g', children: Array.from({ length: 7 }, (_, i) => ({ title: `第${i + 1}项` })) }],
+    };
+    const { nodes, metrics } = layoutMindmap(many, { layout: 'right' });
+    const ks = kidsOf(nodes, 'g');
+    const left = Math.min(...ks.map((k) => k.x));
+    const right = Math.max(...ks.map((k) => k.x + k.w));
+    expect(right - left, '整块不超 460px').toBeLessThanOrEqual(461);
+    expect(new Set(ks.map((k) => Math.round(k.y))).size, '7 项 ⇒ 换行').toBeGreaterThan(1);
+    expect(metrics.fontSize, '字号不因横排变小').toBe(13);
+  });
+
+  it('长条目仍竖排（横排会把长句挤成窄栏）', () => {
+    const long = {
+      title: 'r',
+      children: [{ title: 'g', children: [
+        { title: '三要素：定义域、值域、对应法则' },
+        { title: '表示法：解析法、列表法与图象法' },
+        { title: '单调性：同增异减与复合判定' },
+      ] }],
+    };
+    const { nodes } = layoutMindmap(long, { layout: 'right' });
+    const ks = kidsOf(nodes, 'g');
+    expect(new Set(ks.map((k) => Math.round(k.y))).size, '一条一行').toBe(3);
+  });
+
+  it('只有两项不横排（少项没有排版收益）', () => {
+    const two = { title: 'r', children: [{ title: 'g', children: [{ title: '甲项' }, { title: '乙项' }] }] };
+    const { nodes } = layoutMindmap(two, { layout: 'right' });
+    const ks = kidsOf(nodes, 'g');
+    expect(new Set(ks.map((k) => Math.round(k.y))).size).toBe(2);
+  });
+
+  it('横排后仍不重叠、不出界（两种版式）', () => {
+    for (const layout of ['balanced', 'right']) {
+      const { nodes, width, height } = layoutMindmap(KOUJUE, { layout });
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          expect(overlapArea(nodes[i], nodes[j]), `「${nodes[i].title}」与「${nodes[j].title}」重叠`).toBe(0);
+        }
+        expect(nodes[i].x).toBeGreaterThanOrEqual(0);
+        expect(nodes[i].y).toBeGreaterThanOrEqual(0);
+        expect(nodes[i].x + nodes[i].w).toBeLessThanOrEqual(width);
+        expect(nodes[i].y + nodes[i].h).toBeLessThanOrEqual(height);
+      }
+    }
+  });
+});
+
 describe('mindmapSvg · 出图', () => {
   it('SVG 头部尺寸与 viewBox 与版式一致', () => {
     const { svg, width, height } = buildMindmapSvg(SAMPLE, { layout: 'balanced' });
