@@ -186,12 +186,12 @@ describe('④ 双括注折叠、答案区多形态镜像、非均分许可', () 
   it('提示词允许非均分：直接写该题总分、同分或不同分', () => {
     for (const stage of ['primary_low', 'primary_mid']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, `${stage}：许可裸分`).toContain('直接写该题总分');
-      // 属主 2026-10-22："各题分不必相同"会被读成"每题必须不相同" ⇒ 改为无歧义写法。
-      expect(t, `${stage}：同分/不同分都行（无歧义）`).toContain('同分或不同分');
-      expect(t, `${stage}：不得再用有歧义的“各题分不必相同”`).not.toContain('各题分不必相同');
-      // 属主 2026-10-22："模型会不会摇摆" ⇒ 加一份卷内的写法一致约束（防同卷混用全式/裸分）。
-      expect(t, `${stage}：同卷写法一致（防摇摆）`).toContain('同一份卷内写法一致');
+      expect(t, `${stage}：按判分处数标（一处简写／两处以上全式）`).toContain('两处及以上写全式');
+      expect(t, `${stage}：先数判分处数`).toContain('先数几处判分');
+      // 属主 2026-10-22："这意思是都不标单位了吗？我说的是小题，一刀切了吗？"——
+      //   故锁住：不得出现"全卷统一写法"（一刀切）、不得以裸分替代全式。
+      expect(t, `${stage}：不得一刀切（全卷统一写法）`).not.toContain('同一份卷内写法一致');
+      expect(t, `${stage}：不得以裸分替代全式`).not.toContain('直接写该题总分');
     }
   });
 });
