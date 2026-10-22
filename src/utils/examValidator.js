@@ -13,7 +13,7 @@ import { detectOptionSymmetry } from './optionSymmetry.js'; // 选项对称指�
 import { detectAnswerEcho } from './answerEcho.js'; // 答案区复述题干判据（纯函数·可单测；阈值单源见其内，2026-10-14）
 import { getCarrierAllowlist, getMergedSpec, getAnswerRegion, CARRIER_DECLARATION, getChoiceBlankPosition } from '../config/layoutSpec.js';
 import { CARRIER_LABELS } from '../config/blueprintSchema.js';
-import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）
+import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES, resolveMarkCapability } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）；标记能力（2026-10-22：无能力不报缺图）
 import { checkFigurePrompts } from './figurePromptCheck.js'; // 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
 import { isPerBigQuestionNumbering } from './gradeStage.js'; // 题号编法按学段分叉（与指令侧同源，2026-10-05）
 import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer, detectCarrierFormMismatch } from './contentCleaner.js'; // 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；extractBodyQuestionNumbers=同一口径的**题号序列**投影（2026-09-29 答案区逐题对应明细取证用，不新造正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
@@ -1494,11 +1494,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const hasFigureAskStem = figureKeywordRe.test(stemNoHeadText);
       const hasImgMark = /\[IMAGE\]/.test(out);
       const hasGraphMark = /\[GRAPH\]/.test(out);
+      // 🔴 2026-10-22（属主"为啥一会有一会没有…能根治吗"·告警侧对称）：注入侧"无标记能力即不提要求"
+      //   （promptLibrary 只在 markCap.on 时给图-题一致性条款）。校验侧原样照报 ⇒ 无能力的学科/学段
+      //   必然出现"要图没出图"的**假告警**（模型本来就不允许输出该标记）。这里按同一能力判定门控。
+      const capMark = resolveMarkCapability({ subject, stage });
+      const canImage = Boolean(capMark.on && capMark.image);
+      const canGraph = Boolean(capMark.on && capMark.graph);
       // 写话/看图写话必须画面（[IMAGE]），数据图形 [GRAPH] 不满足→单独强判定优先
       const hasYwPuhtAsk = /看图写话|写话/.test(bodyNoAnsText);
-      if (hasYwPuhtAsk && !hasImgMark) {
+      if (hasYwPuhtAsk && !hasImgMark && canImage) {
         silentCount('image-missing', '含"看图写话/写话"的题无 [IMAGE] 画面描述标记块，请抽检（程序只提示、不改内容）', 'warn');
-      } else if (hasFigureAskStem && !hasImgMark && !hasGraphMark) {
+      } else if (hasFigureAskStem && !hasImgMark && !hasGraphMark && (canImage || canGraph)) {
         // 看图/读图/看图形/统计图类题，整卷 [IMAGE]+[GRAPH] 全无 → 题干要图却没出图
         silentCount('image-missing', '存在"看图/读图/看图形"类题，但整卷未输出任何 [IMAGE]（画面描述）或 [GRAPH]（图形/统计图）标记块——题干要图却没出图，请人工补图或核对（程序只提示、不改内容）', 'warn');
       }
