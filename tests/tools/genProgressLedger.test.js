@@ -91,20 +91,20 @@ function* allCells() {
 }
 
 describe('份表：分母口径（钉在 API 实测上）', () => {
-  it('真实"学科×学段"对 ＝ 54；组织风格分支 Σ ＝ 31（原表两处错已订正）', () => {
+  it('真实"学科×学段"对 ＝ 54；组织风格分支 Σ ＝ 32（2026-10-22 新增"全篇导图式"：summary 4→5）', () => {
     expect(OPEN_PAIRS.length, '真实开设的学科×学段对').toBe(54);
-    expect(STYLE_SUM, '组织风格分支合计').toBe(31);
-    for (const [t, want] of [['exam', 2], ['practice', 6], ['special', 5], ['preview', 2], ['reading', 3], ['summary', 4], ['dictation', 1], ['errorbook', 1], ['review', 7]]) {
+    expect(STYLE_SUM, '组织风格分支合计').toBe(32);
+    for (const [t, want] of [['exam', 2], ['practice', 6], ['special', 5], ['preview', 2], ['reading', 3], ['summary', 5], ['dictation', 1], ['errorbook', 1], ['review', 7]]) {
       expect(styleBranchesOf(t).length, `${t} 风格分支`).toBe(want);
     }
   });
 
-  it('份数分母 ＝ 13,392，且按类型细分与进度账 §一 一致', () => {
-    expect(TOTAL).toBe(13392);
+  it('份数分母 ＝ 13,824，且按类型细分与进度账 §一 一致', () => {
+    expect(TOTAL).toBe(13824);
     const perType = Object.fromEntries(GEN_TYPE_KEYS.map((t) => [t, OPEN_PAIRS.length * CONFIG_BRANCHES * styleBranchesOf(t).length]));
     expect(perType).toEqual({
       exam: 864, practice: 2592, special: 2160, preview: 864, reading: 1296,
-      summary: 1728, dictation: 432, errorbook: 432, review: 3024,
+      summary: 2160, dictation: 432, errorbook: 432, review: 3024,
     });
     expect(Object.values(perType).reduce((a, b) => a + b, 0)).toBe(TOTAL);
   });
