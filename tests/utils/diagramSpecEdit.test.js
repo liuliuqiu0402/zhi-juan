@@ -4,7 +4,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  collectEntries, setTextAt, removeAt, addChildAt, moveNode, changeTreeType,
+  collectEntries, setTextAt, removeAt, addChildAt, moveNode, moveNodeTo,
+  rebuildFromTree, changeTreeType,
 } from '../../src/utils/diagramSpecEdit.js';
 
 const MM = {
@@ -59,6 +60,61 @@ describe('diagramSpecEdit · 树形（思维导图/括号图）', () => {
     expect(changeTreeType(MM, 'brace').type).toBe('brace');
     expect(changeTreeType(MM, 'flow')).toBeNull();
     expect(changeTreeType({ type: 'timeline', items: [] }, 'mindmap')).toBeNull();
+  });
+});
+
+describe('diagramSpecEdit · 拖拽改结构（含防环）', () => {
+  it('拖到另一个节点上 ⇒ 挂成它的子项；原对象不变', () => {
+    const next = moveNodeTo(MM, ['children', 1], ['children', 0]);
+    expect(next.children[0].children.map((c) => c.title)).toEqual(['把一个整体平均分', '计算']);
+    expect(next.children.length).toBe(1);
+    expect(MM.children[1].title).toBe('计算');
+  });
+
+  it('不能拖进自己或自己的下级（会成环）', () => {
+    expect(moveNodeTo(MM, ['children', 0], ['children', 0])).toBeNull();
+    expect(moveNodeTo(MM, ['children', 0], ['children', 0, 'children', 0])).toBeNull();
+  });
+
+  it('根不可拖；非树形图种不支持拖拽', () => {
+    expect(moveNodeTo(MM, [], ['children', 0])).toBeNull();
+    expect(moveNodeTo({ type: 'timeline', items: [] }, ['items', 0], [])).toBeNull();
+  });
+
+  it('拖到根上 ⇒ 成为一级要点', () => {
+    const next = moveNodeTo(MM, ['children', 0, 'children', 0], []);
+    expect(next.children.map((c) => c.title)).toEqual(['意义', '计算', '把一个整体平均分']);
+  });
+});
+
+describe('diagramSpecEdit · 换图种自动重建结构', () => {
+  it('树 → 鱼骨图：根=结果、一级=分类、二级=原因', () => {
+    const r = rebuildFromTree(MM, 'fishbone');
+    expect(r.type).toBe('fishbone');
+    expect(r.effect).toBe('分数');
+    expect(r.categories.map((c) => c.name)).toEqual(['意义', '计算']);
+    expect(r.categories[0].causes).toEqual(['把一个整体平均分']);
+  });
+
+  it('树 → 概念图：全部节点成概念、父子成"包含"关系', () => {
+    const r = rebuildFromTree(MM, 'concept');
+    expect(r.nodes.map((n) => n.text)).toEqual(['分数', '意义', '把一个整体平均分', '计算']);
+    expect(r.links.length).toBe(3);
+    expect(r.links.every((l) => l.label === '包含')).toBe(true);
+    expect(new Set(r.nodes.map((n) => n.id)).size).toBe(r.nodes.length);
+  });
+
+  it('树 → 流程图：先序摊平，首 start、末 end、其余 process', () => {
+    const r = rebuildFromTree(MM, 'flow');
+    expect(r.steps.map((s) => s.text)).toEqual(['分数', '意义', '把一个整体平均分', '计算']);
+    expect(r.steps[0].kind).toBe('start');
+    expect(r.steps[r.steps.length - 1].kind).toBe('end');
+  });
+
+  it('时间轴不自动重建（需要 when）；非树形源、空内容均返回 null', () => {
+    expect(rebuildFromTree(MM, 'timeline')).toBeNull();
+    expect(rebuildFromTree({ type: 'timeline', items: [] }, 'fishbone')).toBeNull();
+    expect(rebuildFromTree({ type: 'mindmap', title: '空' }, 'fishbone')).toBeNull();
   });
 });
 

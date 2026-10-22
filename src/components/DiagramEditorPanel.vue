@@ -23,29 +23,46 @@
               图种
               <select
                 :value="draft.type || 'mindmap'"
-                :disabled="!isTree"
                 @change="onType"
               >
                 <option
                   v-for="t in typeOptions"
                   :key="t.value"
                   :value="t.value"
+                  :disabled="!canConvertTo(t.value)"
                 >
-                  {{ t.label }}
+                  {{ t.label }}{{ t.hint ? `（${t.hint}）` : '' }}
                 </option>
               </select>
             </label>
             <span
-              v-if="!isTree"
+              v-if="isTree"
               class="de-tip"
-            >该图种的文字可逐条改；增删结构请用「换图种」或重新生成</span>
+            >拖一行到另一行上＝挂成它的子项（不能拖进自己的下级）</span>
+            <span
+              v-else
+              class="de-tip"
+            >该图种的文字可逐条改；结构增删请用「换图种」或重新生成</span>
           </div>
+          <p
+            v-if="convertNote"
+            class="de-note"
+          >
+            {{ convertNote }}
+          </p>
 
           <div
             v-for="(e, i) in entries"
             :key="`${e.path.join('-')}-${i}`"
             class="de-row"
+            :class="{ 'drag-over': dragOverPath && dragOverPath.join('-') === e.path.join('-') }"
+            :draggable="isTree && e.depth > 0"
             :style="{ paddingLeft: `${Math.min(e.depth, 4) * 16 + 8}px` }"
+            @dragstart="onDragStart($event, e.path)"
+            @dragover.prevent="onDragOver($event, e.path)"
+            @dragleave="onDragLeave(e.path)"
+            @drop.prevent="onDrop($event, e.path)"
+            @dragend="clearDrag"
           >
             <input
               :value="e.text"
@@ -118,7 +135,8 @@ import { computed, ref, watch } from 'vue';
 import { buildDiagramSvg } from '../utils/diagrams/index.js';
 import { getCanvasMeasurer, PRINT_SAFE_WIDTH } from '../utils/diagramBlock.js';
 import {
-  TREE_TYPES, collectEntries, setTextAt, removeAt, addChildAt, moveNode, changeTreeType,
+  TREE_TYPES, TREE_REBUILD_TARGETS, collectEntries, setTextAt, removeAt, addChildAt,
+  moveNode, moveNodeTo, rebuildFromTree, changeTreeType,
 } from '../utils/diagramSpecEdit.js';
 
 const props = defineProps({
@@ -128,16 +146,32 @@ const props = defineProps({
 const emit = defineEmits(['close', 'save']);
 
 const draft = ref(null);
+const convertNote = ref('');
 watch(() => [props.visible, props.spec], () => {
-  if (props.visible && props.spec) draft.value = JSON.parse(JSON.stringify(props.spec));
+  if (props.visible && props.spec) {
+    draft.value = JSON.parse(JSON.stringify(props.spec));
+    convertNote.value = '';
+  }
 }, { immediate: true });
 
 const typeOptions = [
   { value: 'mindmap', label: '思维导图' },
   { value: 'brace', label: '括号图' },
+  { value: 'fishbone', label: '鱼骨图', hint: '按一级分类重建' },
+  { value: 'concept', label: '概念图', hint: '按父子关系重建' },
+  { value: 'flow', label: '流程图', hint: '按顺序摊平，层级不保留' },
+  { value: 'timeline', label: '时间轴', hint: '需手工补时间' },
 ];
 const isTree = computed(() => TREE_TYPES.includes((draft.value?.type) || 'mindmap'));
 const entries = computed(() => (draft.value ? collectEntries(draft.value) : []));
+
+/** 哪些图种可一键转换：树形源可以转同构（无损）与三种映射（近似/有损）；其它源只保持自身 */
+const canConvertTo = (t) => {
+  const cur = draft.value?.type || 'mindmap';
+  if (t === cur) return true;
+  if (!TREE_TYPES.includes(cur)) return false;
+  return TREE_TYPES.includes(t) || TREE_REBUILD_TARGETS.includes(t);
+};
 
 const previewSvg = computed(() => {
   if (!draft.value) return '';
@@ -158,7 +192,60 @@ const onText = (path, val) => { draft.value = setTextAt(draft.value, path, val);
 const onRemove = (path) => { const n = removeAt(draft.value, path); if (n) draft.value = n; };
 const onAddChild = (path) => { const n = addChildAt(draft.value, path); if (n) draft.value = n; };
 const onMove = (path, dir) => { const n = moveNode(draft.value, path, dir); if (n) draft.value = n; };
-const onType = (ev) => { const n = changeTreeType(draft.value, ev.target.value); if (n) draft.value = n; };
+
+/** 换图种：同构互转（无损）／按映射重建（近似或有损）／不可转则退回原值并说明原因 */
+const onType = (ev) => {
+  const t = ev.target.value;
+  const cur = draft.value?.type || 'mindmap';
+  if (t === cur) return;
+  if (TREE_TYPES.includes(t) && TREE_TYPES.includes(cur)) {
+    const n = changeTreeType(draft.value, t);
+    if (n) { draft.value = n; convertNote.value = ''; return; }
+  }
+  if (TREE_REBUILD_TARGETS.includes(t) && TREE_TYPES.includes(cur)) {
+    const n = rebuildFromTree(draft.value, t);
+    if (n) {
+      draft.value = n;
+      convertNote.value = t === 'flow'
+        ? '已按先序摊平成顺序步骤：流程图不保留层级，请核对顺序与首尾'
+        : '已按映射规则重建结构（可能需人工微调），点保存写回正文';
+      return;
+    }
+    convertNote.value = '当前内容不足以重建该图种（至少需要一个一级要点）';
+    ev.target.value = cur;
+    return;
+  }
+  convertNote.value = '该图种需人工补字段（如时间轴的“时间”），请重新生成或手工改 JSON';
+  ev.target.value = cur;
+};
+
+// 🖱 面板内拖拽：拖一行到另一行上＝挂成它的子项（纯函数 moveNodeTo 已做防环/防越界）
+const dragFrom = ref(null);
+const dragOverPath = ref(null);
+const onDragStart = (e, path) => {
+  if (!isTree.value || !path.length) { e.preventDefault(); return; }
+  dragFrom.value = path;
+  e.dataTransfer.effectAllowed = 'move';
+  try { e.dataTransfer.setData('text/plain', path.join('/')); } catch { /* 某些环境只读 */ }
+};
+const onDragOver = (e, path) => {
+  if (!dragFrom.value) return;
+  dragOverPath.value = path;
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+};
+const onDragLeave = (path) => {
+  if (dragOverPath.value && dragOverPath.value.join('-') === path.join('-')) dragOverPath.value = null;
+};
+const clearDrag = () => { dragFrom.value = null; dragOverPath.value = null; };
+const onDrop = (e, path) => {
+  const from = dragFrom.value;
+  clearDrag();
+  if (!from) return;
+  const n = moveNodeTo(draft.value, from, path);
+  if (n) { draft.value = n; convertNote.value = ''; }
+  else convertNote.value = '不能拖进自己或自己的下级（会成环）';
+};
+
 const onSave = () => { if (draft.value) emit('save', draft.value); };
 </script>
 
@@ -182,7 +269,13 @@ const onSave = () => { if (draft.value) emit('save', draft.value); };
 .de-list { flex: 1 1 52%; overflow: auto; max-height: 62vh; }
 .de-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 12px; }
 .de-tip { color: #8a6d3b; }
-.de-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.de-note {
+  margin: 0 0 8px; padding: 6px 8px; border-radius: 5px;
+  background: #fff7e6; border: 1px solid #ffe0a3; color: #8a5a00; font-size: 12px;
+}
+.de-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; border-radius: 5px; }
+.de-row[draggable="true"] { cursor: grab; }
+.de-row.drag-over { outline: 2px dashed #2563eb; outline-offset: 1px; background: #eff6ff; }
 .de-input {
   flex: 1; padding: 5px 8px; border: 1px solid #d9dee5; border-radius: 5px; font-size: 13px;
 }

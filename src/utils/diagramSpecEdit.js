@@ -118,6 +118,87 @@ export const moveNode = (spec, path, dir) => {
   return next;
 };
 
+const isPathPrefix = (prefix, path) => prefix.length <= path.length && prefix.every((v, i) => path[i] === v);
+
+/**
+ * 🖱 拖拽改结构（面板内）：把 `fromPath` 指向的节点，挂到 `toParentPath` 指向的节点之下（追加为子项）。
+ *   · 根不可拖（没有数组下标）；
+ *   · **不能拖进自己或自己的子孙**（防环），命中即返回 null；
+ *   · 目标必须是树形图种的一个节点。
+ */
+export const moveNodeTo = (spec, fromPath, toParentPath) => {
+  if (!TREE_TYPES.includes(typeOf(spec))) return null;
+  const idx = fromPath?.[fromPath.length - 1];
+  if (typeof idx !== 'number') return null;
+  if (isPathPrefix(fromPath, toParentPath || [])) return null;
+  const next = clone(spec);
+  const fromArr = getAt(next, fromPath.slice(0, -1));
+  if (!Array.isArray(fromArr) || idx < 0 || idx >= fromArr.length) return null;
+  const target = getAt(next, toParentPath || []);
+  if (!target || typeof target !== 'object') return null;
+  const [node] = fromArr.splice(idx, 1);
+  target.children = Array.isArray(target.children) ? target.children : [];
+  target.children.push(node);
+  return next;
+};
+
+/** 可由树形"自动重建"的目标图种（时间轴需要 when，不在此列：应由人工补） */
+export const TREE_REBUILD_TARGETS = ['fishbone', 'concept', 'flow'];
+
+/**
+ * 🌱 换图种时按映射规则**自动重建结构**（仅树形源）：
+ *   · fishbone：根=结果；一级=分类；二级及以下叶子=原因（近似可用）
+ *   · concept：全部节点=概念（自动生成 id）；父子边=关系，标签"包含"（近似可用）
+ *   · flow：先序摊平为顺序步骤，首=start、末=end、其余=process（**有损：层级不再保留**）
+ * 返回新规格；源不是树形、或目标不受支持、或没有可用内容 ⇒ null。
+ */
+export const rebuildFromTree = (spec, type) => {
+  if (!TREE_TYPES.includes(typeOf(spec))) return null;
+  const rootChildren = Array.isArray(spec.children) ? spec.children : [];
+  if (!rootChildren.length) return null;
+
+  if (type === 'fishbone') {
+    return {
+      type: 'fishbone',
+      effect: String(spec.title ?? ''),
+      categories: rootChildren.map((c) => ({
+        name: String(c?.title ?? ''),
+        causes: (c?.children || []).map((x) => String(x?.title ?? '')).filter(Boolean),
+      })),
+    };
+  }
+
+  if (type === 'concept') {
+    const nodes = [];
+    const links = [];
+    let seq = 0;
+    const walk = (node, parentId) => {
+      const id = `n${seq += 1}`;
+      nodes.push({ id, text: String(node?.title ?? '') });
+      if (parentId) links.push({ from: parentId, to: id, label: '包含' });
+      (node?.children || []).forEach((c) => walk(c, id));
+    };
+    walk(spec, null);
+    return { type: 'concept', nodes, links };
+  }
+
+  if (type === 'flow') {
+    const flat = [];
+    const walk = (node) => {
+      flat.push(String(node?.title ?? ''));
+      (node?.children || []).forEach(walk);
+    };
+    walk(spec);
+    const steps = flat.map((text, i) => ({
+      text,
+      kind: i === 0 ? 'start' : (i === flat.length - 1 ? 'end' : 'process'),
+    }));
+    return { type: 'flow', steps };
+  }
+
+  return null;
+};
+
 /** 换图种：只允许 mindmap ↔ brace 互转（结构同构）；其它返回 null（面板里禁用） */
 export const changeTreeType = (spec, type) => {
   if (!TREE_TYPES.includes(typeOf(spec)) || !TREE_TYPES.includes(type)) return null;
@@ -129,4 +210,7 @@ export const changeTreeType = (spec, type) => {
 /** 校验规格能否编辑（面板打开前把坏 JSON 挡掉） */
 export const isEditableSpec = (spec) => !!spec && typeof spec === 'object' && typeof (spec.type || 'mindmap') === 'string';
 
-export default { TREE_TYPES, collectEntries, setTextAt, removeAt, addChildAt, moveNode, changeTreeType, isEditableSpec };
+export default {
+  TREE_TYPES, TREE_REBUILD_TARGETS, collectEntries, setTextAt, removeAt, addChildAt,
+  moveNode, moveNodeTo, rebuildFromTree, changeTreeType, isEditableSpec,
+};
