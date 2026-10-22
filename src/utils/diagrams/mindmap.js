@@ -114,13 +114,20 @@ export const layoutMindmap = (tree, opts = {}) => {
   let seq = 0;
   const prep = (raw, depth, color, isRoot) => {
     const fs = isRoot ? rootFontSize : fontSize;
-    const lines = wrapLabel(tf(raw.title), maxLabelWidth, fs, measurer);
-    const textW = Math.max(...lines.map((l) => estimateTextWidth(l, fs, measurer)));
+    // 🔴 2026-10-22（属主真机："有的字出导图框了"）：框宽原按**常规字重**的文字宽算，
+    //   而根/一级分支是 600/500 字重、再加字体回退差异 ⇒ 实排出来比算的宽，字冲出框。
+    //   处置：字重越大留越大余量，且**折行宽度同步收窄**（按余量折算），保证"折完仍装得下"。
+    const weight = isRoot ? 600 : (depth === 1 ? 500 : 400);
+    const boldK = weight >= 600 ? 1.10 : (weight >= 500 ? 1.07 : 1.04);
+    const wrapW = Math.max(60, Math.floor(maxLabelWidth / boldK));
+    const lines = wrapLabel(tf(raw.title), wrapW, fs, measurer);
+    const textW = Math.max(...lines.map((l) => estimateTextWidth(l, fs, measurer))) * boldK;
     return {
       id: seq++,
       title: String(raw.title == null ? '' : raw.title),
       lines,
       fs,
+      weight,
       lineH,
       textW,
       padX,
@@ -323,7 +330,30 @@ export const buildMindmapSvg = (tree, opts = {}) => {
   out.push(svgPaper(width, height));
 
   // ① 先画全部连线（压在节点下面）
+  const seg = (d, color) => out.push(`<path d="${d}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>`);
   for (const n of nodes) {
+    const kids = n.children || [];
+    // 🔴 2026-10-22（属主："连接线有的跟内容不太合适"·几何侧）：一组横排（多行多列）时，
+    //   若仍按"父→每个子"各拉一条贝塞尔，去第二行的那几条会**从第一行的框后穿过**（看着像连错）。
+    //   改为**干线式**布线：父→干线一段、干线纵向贯通整组、再由干线横向接到每个子（正交、不穿框）。
+    if (n.grid && kids.length) {
+      const leftward = kids[0].side === -1;
+      const py = n.y + n.h / 2;
+      const cys = kids.map((c) => c.y + c.h / 2);
+      const near = leftward
+        ? Math.max(...kids.map((c) => c.x + c.w))
+        : Math.min(...kids.map((c) => c.x));
+      const from = leftward ? n.x : n.x + n.w;
+      const trunk = leftward ? from - (from - near) / 2 : from + (near - from) / 2;
+      seg(`M ${from} ${py} L ${trunk} ${py}`, n.color);
+      seg(`M ${trunk} ${Math.min(py, ...cys)} L ${trunk} ${Math.max(py, ...cys)}`, n.color);
+      for (const c of kids) {
+        const cy = c.y + c.h / 2;
+        const to = leftward ? c.x + c.w : c.x;
+        seg(`M ${trunk} ${cy} L ${to} ${cy}`, c.color);
+      }
+      continue;
+    }
     for (const c of n.children || []) {
       const leftward = c.side === -1;
       const from = leftward ? n.x : n.x + n.w;
@@ -331,7 +361,7 @@ export const buildMindmapSvg = (tree, opts = {}) => {
       const py = n.y + n.h / 2;
       const cy = c.y + c.h / 2;
       const mx = (from + to) / 2;
-      out.push(`<path d="M ${from} ${py} C ${mx} ${py}, ${mx} ${cy}, ${to} ${cy}" fill="none" stroke="${c.color}" stroke-width="1.6" stroke-linecap="round" opacity="0.85"/>`);
+      seg(`M ${from} ${py} C ${mx} ${py}, ${mx} ${cy}, ${to} ${cy}`, c.color);
     }
   }
 
@@ -344,7 +374,8 @@ export const buildMindmapSvg = (tree, opts = {}) => {
       out.push(`<rect x="${n.x}" y="${n.y}" width="${n.w}" height="${n.h}" rx="${r}" fill="${PAPER}" stroke="${n.color}" stroke-width="1.3"/>`);
     }
     // 层级同时用字重强化（黑白打印时颜色差异会消失，字重不会）
-    const weight = n.isRoot ? 600 : (n.depth === 1 ? 500 : 400);
+    //   字重单源在 layout（prep 里算进框宽余量），此处只取用，防两处各判一次。
+    const weight = n.weight || (n.isRoot ? 600 : (n.depth === 1 ? 500 : 400));
     const fill = n.isRoot ? PAPER : INK;
     const anchor = n.side === -1 ? 'end' : 'start';
     const tx = n.side === -1 ? n.x + n.w - n.padX : n.x + n.padX;

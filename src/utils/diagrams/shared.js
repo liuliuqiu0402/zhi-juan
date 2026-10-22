@@ -54,7 +54,10 @@ export const estimateTextWidth = (text, fontSize, measurer) => {
   for (const ch of String(text)) {
     const code = ch.codePointAt(0);
     if (code > 0x2e80) w += 1.0;
-    else if (/[A-Za-z0-9]/.test(ch)) w += 0.56;
+    // 🔴 2026-10-22（属主真机："有的字出导图框了"）：数字/小写按 0.56em 够用，但**大写字母**
+    //   （W/M/O…）实际接近 0.7em ⇒ 原值会把含大写的标签算窄、字冲出框。大写字重更宽，单列一档。
+    else if (/[A-Z]/.test(ch)) w += 0.66;
+    else if (/[a-z0-9]/.test(ch)) w += 0.56;
     else w += 0.42;
   }
   return w * fontSize;

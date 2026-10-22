@@ -264,6 +264,14 @@ describe('mindmapSvg · 按内容自动横排（不设横/竖参数）', () => {
     expect(new Set(ks.map((k) => Math.round(k.y))).size).toBe(2);
   });
 
+  it('横排分组的连线走干线式（正交），不从框后穿过', () => {
+    // 2026-10-22 属主："连接线有的跟内容不太合适"（几何侧）——
+    //   4 项横排时若仍"父→每子"各拉一条曲线，去第二行的那几条会从第一行的框后穿过。
+    const { svg } = buildMindmapSvg(KOUJUE, { layout: 'right' });
+    expect((svg.match(/C /g) || []).length, '横排组不再用曲线').toBe(1); // 只剩"根→口诀"那条
+    expect((svg.match(/L /g) || []).length, '干线1段＋纵向1段＋4条支线').toBe(6);
+  });
+
   it('横排后仍不重叠、不出界（两种版式）', () => {
     for (const layout of ['balanced', 'right']) {
       const { nodes, width, height } = layoutMindmap(KOUJUE, { layout });
@@ -276,6 +284,22 @@ describe('mindmapSvg · 按内容自动横排（不设横/竖参数）', () => {
         expect(nodes[i].x + nodes[i].w).toBeLessThanOrEqual(width);
         expect(nodes[i].y + nodes[i].h).toBeLessThanOrEqual(height);
       }
+    }
+  });
+});
+
+describe('mindmapSvg · 字不出框（框宽按字重留余量）', () => {
+  // 2026-10-22 属主真机："有的字出导图框了"——根 600／一级 500 字重比常规更宽，
+  //   含大写字母与全角标点的标签原来被算窄 ⇒ 框必须按余量放大，且折行宽度同步收窄。
+  it('每个节点的内宽 ≥ 该行文字的估算宽（含折行后的每一行）', () => {
+    const t = {
+      title: 'W/M 比值与 O 型图（含括号）',
+      children: [{ title: '要点 A：W 与 M 的关系（含 O 与 V）' }, { title: '短项' }],
+    };
+    const { nodes } = layoutMindmap(t, { layout: 'right' });
+    for (const n of nodes) {
+      const est = Math.max(...n.lines.map((l) => estimateTextWidth(l, n.fs)));
+      expect(n.w - 2 * n.padX, `「${n.title}」内宽 < 估算宽`).toBeGreaterThanOrEqual(est);
     }
   });
 });
