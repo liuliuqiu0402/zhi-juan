@@ -220,4 +220,31 @@ describe('diagramSpecEdit · 加粗／改色（写进规格，渲染侧照做）
   it('非树形图种不写样式（返回 null，不污染时间轴/鱼骨图结构）', () => {
     expect(setStyleAt({ type: 'timeline', items: [{ when: '1900', text: '甲' }] }, ['items', 0], { bold: true })).toBeNull();
   });
+
+  // 2026-10-22 属主："节点字号可以做""手工拖框改宽高值得做吧"
+  it('字号：写入并按 11–24 夹取；清空/非法 → 删字段（回落自动）', () => {
+    const a = setStyleAt(S, ['children', 0], { fs: 18 });
+    expect(a.children[0].fs).toBe(18);
+    expect(setStyleAt(S, ['children', 0], { fs: 99 }).children[0].fs).toBe(24);
+    expect(setStyleAt(S, ['children', 0], { fs: 2 }).children[0].fs).toBe(11);
+    expect(setStyleAt(a, ['children', 0], { fs: '' }).children[0].fs).toBeUndefined();
+    expect(setStyleAt(S, ['children', 0], { fs: 'abc' }).children[0].fs).toBeUndefined();
+  });
+
+  it('手动宽高：写入并按区间夹取；清空 → 删字段', () => {
+    const a = setStyleAt(S, ['children', 0], { w: 260, h: 90 });
+    expect(a.children[0].w).toBe(260);
+    expect(a.children[0].h).toBe(90);
+    expect(setStyleAt(S, ['children', 0], { w: 10 }).children[0].w).toBe(40);
+    expect(setStyleAt(S, ['children', 0], { w: 9999 }).children[0].w).toBe(600);
+    expect(setStyleAt(a, ['children', 0], { w: '' }).children[0].w).toBeUndefined();
+  });
+
+  it('样式可读回：collectEntries 带 fs / w / h（面板回显控件状态）', () => {
+    const styled = setStyleAt(S, ['children', 0], { fs: 16, w: 200, h: 60 });
+    const e = collectEntries(styled).find((x) => x.text === '意义');
+    expect(e.fs).toBe(16);
+    expect(e.w).toBe(200);
+    expect(e.h).toBe(60);
+  });
 });

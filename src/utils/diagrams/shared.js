@@ -140,6 +140,62 @@ export const weightPadK = (weight, exact) => {
   return 1.04;
 };
 
+/* ==================== 节点级样式（2026-10-22 属主："节点字号与局部加粗可以做"）====================
+ * 规格里节点可带：`fs`（字号）、`**…**`（**局部加粗**，只加粗被包住的字）、`w`/`h`（手动最小宽高）。
+ * 三条都遵守同一底线：**任何样式都不能让字出框、不能让字被裁**——
+ *   · `w` 只是"最小宽"：真宽 = max(内容宽, 手动宽)，所以缩不小、也就裁不到字；
+ *   · `h` 只是"最小高"：内容多高就多高，富余高度用来上下居中（不是压缩行距）。
+ * ==================== */
+
+/** 字号合法区间（印刷下限 11px；上限 24px，再大就不是导图而是标题了） */
+export const MIN_NODE_FONT = 11;
+export const MAX_NODE_FONT = 24;
+
+const numOr = (v, lo, hi) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.min(hi, Math.max(lo, Math.round(n)));
+};
+
+/** 节点字号：非法/空/缺省 → null（走层级默认：根 rootFontSize、其余 fontSize）
+ *  ⚠️ 空串必须判空：`Number('') === 0` 会被夹到下限 11，清空就变成了"设成 11px"。 */
+export const normNodeFont = (v) => (v === '' || v == null ? null : numOr(v, MIN_NODE_FONT, MAX_NODE_FONT));
+
+/** 手动最小框宽（px）：低于 40 没意义，高于 600 一框就占半页 */
+export const normNodeMinW = (v) => (v === '' || v == null ? null : numOr(v, 40, 600));
+
+/** 手动最小框高（px） */
+export const normNodeMinH = (v) => (v === '' || v == null ? null : numOr(v, 24, 800));
+
+/**
+ * 行内加粗解析：`**粗**` → 去掉标记的纯文本 + 每字符"是否加粗"的掩码。
+ * 只用一对星号包住 1~40 字的片段；**不成对的 `**` 原样保留**（数学里的 `3**2` 之类不会被误吃）。
+ * 为什么要单独的解析：折行是按纯文本算的，渲染却要按"每个字粗不粗"切成若干段——
+ *   先摊成掩码，折行后再按字符回填（见 mindmap 的 lineRuns）。
+ */
+export const BOLD_SPAN_RE = /\*\*([^*\n]{1,40})\*\*/g;
+export const parseBoldRuns = (text) => {
+  const src = String(text == null ? '' : text);
+  let plain = '';
+  const mask = [];
+  let last = 0;
+  BOLD_SPAN_RE.lastIndex = 0;
+  let m;
+  while ((m = BOLD_SPAN_RE.exec(src))) {
+    for (const ch of src.slice(last, m.index)) { plain += ch; mask.push(false); }
+    for (const ch of m[1]) { plain += ch; mask.push(true); }
+    last = m.index + m[0].length;
+  }
+  for (const ch of src.slice(last)) { plain += ch; mask.push(false); }
+  return { plain, mask };
+};
+
+/** 按字号/字重实测或估算一段文字的宽度（无 measurer 时吃 estimateTextWidth 的安全系数） */
+export const textWidthOf = (text, fontSize, weight, measurer) => {
+  const m = typeof measurer === 'function' ? (t, f) => measurer(t, f, weight) : undefined;
+  return estimateTextWidth(text, fontSize, m);
+};
+
 /** SVG 开标签（统一字体与渲染精度；白底由调用方决定是否铺满） */
 export const svgHeader = (width, height, extraAttrs = '') =>
   `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" `

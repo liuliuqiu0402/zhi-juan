@@ -530,6 +530,74 @@ describe('mindmapSvg · 换行判据按 A4 版心，多支放不下自动竖排'
   });
 });
 
+// 2026-10-22 属主："节点字号 > 局部加粗 这两个可以做""手工拖框改宽高值得做吧"
+//   三条都守同一条底线：**样式可以改，字不能被裁、不能被挤出框**。
+describe('mindmapSvg · 节点字号 / 局部加粗 / 手动宽高', () => {
+  it('节点字号：框高与行高跟着该节点字号走（不压字），且渲染出对应 font-size', () => {
+    const t = { title: 'r', children: [{ title: '要点', fs: 18 }, { title: '要点' }] };
+    const { nodes, svg } = buildMindmapSvg(t, { layout: 'right' });
+    const big = nodes.find((n) => n.title === '要点' && n.fs === 18);
+    const small = nodes.find((n) => n.title === '要点' && n.fs === 13);
+    expect(big, '18px 节点存在').toBeTruthy();
+    expect(small, '默认 13px 节点仍在').toBeTruthy();
+    expect(big.lineH, '行高按自身字号算').toBeGreaterThan(small.lineH);
+    expect(big.h).toBeGreaterThan(small.h);
+    expect(svg).toContain('font-size="18"');
+  });
+
+  it('非法字号被夹进 11–24（不会出现 0px 或 99px 的字）', () => {
+    const { nodes } = layoutMindmap({ title: 'r', children: [{ title: 'a', fs: 99 }, { title: 'b', fs: 3 }] }, { layout: 'right' });
+    expect(nodes.find((n) => n.title === 'a').fs).toBe(24);
+    expect(nodes.find((n) => n.title === 'b').fs).toBe(11);
+  });
+
+  it('局部加粗：`**…**` 只加粗包住的字，标记本身不出现在图上', () => {
+    const t = { title: 'r', children: [{ title: '定义：**非负实数**的平方根' }] };
+    const { nodes, svg } = buildMindmapSvg(t, { layout: 'right' });
+    const n = nodes.find((x) => x.title.includes('非负'));
+    expect(n.lines.join(''), '星号标记必须被吃掉').not.toContain('*');
+    expect(n.lines.join('')).toContain('非负实数');
+    // 该行应被切成"普通段 + 加粗段"
+    const boldRuns = n.lineRuns.flat().filter((r) => r.bold).map((r) => r.text).join('');
+    expect(boldRuns).toBe('非负实数');
+    expect(svg, '加粗段用 700').toContain('font-weight="700"');
+    expect(svg, '普通段仍是层级字重').toContain('>定义：<');
+  });
+
+  it('不成对的 `**` 原样保留（不会把数学里的星号吃掉）', () => {
+    const { nodes } = layoutMindmap({ title: 'r', children: [{ title: '计算 3**2 的值' }] }, { layout: 'right' });
+    const n = nodes.find((x) => x.title.includes('3'));
+    expect(n.lines.join('')).toContain('3**2');
+  });
+
+  it('手动加宽：框宽＝手动值，且文字仍完整在框内（不多不少）', () => {
+    const t = { title: 'r', children: [{ title: '短要点', w: 260 }] };
+    const { nodes } = buildMindmapSvg(t, { layout: 'right' });
+    const n = nodes.find((x) => x.title === '短要点');
+    expect(n.w).toBe(260);
+    expect(n.w - 2 * n.padX, '内宽 ≥ 文字宽（不出框）').toBeGreaterThanOrEqual(Math.ceil(n.textW) - 1);
+  });
+
+  it('手动加宽不能把字裁掉：给很小的宽也只按内容宽出框', () => {
+    const long = '这是一条很长的要点，手动宽给到最小也不会缩短它';
+    const { nodes } = buildMindmapSvg({ title: 'r', children: [{ title: long, w: 40 }] }, { layout: 'right' });
+    const n = nodes.find((x) => x.title === long);
+    expect(n.w, '取内容宽与手动宽的较大者').toBeGreaterThan(40);
+    expect(n.lines.join('')).toBe(long);
+  });
+
+  it('手动加高：框高＝手动值，文字上下居中（不压缩行距）', () => {
+    const t = { title: 'r', children: [{ title: '要点', h: 90 }] };
+    const { nodes, svg } = buildMindmapSvg(t, { layout: 'right' });
+    const n = nodes.find((x) => x.title === '要点');
+    expect(n.h).toBe(90);
+    // 基线应在框的垂直中部附近（居中的结果），而不是贴在顶部
+    const y = Number((svg.match(/<text[^>]*y="([\d.]+)"[^>]*>要点</) || [])[1]);
+    expect(y).toBeGreaterThan(n.y + n.padY + 6);
+    expect(y).toBeLessThan(n.y + n.h);
+  });
+});
+
 // 2026-10-22 属主："导图连接线也是正常的吧？不会有例外情况吧？"
 //   答复分两层：① 普通树形本来就不穿框（本节①守住）；② 横排分组曾有一个例外（支线从中间那几个框里穿过），
 //   已改为"上方引线"，本节②把它钉死——以后任何布线改动只要再穿框，这条就红。

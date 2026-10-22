@@ -34,6 +34,7 @@ import {
   DEFAULT_PALETTE, INK, PAPER,
   esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper,
   lineBudget, normalizeHex, nodeWeight, weightPadK,
+  normNodeFont, normNodeMinW, normNodeMinH, parseBoldRuns, textWidthOf,
 } from './shared.js';
 
 // 文本工具统一在 shared.js（导图族共用），这里再导出一次，保持图种模块对外 API 一致
@@ -80,30 +81,49 @@ export const layoutBrace = (spec, opts = {}) => {
   // ── 归一化：算每行文字与节点尺寸；分支色自上而下继承（每条主分支一个色）──
   let seq = 0;
   const prep = (raw, depth, color, isRoot) => {
-    const fs = isRoot ? titleFontSize : fontSize;
+    // 2026-10-22（属主："节点字号 / 局部加粗 / 手改宽高"）：与 mindmap 同一套口径，三件事都支持
+    const fs = normNodeFont(raw && raw.fs) || (isRoot ? titleFontSize : fontSize);
     const title = String(raw && raw.title == null ? '' : raw.title);
     // 🔴 2026-10-22（属主："内容显示不全，用省略号了"＋"不能加粗、改颜色"）：
     //   ① 行数按内容给够（不再统一截 3 行）；② 字重可加粗（700），框宽余量随字重放大，防字出框；
     //   ③ 节点可带强调色（括号图白底，所以是**文字色**）。
     const weight = nodeWeight(raw, depth, isRoot);
     const exact = typeof measurer === 'function';
-    const measure = exact ? (t, f) => measurer(t, f, weight) : undefined;
-    const boldK = weightPadK(weight, exact);
-    const lines = wrapLabel(tf(title), maxLabelWidth, fs, measure, lineBudget(title, maxLabelWidth, fs, measure));
-    const textW = Math.max(...lines.map((l) => estimateTextWidth(l, fs, measure)), 0) * boldK + (exact ? 2 : 0);
+    const { plain, mask } = parseBoldRuns(tf(title));
+    const anyBold = mask.some(Boolean);
+    const effWeight = anyBold ? Math.max(weight, 700) : weight;
+    const measure = exact ? (t, f) => measurer(t, f, effWeight) : undefined;
+    const boldK = weightPadK(effWeight, exact);
+    const widthOf = (t, b) => textWidthOf(t, fs, b ? 700 : weight, measurer) * (exact ? 1 : boldK);
+    const lines = wrapLabel(plain, maxLabelWidth, fs, measure, lineBudget(plain, maxLabelWidth, fs, measure));
+    let cur = 0;
+    const lineRuns = lines.map((line) => {
+      const runs = [];
+      for (const ch of line) {
+        while (cur < plain.length && plain[cur] !== ch) cur += 1;
+        if (cur < plain.length) cur += 1;
+        const b = mask[cur - 1] === true;
+        if (runs.length && runs[runs.length - 1].bold === b) runs[runs.length - 1].text += ch;
+        else runs.push({ text: ch, bold: b });
+      }
+      return runs.map((r) => ({ ...r, w: widthOf(r.text, r.bold) }));
+    });
+    const textW = Math.max(...lineRuns.map((rs) => rs.reduce((s, r) => s + r.w, 0)), 0) + (exact ? 2 : 0);
     const lineH = Math.round(fs * 1.42);
     const node = {
       id: seq++,
       title,
       lines,
+      lineRuns,
       fs,
       weight,
       lineH,
       textW,
       padX,
       padY,
-      w: Math.round(textW + padX * 2),
-      h: Math.round(lines.length * lineH + padY * 2),
+      // 手动宽高＝**最小值**：只放大不缩小，保证任何手改都裁不到字
+      w: Math.max(Math.round(textW + padX * 2), normNodeMinW(raw && raw.w) || 0),
+      h: Math.max(Math.round(lines.length * lineH + padY * 2), normNodeMinH(raw && raw.h) || 0),
       color,
       accent: normalizeHex(raw && raw.color),
       isRoot: !!isRoot,
@@ -251,13 +271,22 @@ export const buildBraceSvg = (spec, opts = {}) => {
     // 层级同时用字重强化（黑白打印时颜色差异会消失，字重不会）；加粗（bold）在此生效
     const weight = n.weight || (n.isRoot ? 600 : (n.depth === 1 ? 500 : 400));
     const fill = n.accent || INK;
-    const tx = n.x + n.padX;
-    const baseline0 = n.y + n.padY + n.fs * 1.06;
+    // 手动加高时上下居中（留白不压缩行距、不裁字）
+    const blockH = n.lines.length * n.lineH;
+    const topPad = Math.max(n.padY, Math.round((n.h - blockH) / 2));
+    const baseline0 = n.y + topPad + n.fs * 1.06;
+    // 逐段出字：`**粗**` 段 700，其余按层级字重（局部加粗）
     n.lines.forEach((line, i) => {
-      out.push(
-        `<text x="${tx}" y="${(baseline0 + i * n.lineH).toFixed(1)}" font-size="${n.fs}" `
-        + `font-weight="${weight}" fill="${fill}" text-anchor="start">${esc(line)}</text>`,
-      );
+      const runs = (n.lineRuns && n.lineRuns[i]) || [{ text: line, bold: false, w: 0 }];
+      let x = n.x + n.padX;
+      const y = (baseline0 + i * n.lineH).toFixed(1);
+      for (const run of runs) {
+        out.push(
+          `<text x="${x.toFixed(1)}" y="${y}" font-size="${n.fs}" `
+          + `font-weight="${run.bold ? 700 : weight}" fill="${fill}" text-anchor="start">${esc(run.text)}</text>`,
+        );
+        x += run.w || 0;
+      }
     });
   }
 

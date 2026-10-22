@@ -63,78 +63,130 @@
             @dragend="clearDrag"
           >
             <span
-              v-if="isTree && e.depth > 0"
-              class="de-grip"
-              title="拖动我，放到另一行上＝挂成它的子项"
-              draggable="true"
-              @dragstart="onDragStart($event, e.path)"
-            >⠿</span>
+                v-if="isTree && e.depth > 0"
+                class="de-grip"
+                title="拖动我，放到另一行上＝挂成它的子项"
+                draggable="true"
+                @dragstart="onDragStart($event, e.path)"
+              >⠿</span>
             <span
               v-else
               class="de-grip de-grip-off"
             />
-            <input
-              :value="e.text"
-              class="de-input"
-              :placeholder="e.role === 'root' ? '中心主题' : '要点'"
-              @change="onText(e.path, $event.target.value)"
-            >
-            <span class="de-ops">
-              <button
-                v-if="isTree"
-                class="de-b"
-                :class="{ on: e.bold }"
-                :title="e.bold ? '取消加粗' : '加粗（打印时比颜色更清楚）'"
-                @click="onBold(e.path, !e.bold)"
-              >B</button>
-              <label
-                v-if="isTree"
-                class="de-color"
-                :title="e.role === 'root' ? '改中心主题的底色' : '改这条文字的颜色'"
-              >
+            <div class="de-main">
+              <div class="de-line1">
                 <input
-                  type="color"
-                  :value="e.color || (e.role === 'root' ? '#2b3a4a' : '#2f3540')"
-                  @change="onColor(e.path, $event.target.value)"
+                  :value="e.text"
+                  class="de-input"
+                  :placeholder="e.role === 'root' ? '中心主题' : '要点'"
+                  @change="onText(e.path, $event.target.value)"
                 >
-                <span
-                  v-if="e.color"
-                  class="de-color-clear"
-                  title="恢复默认色"
-                  @click.prevent="onColor(e.path, '')"
-                >×</span>
-              </label>
-              <button
-                v-if="isTree && e.depth > 0 && e.path[e.path.length - 1] > 0"
-                title="降一级（挂到上一个同级下面）"
-                @click="onIndent(e.path)"
-              >→</button>
-              <button
-                v-if="isTree && e.depth > 1"
-                title="升一级（提到父节点的同级位）"
-                @click="onOutdent(e.path)"
-              >←</button>
-              <button
-                v-if="e.addable"
-                title="在此项下加一个子项"
-                @click="onAddChild(e.path)"
-              >＋</button>
-              <button
-                v-if="e.removable"
-                title="删除该项"
-                @click="onRemove(e.path)"
-              >－</button>
-              <button
-                v-if="isTree && e.depth > 0"
-                title="上移（同级内换顺序）"
-                @click="onMove(e.path, -1)"
-              >↑</button>
-              <button
-                v-if="isTree && e.depth > 0"
-                title="下移（同级内换顺序）"
-                @click="onMove(e.path, 1)"
-              >↓</button>
-            </span>
+                <span class="de-ops">
+                  <button
+                    v-if="isTree"
+                    class="de-b"
+                    :class="{ on: e.bold }"
+                    :title="e.bold ? '取消整条加粗' : '整条加粗（打印时比颜色更清楚）'"
+                    @click="onBold(e.path, !e.bold)"
+                  >B</button>
+                  <label
+                    v-if="isTree"
+                    class="de-color"
+                    :title="e.role === 'root' ? '改中心主题的底色' : '改这条文字的颜色'"
+                  >
+                    <input
+                      type="color"
+                      :value="e.color || (e.role === 'root' ? '#2b3a4a' : '#2f3540')"
+                      @change="onColor(e.path, $event.target.value)"
+                    >
+                    <span
+                      v-if="e.color"
+                      class="de-color-clear"
+                      title="恢复默认色"
+                      @click.prevent="onColor(e.path, '')"
+                    >×</span>
+                  </label>
+                  <button
+                    v-if="isTree && e.depth > 0 && e.path[e.path.length - 1] > 0"
+                    title="降一级（挂到上一个同级下面）"
+                    @click="onIndent(e.path)"
+                  >→</button>
+                  <button
+                    v-if="isTree && e.depth > 1"
+                    title="升一级（提到父节点的同级位）"
+                    @click="onOutdent(e.path)"
+                  >←</button>
+                  <button
+                    v-if="e.addable"
+                    title="在此项下加一个子项"
+                    @click="onAddChild(e.path)"
+                  >＋</button>
+                  <button
+                    v-if="e.removable"
+                    title="删除该项"
+                    @click="onRemove(e.path)"
+                  >－</button>
+                  <button
+                    v-if="isTree && e.depth > 0"
+                    title="上移（同级内换顺序）"
+                    @click="onMove(e.path, -1)"
+                  >↑</button>
+                  <button
+                    v-if="isTree && e.depth > 0"
+                    title="下移（同级内换顺序）"
+                    @click="onMove(e.path, 1)"
+                  >↓</button>
+                </span>
+              </div>
+              <div
+                v-if="isTree"
+                class="de-line2"
+              >
+                <label
+                  class="de-num"
+                  title="该节点字号（11–24px，留空＝按层级默认）"
+                >字号
+                  <input
+                    type="number"
+                    min="11"
+                    max="24"
+                    step="1"
+                    :value="e.fs"
+                    placeholder="自动"
+                    @change="onNum(e.path, 'fs', $event.target.value)"
+                  >
+                </label>
+                <label
+                  class="de-num"
+                  title="手动最小框宽：只会加宽，不会比文字窄（所以裁不到字）"
+                >宽≥
+                  <input
+                    type="number"
+                    min="40"
+                    max="600"
+                    step="10"
+                    :value="e.w"
+                    placeholder="自动"
+                    @change="onNum(e.path, 'w', $event.target.value)"
+                  >
+                </label>
+                <label
+                  class="de-num"
+                  title="手动最小框高：只会加高，富余高度用来上下居中"
+                >高≥
+                  <input
+                    type="number"
+                    min="24"
+                    max="800"
+                    step="10"
+                    :value="e.h"
+                    placeholder="自动"
+                    @change="onNum(e.path, 'h', $event.target.value)"
+                  >
+                </label>
+                <span class="de-hint">局部加粗：用 **…** 包住要加粗的字</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -241,6 +293,10 @@ const onMove = (path, dir) => { const n = moveNode(draft.value, path, dir); if (
 //   （加粗在黑白打印下仍可区分，颜色不会）。
 const onBold = (path, bold) => { const n = setStyleAt(draft.value, path, { bold }); if (n) draft.value = n; };
 const onColor = (path, color) => { const n = setStyleAt(draft.value, path, { color }); if (n) draft.value = n; };
+// 字号 / 手动最小宽高（2026-10-22 属主："节点字号可以做""手工拖框改宽高值得做吧"）
+//   空值＝自动（删字段）；越界由渲染侧同一套 norm 夹到合法区间。
+//   宽/高 在渲染侧是**最小值**：只会加宽加高，所以不可能把字裁掉。
+const onNum = (path, key, val) => { const n = setStyleAt(draft.value, path, { [key]: val }); if (n) draft.value = n; };
 
 // ⬇️⬆️ 升降层级（确定性按钮：真机上从输入框起拖常常拖不动，故不只依赖拖拽）
 const onIndent = (path) => {
@@ -332,7 +388,15 @@ const onSave = () => { if (draft.value) emit('save', draft.value); };
   margin: 0 0 8px; padding: 6px 8px; border-radius: 5px;
   background: #fff7e6; border: 1px solid #ffe0a3; color: #8a5a00; font-size: 12px;
 }
-.de-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; border-radius: 5px; }
+.de-row { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; border-radius: 5px; }
+.de-main { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.de-line1 { display: flex; align-items: center; gap: 6px; }
+.de-line2 { display: flex; align-items: center; gap: 10px; padding-left: 2px; font-size: 11px; color: #64748b; }
+.de-num { display: inline-flex; align-items: center; gap: 3px; }
+.de-num input {
+  width: 52px; padding: 1px 4px; font-size: 11px; border: 1px solid #dfe4ea; border-radius: 4px;
+}
+.de-hint { color: #94a3b8; }
 .de-grip {
   width: 14px; flex: 0 0 14px; text-align: center; color: #9aa4b2;
   cursor: grab; user-select: none; font-size: 13px;

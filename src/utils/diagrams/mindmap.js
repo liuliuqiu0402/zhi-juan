@@ -29,6 +29,7 @@ import {
   DEFAULT_FONT, DEFAULT_PALETTE, INK, HEAD_FILL, PAPER,
   esc, estimateTextWidth, wrapLabel, svgHeader, svgPaper,
   lineBudget, normalizeHex, nodeWeight, weightPadK,
+  normNodeFont, normNodeMinW, normNodeMinH, parseBoldRuns, textWidthOf,
 } from './shared.js';
 
 // 文本工具与配色统一在 shared.js（导图族共用），这里再导出一次，保持本模块原有对外 API 不变
@@ -114,39 +115,57 @@ export const layoutMindmap = (tree, opts = {}) => {
   // ── 归一化：算每行文字与节点尺寸 ──
   let seq = 0;
   const prep = (raw, depth, color, isRoot) => {
-    const fs = isRoot ? rootFontSize : fontSize;
-    // 🔴 2026-10-22（属主真机："有的字出导图框了"）：框宽原按**常规字重**的文字宽算，
-    //   而根/一级分支是 600/500 字重、再加字体回退差异 ⇒ 实排出来比算的宽，字冲出框。
-    //   两层处置：① 有**实测 measurer**（浏览器 canvas，按 字重+字号+字体栈 实测）就按实测出框，只留 2px 余量；
-    //   ② 无实测（纯函数/jsdom）时按字重留余量，且**折行宽度同步收窄**，保证折完仍装得下。
-    // 🔴 2026-10-22（属主："内容显示不全，用省略号了""框长短/高度都一样，不符合实际"）：
-    //   框的尺寸**随内容**走，不再"统一截到 3 行"——
-    //     · 行数不封顶（`lineBudget` 按内容量给够）⇒ 长要点变高，不再被 `…` 砍掉；
-    //     · 折行宽度按内容微调：略超上限的短语（≤1.2 倍）不硬折成两行，而是让它单行略宽，
-    //       于是框的"长短"也跟着内容有差别，而不是清一色的 150px。
+    // 🔴 2026-10-22（属主："节点字号可以做"）：节点可自带 fs（11–24），不合法则按层级默认。
+    //   行高必须**跟着该节点字号**算（原先全图共用一个 lineH ⇒ 改了字号行距不跟、字会压在一起）。
+    const fs = normNodeFont(raw.fs) || (isRoot ? rootFontSize : fontSize);
+    const lineHn = Math.round(fs * 1.42);
     const str = tf(raw.title);
     const weight = nodeWeight(raw, depth, isRoot);
     const exact = typeof measurer === 'function';
-    const measure = exact ? (t, f) => measurer(t, f, weight) : undefined;
-    const boldK = weightPadK(weight, exact);
-    const natural = estimateTextWidth(str, fs, measure) * boldK;
+    // 🔴 2026-10-22（属主："局部加粗可以做"）：`**…**` → 纯文本 + 逐字掩码。
+    //   折行按纯文本算（宽度判据不变），折完再按字符把掩码回填成"每行的若干段"，渲染逐段出字。
+    const { plain, mask } = parseBoldRuns(str);
+    const anyBold = mask.some(Boolean);
+    const effWeight = anyBold ? Math.max(weight, 700) : weight;
+    const measure = exact ? (t, f) => measurer(t, f, effWeight) : undefined;
+    const boldK = weightPadK(effWeight, exact);
+    const widthOf = (t, b) => textWidthOf(t, fs, b ? 700 : weight, measurer) * (exact ? 1 : boldK);
+    const natural = widthOf(plain, anyBold);
     const capW = natural <= maxLabelWidth ? maxLabelWidth
       : (natural <= maxLabelWidth * 1.2 ? Math.round(natural) : maxLabelWidth);
     const wrapW = exact ? capW : Math.max(60, Math.floor(capW / boldK));
-    const lines = wrapLabel(str, wrapW, fs, measure, lineBudget(str, wrapW, fs, measure));
-    const textW = Math.max(...lines.map((l) => estimateTextWidth(l, fs, measure))) * boldK + (exact ? 2 : 0);
+    const lines = wrapLabel(plain, wrapW, fs, measure, lineBudget(plain, wrapW, fs, measure));
+    // 按字符回填掩码：wrapLabel 只会丢"行首空白"，所以顺序扫描即可对上（末尾自动兜底成末行剩余）
+    let cur = 0;
+    const lineRuns = lines.map((line) => {
+      const runs = [];
+      for (const ch of line) {
+        while (cur < plain.length && plain[cur] !== ch) cur += 1;
+        if (cur < plain.length) cur += 1;
+        const b = mask[cur - 1] === true;
+        if (runs.length && runs[runs.length - 1].bold === b) runs[runs.length - 1].text += ch;
+        else runs.push({ text: ch, bold: b });
+      }
+      return runs.map((r) => ({ ...r, w: widthOf(r.text, r.bold) }));
+    });
+    const textW = Math.max(...lineRuns.map((rs) => rs.reduce((s, r) => s + r.w, 0)), 0) + (exact ? 2 : 0);
+    // 🔴 2026-10-22（属主："手工拖框改宽高值得做吧"）：只接受**最小宽/最小高**——
+    //   真宽 = max(内容宽, 手动宽)，真高 = max(内容高, 手动高) ⇒ 手改永远裁不到字（底线不让步）。
+    const w = Math.max(Math.round(textW + padX * 2), normNodeMinW(raw.w) || 0);
+    const h = Math.max(Math.round(lines.length * lineHn + padY * 2), normNodeMinH(raw.h) || 0);
     return {
       id: seq++,
       title: String(raw.title == null ? '' : raw.title),
       lines,
+      lineRuns,
       fs,
       weight,
-      lineH,
+      lineH: lineHn,
       textW,
       padX,
       padY,
-      w: Math.round(textW + padX * 2),
-      h: Math.round(lines.length * lineH + padY * 2),
+      w,
+      h,
       color,
       // 节点强调色（规格里可手改）：非根节点＝**文字色**；根节点是深底白字，所以它＝**框底色**。
       accent: normalizeHex(raw.color),
@@ -428,11 +447,21 @@ export const buildMindmapSvg = (tree, opts = {}) => {
     //   字重单源在 layout（prep 里算进框宽余量），此处只取用，防两处各判一次。
     const weight = n.weight || (n.isRoot ? 600 : (n.depth === 1 ? 500 : 400));
     const fill = n.isRoot ? PAPER : (n.accent || INK);
-    const anchor = n.side === -1 ? 'end' : 'start';
-    const tx = n.side === -1 ? n.x + n.w - n.padX : n.x + n.padX;
-    const baseline0 = n.y + n.padY + n.fs * 1.06;
+    // 手动加高时**上下居中**（富余高度用于留白，不压缩行距、不裁字）
+    const blockH = n.lines.length * n.lineH;
+    const topPad = Math.max(n.padY, Math.round((n.h - blockH) / 2));
+    const baseline0 = n.y + topPad + n.fs * 1.06;
+    // 逐"段"出字：`**粗**` 段用 700，其余按层级字重；每段自己算 x（左支从右往左排，不依赖 text-anchor=end，
+    //   因为混合字重的整行用 end 对齐在各渲染器（浏览器/PDF/Word 光栅化）下不一致）。
     n.lines.forEach((line, i) => {
-      out.push(`<text x="${tx}" y="${(baseline0 + i * n.lineH).toFixed(1)}" font-size="${n.fs}" font-weight="${weight}" fill="${fill}" text-anchor="${anchor}">${esc(line)}</text>`);
+      const runs = (n.lineRuns && n.lineRuns[i]) || [{ text: line, bold: false, w: 0 }];
+      const total = runs.reduce((s, r) => s + (r.w || 0), 0);
+      let x = n.side === -1 ? n.x + n.w - n.padX - total : n.x + n.padX;
+      const y = (baseline0 + i * n.lineH).toFixed(1);
+      for (const run of runs) {
+        out.push(`<text x="${x.toFixed(1)}" y="${y}" font-size="${n.fs}" font-weight="${run.bold ? 700 : weight}" fill="${fill}" text-anchor="start">${esc(run.text)}</text>`);
+        x += run.w || 0;
+      }
     });
   }
 

@@ -12,7 +12,9 @@
  * ============================================================
  */
 
-import { normalizeHex } from './diagrams/shared.js'; // 颜色校验单源（与渲染侧同一个函数，不在此另写一份正则）
+import {
+  normalizeHex, normNodeFont, normNodeMinW, normNodeMinH,
+} from './diagrams/shared.js'; // 颜色/字号/手动宽高的校验单源（与渲染侧同一套函数，不在此另写）
 
 /** 结构同构、可互转的"树形"图种（都是 { title, children[] }） */
 export const TREE_TYPES = ['mindmap', 'brace'];
@@ -50,9 +52,10 @@ export const collectEntries = (spec) => {
       out.push({
         path, text: String(node.title ?? ''), role: depth === 0 ? 'root' : 'child', depth,
         removable: depth > 0, addable: true,
-        // 样式（2026-10-22 属主："文字能编辑，但不能加粗、改颜色"）：
-        //   树形图种的节点可带 bold / color，面板据此回显控件状态。
+        // 样式（2026-10-22 属主："文字能编辑，但不能加粗、改颜色""节点字号可以做"）：
+        //   树形图种的节点可带 bold / color / fs / w / h，面板据此回显控件状态。
         bold: !!node.bold, color: String(node.color ?? ''),
+        fs: node.fs ?? '', w: node.w ?? '', h: node.h ?? '',
       });
       (node.children || []).forEach((c, i) => walk(c, [...path, 'children', i], depth + 1));
     };
@@ -127,9 +130,11 @@ const isPathPrefix = (prefix, path) => prefix.length <= path.length && prefix.ev
 
 /**
  * 🎨 改条目样式（2026-10-22 属主："导图里的文字能编辑，但是目前不能进行加粗、修改颜色等操作吗？"）
- *   patch = { bold?: boolean, color?: '#rrggbb' | '' }
+ *   patch = { bold?: boolean, color?: '#rrggbb' | '', fs?: 11~24 | '', w?: px | '', h?: px | '' }
  *   · bold 为真写入 `bold:true`，为假则**删字段**（规格里不残留 false，模型输出的 JSON 更干净）；
- *   · color 走 `normalizeHex` 校验，非法或空 ⇒ 删字段（回落默认色），绝不把任意串写进 SVG 属性。
+ *   · color 走 `normalizeHex` 校验，非法或空 ⇒ 删字段（回落默认色），绝不把任意串写进 SVG 属性；
+ *   · fs／w／h 走同一套校验（11–24 / 40–600 / 24–800），空或非法 ⇒ 删字段（回落"自动"）。
+ *     ⚠️ w／h 在渲染侧是**最小值**语义：只放大不缩小，所以手改不可能把字裁掉。
  * 返回新规格；非树形或路径无效 ⇒ null。
  */
 export const setStyleAt = (spec, path, patch = {}) => {
@@ -146,6 +151,13 @@ export const setStyleAt = (spec, path, patch = {}) => {
     const c = normalizeHex(patch.color);
     if (c) node.color = c;
     else delete node.color;
+  }
+  const numFields = [['fs', normNodeFont], ['w', normNodeMinW], ['h', normNodeMinH]];
+  for (const [key, norm] of numFields) {
+    if (!(key in patch)) continue;
+    const v = norm(patch[key]);
+    if (v != null) node[key] = v;
+    else delete node[key];
   }
   return next;
 };
