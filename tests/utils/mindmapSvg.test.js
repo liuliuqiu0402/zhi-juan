@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { layoutMindmap, buildMindmapSvg, wrapLabel, estimateTextWidth } from '../../src/utils/diagrams/mindmap.js';
 import { buildDiagramSvg } from '../../src/utils/diagrams/index.js';
+import { DEFAULT_FONT } from '../../src/utils/diagrams/shared.js';
 
 /**
  * 连接线几何体检：数"线段进入任一节点框**内部**"的次数（端点落在边框上不算）。
@@ -241,6 +242,42 @@ describe('mindmapSvg · 折行与宽度估算', () => {
 
   it('CJK 与拉丁混排宽度估算：CJK 更宽', () => {
     expect(estimateTextWidth('中文', 13)).toBeGreaterThan(estimateTextWidth('ab', 13));
+  });
+
+  // 2026-10-22 属主："❌️ 这种符号，输入法能输入的，目前是支持的吧？如果支持，符号前缀就够用了。"
+  //   支持是支持的（符号本就是文本字符），但原估算有两处会把它算坏——这两条是把"能用"变成"敢用"的前提。
+  it('输入法符号按约 1em 计宽（原按标点 0.42em 算 ⇒ 框比符号窄 ⇒ 字出框）', () => {
+    const em = 13;
+    for (const s of ['❌', '✅', '⚠', '★', '→', '△', '①']) {
+      expect(estimateTextWidth(s, em), `「${s}」被算成标点宽了`).toBeGreaterThanOrEqual(em * 0.95);
+    }
+  });
+
+  it('变体选择符（U+FE0F）是零宽：带与不带必须同宽（原算成整字宽 ⇒ 框凭空长一截）', () => {
+    const em = 13;
+    expect(Math.abs(estimateTextWidth('❌️', em) - estimateTextWidth('❌', em))).toBeLessThan(0.5);
+    expect(Math.abs(estimateTextWidth('⚠️', em) - estimateTextWidth('⚠', em))).toBeLessThan(0.5);
+  });
+
+  it('符号前缀能正常出图：符号不被丢掉，框宽容得下它', () => {
+    const { nodes, svg } = buildMindmapSvg({ title: '易错点', children: [
+      { title: '❌️ 不写单位' }, { title: '⚠️ 通分时漏乘分子' }, { title: '✅ 验算后再答' },
+    ] }, { layout: 'right' });
+    expect(svg).toContain('❌');
+    expect(svg).toContain('⚠');
+    expect(svg).toContain('✅');
+    for (const n of nodes.filter((x) => !x.isRoot)) {
+      expect(n.w - 2 * n.padX, `「${n.title}」字出框`).toBeGreaterThanOrEqual(Math.ceil(n.textW) - 1);
+    }
+    // 单位符号本身就接近 1em：一个"❌️"标签的框内宽必须容得下一个字
+    const symOnly = buildMindmapSvg({ title: 'r', children: [{ title: '❌️' }] }, { layout: 'right' }).nodes
+      .find((x) => x.title === '❌️');
+    expect(symOnly.textW).toBeGreaterThanOrEqual(symOnly.fs * 0.95);
+  });
+
+  it('字体栈带表情符号回退（中文正文字体没有 emoji 字形，不回退则各环境字形/宽度不一致）', () => {
+    expect(DEFAULT_FONT).toContain('Segoe UI Emoji');
+    expect(DEFAULT_FONT).toContain('Apple Color Emoji');
   });
 });
 

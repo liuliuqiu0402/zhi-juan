@@ -27,8 +27,11 @@
  * ============================================================
  */
 
-/** 印刷字体栈：优先系统中文字体，避免外链字体（Word 光栅化时外链会丢） */
-export const DEFAULT_FONT = '"Microsoft YaHei","PingFang SC","Source Han Sans SC","Noto Sans CJK SC",sans-serif';
+/** 印刷字体栈：优先系统中文字体，避免外链字体（Word 光栅化时外链会丢）
+ *  2026-10-22（属主："❌️ 这种符号输入法能输入，目前是支持的吧？"）：尾部补**表情符号字体回退**——
+ *  中文正文字体（雅黑/苹方/思源）都没有 emoji 字形，不显式回退就只能靠浏览器的最后兜底，
+ *  不同环境（浏览器 / PDF / Word 光栅化）取到的字形与宽度会不一致。 */
+export const DEFAULT_FONT = '"Microsoft YaHei","PingFang SC","Source Han Sans SC","Noto Sans CJK SC","Segoe UI Emoji","Apple Color Emoji","Noto Color Emoji",sans-serif';
 
 /** 主分支/分类配色（低饱和、明度拉开：黑白打印也能区分） */
 export const DEFAULT_PALETTE = ['#2b5ea7', '#1f7a5c', '#b06a1f', '#8a4b8a', '#3d6b8a', '#a04a3d'];
@@ -53,12 +56,27 @@ export const esc = (s) => String(s == null ? '' : s)
  *  浏览器里有 canvas 实测 measurer（见 utils/diagramBlock.js）时走实测，不吃这个系数。 */
 const SAFETY_K = 1.04;
 
+/**
+ * 零宽字符：**真实不占宽**，原估算却因"码点 > 0x2E80 即 1em"给了整字宽
+ *   ⇒ `❌️`（U+274C + 变体选择符 U+FE0F）被算成两个字宽，框凭空长一截、还提前折行。
+ */
+const ZERO_WIDTH = new Set([0xfe0f, 0xfe0e, 0x200d, 0x20e3]);
+
+/**
+ * 符号/表情区（箭头、杂项符号、带圈数字、几何图形、装饰符号、表情块）：
+ *   真实宽度约 1em，原估算落到"其他标点 0.42em" ⇒ BMP 里的 `❌ ✅ ⚠ ★` 被算不到一半宽 ⇒ **字出框**。
+ *   2026-10-22（属主："❌️ 这种符号输入法能输入的，目前是支持的吧？"）：这是让"符号前缀"能用的前提。
+ */
+const SYMBOL_RE = /[\u2190-\u21FF\u2300-\u23FF\u2460-\u24FF\u25A0-\u27BF\u2900-\u297F\u2B00-\u2BFF]|[\u{1F000}-\u{1FAFF}]/u;
+
 export const estimateTextWidth = (text, fontSize, measurer) => {
   if (typeof measurer === 'function') return measurer(text, fontSize);
   let w = 0;
   for (const ch of String(text)) {
     const code = ch.codePointAt(0);
-    if (code > 0x2e80) w += 1.0;
+    if (ZERO_WIDTH.has(code)) continue;
+    if (SYMBOL_RE.test(ch)) w += 1.02;
+    else if (code > 0x2e80) w += 1.0;
     // 🔴 2026-10-22（属主真机："有的字出导图框了"）：数字/小写按 0.56em 够用，但**大写字母**
     //   （W/M/O…）实际接近 0.7em ⇒ 原值会把含大写的标签算窄、字冲出框。大写字重更宽，单列一档。
     else if (/[A-Z]/.test(ch)) w += 0.66;
