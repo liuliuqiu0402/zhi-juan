@@ -116,12 +116,15 @@ export const layoutMindmap = (tree, opts = {}) => {
     const fs = isRoot ? rootFontSize : fontSize;
     // 🔴 2026-10-22（属主真机："有的字出导图框了"）：框宽原按**常规字重**的文字宽算，
     //   而根/一级分支是 600/500 字重、再加字体回退差异 ⇒ 实排出来比算的宽，字冲出框。
-    //   处置：字重越大留越大余量，且**折行宽度同步收窄**（按余量折算），保证"折完仍装得下"。
+    //   两层处置：① 有**实测 measurer**（浏览器 canvas，按 字重+字号+字体栈 实测）就按实测出框，只留 2px 余量；
+    //   ② 无实测（纯函数/jsdom）时按字重留余量，且**折行宽度同步收窄**，保证折完仍装得下。
     const weight = isRoot ? 600 : (depth === 1 ? 500 : 400);
-    const boldK = weight >= 600 ? 1.10 : (weight >= 500 ? 1.07 : 1.04);
-    const wrapW = Math.max(60, Math.floor(maxLabelWidth / boldK));
-    const lines = wrapLabel(tf(raw.title), wrapW, fs, measurer);
-    const textW = Math.max(...lines.map((l) => estimateTextWidth(l, fs, measurer))) * boldK;
+    const exact = typeof measurer === 'function';
+    const measure = exact ? (t, f) => measurer(t, f, weight) : undefined;
+    const boldK = exact ? 1 : (weight >= 600 ? 1.10 : (weight >= 500 ? 1.07 : 1.04));
+    const wrapW = exact ? maxLabelWidth : Math.max(60, Math.floor(maxLabelWidth / boldK));
+    const lines = wrapLabel(tf(raw.title), wrapW, fs, measure);
+    const textW = Math.max(...lines.map((l) => estimateTextWidth(l, fs, measure))) * boldK + (exact ? 2 : 0);
     return {
       id: seq++,
       title: String(raw.title == null ? '' : raw.title),

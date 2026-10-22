@@ -20,6 +20,29 @@
  * ============================================================
  */
 import { buildDiagramSvg, DIAGRAM_TYPES } from './diagrams/index.js';
+import { DEFAULT_FONT } from './diagrams/shared.js';
+
+/** 浏览器内**真实字宽**测量（canvas，按 字重+字号+字体栈 实测）；无 canvas（jsdom/Node）返回 null，
+ *  调用方退回字符类别估算。用于"框随内容自适应、字不出框"（2026-10-22 属主）。 */
+const makeCanvasMeasurer = () => {
+  try {
+    if (typeof document === 'undefined' || typeof CanvasRenderingContext2D === 'undefined') return null;
+    const ctx = document.createElement('canvas').getContext('2d');
+    if (!ctx || typeof ctx.measureText !== 'function') return null;
+    return (text, fontSize, weight = 400) => {
+      const t = String(text == null ? '' : text);
+      try {
+        ctx.font = `${weight} ${fontSize}px ${DEFAULT_FONT}`;
+        const w = ctx.measureText(t).width;
+        return Number.isFinite(w) && w > 0 ? w : t.length * fontSize * 0.6;
+      } catch {
+        return t.length * fontSize * 0.6;
+      }
+    };
+  } catch {
+    return null;
+  }
+};
 
 /** 导图块的标记类名（必须是 class，模型最容易稳定复现） */
 export const DIAGRAM_BLOCK_CLASS = 'k-diagram';
@@ -155,13 +178,19 @@ export const toResponsiveSvg = (svg) =>
  */
 export const renderDiagramBlocks = (html, opts = {}) => {
   const src = String(html == null ? '' : html);
-  if (!src) return { html: src, count: 0, failures: [] };
+  if (!src) return { html: src, count: 0, failures: [], warnings: [] };
   if (typeof DOMParser === 'undefined') {
-    return { html: src, count: 0, failures: [] };
+    return { html: src, count: 0, failures: [], warnings: [] };
   }
+  // 🔴 2026-10-22（属主："导图框可否随内容自适应？目前还有字超出框外的"）：
+  //   框宽原来是**按字符类别估算**（CJK 1em／拉丁 0.56em…），字体回退、字重、连字都会让实排更宽 ⇒
+  //   仍有字出框。浏览器里能拿到真实字宽，故默认注入一个 **canvas 实测 measurer**（按 字重+字号+字体栈 实测），
+  //   版式按实测宽出框；jsdom/无 canvas 环境自动退回估算（纯函数单测仍走估算口径）。
+  const measurer = opts.measurer || makeCanvasMeasurer();
+  const passOpts = measurer ? { ...opts, measurer } : opts;
   const doc = new DOMParser().parseFromString(`<div id="__k_root">${src}</div>`, 'text/html');
   const root = doc.getElementById('__k_root');
-  if (!root) return { html: src, count: 0, failures: [] };
+  if (!root) return { html: src, count: 0, failures: [], warnings: [] };
   const blocks = Array.from(root.querySelectorAll(`.${DIAGRAM_BLOCK_CLASS}`));
   let count = 0;
   const failures = [];
@@ -176,7 +205,7 @@ export const renderDiagramBlocks = (html, opts = {}) => {
       continue; // 保留原块：宁可让 JSON 原文露出来，也不能把内容删掉
     }
     try {
-      const built = buildFigureElement(parsed.spec, doc, opts);
+      const built = buildFigureElement(parsed.spec, doc, passOpts);
       if (!built) throw new Error('出图返回空');
       // 印刷可读性体检：缩得太狠才告警（见 PRINT_WARN_WIDTH 注释；只超版心几个像素不算问题）
       const warn = printReadabilityWarning(built.width, labelOf(parsed.type));
