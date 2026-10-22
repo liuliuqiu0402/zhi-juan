@@ -105,7 +105,12 @@ describe('题号×标题×A×B 组合矩阵', () => {
     for (const stage of ['primary_low', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t, '① 没有子题 → 单价随标题').toContain('大题下面没有子题');
-      expect(t, '① 单判分处写（X分）').toContain('该小题只有一个判分处时写');
+      // 🔴 2026-10-22（属主："正确做法应该是一小题一标分"）：原「只有一个判分处时写（X分）」是**许可式**，
+      //   模型把它当默认路径、处处简写；现改为**一题一标**＋允许直接写该题总分（不必数空相乘），
+      //   并明写各题分不必相同（治"只会在均分时标"）。
+      expect(t, '① 一题一标（写完一道就标这道）').toContain('一题一标');
+      expect(t, '① 允许直接写该题总分').toContain('直接写该题的总分');
+      expect(t, '① 各题分不必相同').toContain('各题分不必相同');
       // 关键防口算编号：单价随标题时，其下不得出现任何题号（原版同句）
       expect(t, '① 单价随标题 ⇒ 其下不得有题号（防口算按行造号）').toContain('单价随标题时，其下不得出现任何题号');
       expect(t, '② 执行 A+B 的锚＝大题下面有子题').toContain('大题下面有子题');

@@ -151,7 +151,47 @@ describe('② 违约形态：报出来、但程序不动正文', () => {
   });
 });
 
-// ── ③ 486 面混合扫描：类别判据在位、行不承载语义、旧写法不得回潮 ──
+// ── ④ 2026-10-22 真机三项：双括注 / 答案区各种样式 / 非均分许可 ──
+describe('④ 双括注折叠、答案区多形态镜像、非均分许可', () => {
+  it('标题紧邻重复的分值括注 → 折叠成一个（真机：判断大题双括注）', () => {
+    const h = [
+      '<h1>阶段测评</h1>',
+      '<h3>四、判断（每题2分，共10分）（每题2分，共10分）</h3>',
+      '<p>1. 3×4与4×3的得数相同。（　　　）（2分）</p>',
+      '<p>2. 两个数相乘，交换位置得数不变。（　　　）（2分）</p>',
+    ].join('\n');
+    const r = run(h);
+    const t4 = heads(r.html).find((t) => t.startsWith('四、'));
+    expect(t4, '双括注须折叠成一个（按逐题分合成）').toBe('四、判断（每题2分，共4分）');
+    expect((t4.match(/分）/g) || []).length, '只留一个分值括注').toBe(1);
+  });
+
+  it('答案区标题无分值括注、且用“.”分隔（各种样式）→ 仍镜像正文合成结果', () => {
+    const h = [
+      '<h1>阶段测评</h1>',
+      '<h3>三、填空（共4分）</h3>',
+      '<p>1. 4个3相加写成乘法算式是____。（2分）</p>',
+      '<p>2. 5×3＝____，口诀是____。（2分）</p>',
+      '<h2>参考答案与评分标准</h2>',
+      '<p><strong>三. 填空</strong></p>',
+      '<p>1.（2分）3×4</p>',
+      '<p>2.（2分）15，三五十五</p>',
+    ].join('\n');
+    const r = run(h);
+    const body3 = heads(r.html).find((t) => t.startsWith('三、'));
+    expect(body3, '正文合成').toBe('三、填空（每题2分，共4分）');
+    expect(r.html, '答案区以“三.”分隔、无分值括注，仍须镜像').toContain('三. 填空（每题2分，共4分）');
+  });
+
+  it('提示词允许非均分：直接写该题总分、各题分不必相同', () => {
+    for (const stage of ['primary_low', 'primary_mid']) {
+      const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
+      expect(t, `${stage}：许可裸分`).toContain('直接写该题的总分');
+      expect(t, `${stage}：非均分许可`).toContain('各题分不必相同');
+    }
+  });
+});
+
 describe('③ 跨学段×学科混合扫描（类别口径）', () => {
   it('每面都要有：类别只判一次、行只是排版、并列区不写题号、无号也能标分', () => {
     const bad = [];
@@ -159,11 +199,14 @@ describe('③ 跨学段×学科混合扫描（类别口径）', () => {
       for (const subject of ['语文', '数学', '英语']) {
         const t = getPromptTemplate({ grade: stage, subject, genType: 'exam' }).template;
         const tag = `${stage}|${subject}`;
-        if (!t.includes('每道大题先定一个类别')) bad.push(`${tag}：缺“大题级类别”`);
+        if (!t.includes('每道大题先定类别')) bad.push(`${tag}：缺“大题级类别”`);
         if (!t.includes('行只是排版，不承载语义')) bad.push(`${tag}：缺“行不承载语义”`);
         if (!t.includes('都能因此变成多道题') && !t.includes('都不因此变成多道题')) bad.push(`${tag}：缺“并行不成题”`);
-        if (!t.includes('并列区：**不写任何题号**')) bad.push(`${tag}：缺“并列区不写题号”`);
+        if (!t.includes('**并列区**：**不写任何题号**')) bad.push(`${tag}：缺“并列区不写题号”`);
         if (!t.includes('没有题号的行也照样能标分')) bad.push(`${tag}：缺“无号也能标分”`);
+        // 2026-10-22 属主定：**一小题一标分**（写完一道就标这道），不是整组写完再回头统一标。
+        if (!t.includes('一题一标')) bad.push(`${tag}：缺“一题一标”`);
+        if (!t.includes('不要整组写完再回头统一标')) bad.push(`${tag}：缺“禁整组批量标”`);
         // 2026-10-22 真机：填空被判成并列区（单价标题+仍带号）⇒ 并列区定义里曾含“待填位”，把载体当成了类别依据。
         //   载体形态（空位／括号）不得参与类别判定；成句的填空必须是成题区。
         if (!t.includes('载体形态不参与判定')) bad.push(`${tag}：缺“载体不参与类别判定”`);

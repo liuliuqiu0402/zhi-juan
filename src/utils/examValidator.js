@@ -1105,7 +1105,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         }
         // 标题末括注的两种形态都整体替换为合成结果（"（共X分）"／"（每〈单位〉X分，共X分）"）。
         const TAIL_SCORE_RE = /[（(]\s*(?:每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*)?共\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*$/;
-        const nextB = t.replace(TAIL_SCORE_RE, labelB);
+        // 🔴 2026-10-22（真机实证「（每题2分，共10分）（每题2分，共10分）」双重括注）：
+        //   只替换末尾一个会把前面的重复括注留下 ⇒ 先把**末尾连续的分值括注全部剥掉**，再拼一个。
+        let baseB = t;
+        for (let guard = 0; guard < 4 && TAIL_SCORE_RE.test(baseB); guard += 1) {
+          baseB = baseB.replace(TAIL_SCORE_RE, '');
+        }
+        const nextB = `${baseB.trim()}${labelB}`;
         if (nextB !== t) {
           h.textContent = nextB;
           issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已改为真题标分样式：${nextB}` });
@@ -1120,12 +1126,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             && (x.textContent || '').trim().startsWith(`${seq}、`));
           if (byHead) return byHead;
           if (!answerBoundB) return null;
-          return Array.from(tplB.content.querySelectorAll('p, div'))
+          // 🔴 2026-10-22（真机实证「各种样式」）：答案区大题标题可能没有分值括注（故不能要求它必有），
+          //   也可能用 `.`/`．` 分隔（故放宽分隔符）。仍限定：答案区内、无块级子元素、以该汉字序号开头。
+          return Array.from(tplB.content.querySelectorAll('p, div, li'))
             .filter((el) => isInAnswerArea(el, answerBoundB))
-            .filter((el) => !el.querySelector('p, div, h1, h2, h3, h4'))
+            .filter((el) => !el.querySelector('p, div, h1, h2, h3, h4, li'))
             .find((el) => {
               const tt = (el.textContent || '').trim();
-              return tt.startsWith(`${seq}、`) && /[（(][^（()）]{0,30}分\s*[)）]\s*$/.test(tt);
+              return new RegExp(`^${seq}[、.．]`).test(tt) && tt.length <= 60;
             }) || null;
         };
         const seqM = t.match(/^([一二三四五六七八九十]+)、/);
@@ -1133,13 +1141,38 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const ansHead = findAnsTitleB(seqM[1]);
           if (ansHead) {
             const at = (ansHead.textContent || '').trim();
-            const mirrored = at.replace(/[（(]\s*(?:每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*)?(?:共\s*)?\d+(?:\.\d+)?\s*分\s*[)）]\s*$/, labelB);
-            ansHead.textContent = mirrored === at ? `${at}${labelB}` : mirrored;
+            const MIRROR_TAIL_RE = /[（(]\s*(?:每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*)?(?:共\s*)?\d+(?:\.\d+)?\s*分\s*[)）]\s*$/;
+            let atBase = at;
+            for (let guard = 0; guard < 4 && MIRROR_TAIL_RE.test(atBase); guard += 1) {
+              atBase = atBase.replace(MIRROR_TAIL_RE, '');
+            }
+            const mirrored = `${atBase.trim()}${labelB}`;
+            if (mirrored !== at) {
+              ansHead.textContent = mirrored;
+              fixed += 1;
+            }
           }
         }
       });
       out = tplB.innerHTML;
     } catch (e) { console.warn('⚠️ 大题标题样式转换失败（不影响其它修复）:', e.message); }
+
+    // ── 1.6d. 大题标题「同义重复分值括注」折叠：`（每题2分，共10分）（每题2分，共10分）` → 一个 ──
+    //   2026-10-22 真机实证（判断大题标题双括注）。只折叠**紧邻且完全相同**的分值括注，不动其它文字。
+    try {
+      const DUP_SCORE_RE = /([（(][^（()）]{0,40}分[)）])\s*\1/g;
+      Array.from(tplB.content.querySelectorAll('h2, h3, h4')).forEach((h) => {
+        const before = (h.textContent || '').trim();
+        let after = before;
+        for (let guard = 0; guard < 3; guard += 1) after = after.replace(DUP_SCORE_RE, '$1');
+        if (after !== before) {
+          h.textContent = after;
+          fixed += 1;
+          issues.push({ severity: 'info', type: 'title-score-drop', message: `大题标题重复分值括注已折叠：${after}` });
+        }
+      });
+      out = tplB.innerHTML;
+    } catch (e) { console.warn('⚠️ 重复分值括注折叠失败（不影响其它修复）:', e.message); }
   }
 
   // ── 1.6e. 多余题号：**只报不改**（题号归模型侧判；程序不删正文，删了全卷连续号会断）──
