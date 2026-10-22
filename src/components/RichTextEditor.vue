@@ -450,7 +450,7 @@
              选中正文里的导图后可用；只改规格 JSON 再重画，不重新调模型 -->
         <button
           title="编辑选中的导图（改文字/增删要点/换图种）"
-          :disabled="!diagramSel"
+          :disabled="!diagramSel || !editable"
           @click="openDiagramEditor"
         >
           🧩
@@ -1266,6 +1266,8 @@ const syncDiagramSelection = (editorIns) => {
 };
 /** 打开面板前把属性里的 JSON 解析出来；坏数据不打开（避免把坏数据写回去） */
 const openDiagramEditor = () => {
+  // 只读实例（如"章节原文提取"用 :editable="false"）不给改：那里改了也写不回正文
+  if (!props.editable) return;
   const raw = diagramSel.value?.spec;
   const spec = readSpecAttr(raw);
   if (!spec) {
