@@ -47,9 +47,25 @@ describe('标题单价错位：B 补逐题标分 + 合成真题标题', () => {
 
   it('账对不平（单价×判分处数 ≠ 标题共Y分）：整段不动、不补标分、不改标题', () => {
     const bad = FILL.replace('每空2分，共14分', '每空2分，共10分');
-    const out = run(bad);
+    const r = auditExamPaper(bad, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
+    const out = r.html;
     expect(heads(out)[0], '标题不得被程序擅改').toBe('三、填空（每空2分，共10分）');
     expect(pTexts(out).filter((t) => /（每空\d+分，共\d+分）$/.test(t)).length, '不得补标分').toBe(0);
+  });
+
+  // 🔴 2026-10-23（属主："这个之前不是好了吗？怎么又出现了呢？"）
+  //   这一支不是回归：账能对平时 B 静默补齐（上一轮），账对不平时才报——报的是"带号题没标分"这个**可核事实**。
+  //   但旧文案"按标题单价补齐应得 X 分"里的 X 是**数空位推出来的**（圆圈填/竖式/分条数不到会偏小），
+  //   当"应得"用＝程序猜数 ⇒ 改为只说清口径与出路，不再用"应得"。
+  it('账不平的提示：只报可核事实＋合计口径＋可执行出路，不再写"应得"', () => {
+    const bad = FILL.replace('每空2分，共14分', '每空2分，共10分');
+    const r = auditExamPaper(bad, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
+    const msg = (r.silentDetails || []).find((d) => d.type === 'title-unit-misplaced')?.message || '';
+    expect(msg, '须指出真实缺陷').toContain('道带题号的题没标分');
+    expect(msg, '合计须明示"按可判分空位计"').toContain('按可判分空位计');
+    expect(msg, '不得再拿推导值当"应得"').not.toContain('应得');
+    expect(msg, '须给出可执行出路').toMatch(/逐题标分/);
+    expect(msg, '须说明程序不改内容').toContain('程序不改数');
   });
 
   it('已逐题标分（A 做对了、只是标题还写单价）：不重复追加，标题照样合成', () => {
