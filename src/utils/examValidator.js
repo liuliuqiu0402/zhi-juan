@@ -1,4 +1,4 @@
-// ==================== 整卷结构质量校验器（ExamPaperAuditor）====================
+﻿// ==================== 整卷结构质量校验器（ExamPaperAuditor）====================
 // 定位：生成后程序化质检层（所有资料类型 × 所有学科 × 所有学段通用）。
 //    提示词规则（promptLibrary 指令库）约束 AI"应该怎么出题"，
 //    本校验器兜底"AI 没做到时怎么办"——能自动修复的修复（fix），
@@ -1009,8 +1009,13 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           collectP(node);
         }
         if (linesP.length === 0) return;               // 真 0 段：单价随标题是对的，不动
-        if (linesP.some((x) => x.hasOwn)) return;      // 已逐题标分 → 归 1.6b 合成，不重复追加
-        const scoredP = linesP.map((x) => {
+        // 🔴 2026-10-23（属主真机："三、填空（每空1分，共24分）这个下面小题未标分"）：
+        //   原实现是**全或无**——只要有一段带分（`some(hasOwn)`）就整段不补，
+        //   于是一处"（1分）"（常见于标题复述行）就把它下面所有小题的标分全挡住。
+        //   现改为**逐行补**：只有全段都带分才跳过；否则只给"没分的那几行"补，已带分的不动。
+        const needP = linesP.filter((x) => !x.hasOwn);
+        if (needP.length === 0) return;                // 全段已逐题标分 → 归 1.6b 合成
+        const scoredP = needP.map((x) => {
           const n = countBlanks(x.el.innerHTML);
           let per = null;
           if (n > 0) per = unitPrice * n;
@@ -1023,7 +1028,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           // 🔴 2026-10-23（按属主定的 A/B 分工重写口径）：B 只对**编号的题**做事——
           //   缺分就按标题单价补；补不了（数不出判分处）才只报不改。报点只陈述**可核事实**：
           //   哪几道带号题没分、为什么补不了；不再给"应得几分"这类推算判决。
-          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${linesP.length} 道带题号的题没标分（其中含程序数不出判分处的作答形态）——请按【分值标注】在带号行末逐题标分；程序不改数、不动结构`, 'warn');
+          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${needP.length} 道带题号的题没标分（其中含程序数不出判分处的作答形态）——请按【分值标注】在带号行末逐题标分；程序不改数、不动结构`, 'warn');
           return;
         }
         const sumP = scoredP.reduce((a, x) => a + x.per, 0);
