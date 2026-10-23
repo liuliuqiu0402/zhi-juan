@@ -15,12 +15,16 @@ const head = (h) => [...h.matchAll(/<h[2-4]>([\s\S]*?)<\/h[2-4]>/g)].map((m) => 
 const page = (title, rows) => ['<h1>单元测评</h1>', `<h3>${title}</h3>`, ...rows].join('\n');
 
 describe('① 编号/不编号：单一判据 + 两条边界', () => {
-  it('判据只有一个正面锚（成题区），且写死两条边界', () => {
-    expect(NUMBERING_BRANCH_RULE, '正面锚').toContain('成题区');
-    expect(NUMBERING_BRANCH_RULE, '边界一：句末作答位属同一句').toContain('作答位紧跟句末属同一句');
-    expect(NUMBERING_BRANCH_RULE, '边界二：复述行不算').toContain('标题的复述行不算');
-    expect(NUMBERING_BRANCH_RULE, '只按这一条判').toContain('只按这一条判');
-    expect(tpl(), '不编号支有"成题区不成立"的作用域').toContain('成题区不成立');
+  // 🔴 2026-10-23（属主："其余→不编号这个对于模型来说，它不认的，其余的也是题"）：
+  //   判据不再做内容分类，只留**一个动作**；两支各写自己的后果，末尾用互锁句封住"半条腿"。
+  it('判据只有一个正面锚（一组只做一个动作），两支各自的动作都写死', () => {
+    expect(NUMBERING_BRANCH_RULE, '正面锚').toContain('一组只做一个动作');
+    expect(NUMBERING_BRANCH_RULE, '写号支：每题行末标自己的分').toContain('**每题行末标自己的分**');
+    expect(NUMBERING_BRANCH_RULE, '不写号支：标题给一个单价、题内不标分').toContain('**题内不标分**');
+    expect(NUMBERING_BRANCH_RULE, '互锁：只有号／只有分都不成立').toContain('不许只有号没有分，也不许没有号却在题内标分');
+    expect(NUMBERING_BRANCH_RULE, '不做内容分类（不按"成句/并列/形态"判支）').not.toMatch(/成句|完整句子|并列算式/);
+    expect(tpl(), '判据就地内联（写分值处能读到）').toContain('一组只做一个动作：给不给每个小题写号');
+    expect(tpl(), '按写作顺序：标题行先定支').toContain('第①步：每道大题在写标题那一行就定支');
   });
 
   it('行为：判断题（句末带括号空位）按编号题逐题补分', () => {
@@ -47,32 +51,26 @@ describe('① 编号/不编号：单一判据 + 两条边界', () => {
     expect(head(r.html), '标题保持原样（单价承载）').toBe('一、直接写得数（每题1分，共4分）');
   });
 
-  // 🔴 2026-10-23（属主："不该编号的还是编号了"）：程序侧补一个**只报不改**的核对——
-  //   题号 ≥2 而成句的题 <2 ⇒ 与成题区判据相抵（该组应"不编号"）。
-  it('行为：算式行被编号 ⇒ 程序报"成句的题只有 0 道"（只报不改）', () => {
-    const html = page('一、直接写得数（每题1分，共4分）', [
-      '<p>1. 3×5＝____</p>',
-      '<p>2. 2×6＝____</p>',
-    ]);
-    const r = run(html);
-    const warn = (r.silentDetails || []).filter((x) => x.level === 'warn' && /成句的题/.test(x.message));
-    expect(warn.length, '必须有报点').toBe(1);
-    expect(warn[0].message, '指出该组应判不编号').toContain('应判"不编号"');
-    expect(rows0(r.html), '程序不删号、不改结构').toBe(2);
-  });
-
-  it('行为：判断题/填空（都成句）被编号 ⇒ 不报（判编号是对的）', () => {
-    const judge = run(page('三、判断对错（每题2分，共4分）', [
-      '<p>1. 0 既不是正数也不是负数。（　）</p>',
-      '<p>2. 假分数一定大于 1。（　）</p>',
-    ]));
-    const fill = run(page('四、填空（每空1分，共2分）', [
+  // 🔴 2026-10-23（属主改判据）：模型不认"其余→不编号"（"其余的也是题"，就还是会编号）。
+  //   程序只查可核事实：有号 ⇒ 每题有分；无号 ⇒ 分值只在标题、题内不得标分。
+  it('行为：写了号、也逐题标了分 ⇒ 不报（这是合法的一组，标题由程序合成）', () => {
+    const r = run(page('四、填空（每空1分，共4分）', [
       '<p>1. 5＋____＝9。</p>',
       '<p>2. 8 里面有____个 2。</p>',
     ]));
-    for (const r of [judge, fill]) {
-      expect((r.silentDetails || []).filter((x) => /成句的题/.test(x.message)).length).toBe(0);
-    }
+    expect(rows0(r.html), '号保留').toBe(2);
+    expect((r.silentDetails || []).filter((x) => /逐题分/.test(x.message)).length, '不该挑刺').toBe(0);
+    expect(head(r.html), '标题按 Σ 合成').toContain('共2分');
+  });
+
+  it('行为：没写号、题内却标了分 ⇒ 报"分值只由标题承载"（只报不改）', () => {
+    const r = run(page('五、填一填（每空1分，共4分）', [
+      '<p>4个3相加是____，读作____。（2分）</p>',
+      '<p>5个5相加是____，读作____。（2分）</p>',
+    ]));
+    const warn = (r.silentDetails || []).filter((x) => /没有写小题号/.test(x.message));
+    expect(warn.length, '必须有报点').toBe(1);
+    expect(rows0(r.html), '程序不加号').toBe(0);
   });
 });
 

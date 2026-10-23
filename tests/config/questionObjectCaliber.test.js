@@ -1,12 +1,12 @@
 // 🔢 题号口径守卫
 // ============================================================
 // 🔴 2026-10-23（属主基准·**撤第二把尺**）：
-//   编号/不编号**只判一次**，唯一判据＝【层级与组织】的**成题区**（`NUMBERING_BRANCH_RULE`）。
+//   编号/不编号**只判一次**，唯一判据＝【层级与组织】的一组只做一个动作：给不给每个小题写号（`NUMBERING_BRANCH_RULE`）。
 //   原 `QUESTION_OBJECT_CALIBER` 里的两套判据（"只有各自给出独立作答要求的才各自编号"／"整组共用一条
-//   作答要求（标题）的…其下不编号"）与成题区是**同一决定的两把尺**，且对同一行能给相反答案
+//   作答要求（标题）的…其下不编号"）与一组只做一个动作是**同一决定的两把尺**，且对同一行能给相反答案
 //   （竖式：算式不同 ⇒ 前半句判编号；作答动作相同 ⇒ 后半句判不编号）⇒ 整支删除。
 //   本文件锁三件事：
-//     ① 判据单源（成题区只在【层级与组织】出现一次，分值标注只引用）；
+//     ① 判据单源（一组只做一个动作只在【层级与组织】出现一次，分值标注只引用）；
 //     ② 第二把尺不得回潮（"独立作答要求／共用一条作答要求／哪怕并列多少项"）；
 //     ③ 题号条仍只管"不是题的东西别给号"与分问标示——不越界去判"哪些题该编号"。
 // ============================================================
@@ -21,7 +21,7 @@ const ROOT = path.resolve(__dirname, '../..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const tpl = (g, s = '语文', st = 'primary_low') => getPromptTemplate({ grade: st, subject: s, genType: g }).template;
 
-describe('编号/不编号：单一判据（成题区）', () => {
+describe('编号/不编号：单一判据（一组只做一个动作）', () => {
   it('考卷与教辅两条通道都携带该条（单源一次定义、两处引用）', () => {
     const lib = read('src/config/promptLibrary.js');
     expect((lib.match(/export const NUMBERING_BRANCH_RULE/g) || []).length, '只允许一处定义').toBe(1);
@@ -29,24 +29,27 @@ describe('编号/不编号：单一判据（成题区）', () => {
     const codeLines = lib.split('\n').filter((l) => !/^\s*(\*|\/\*|\/\/)/.test(l)).join('\n');
     expect((codeLines.match(/NUMBERING_BRANCH_RULE/g) || []).length, '定义 1 + 消费 2（考试卷内联在分值标注／其余在层级与组织）').toBe(3);
     for (const g of ['exam', 'practice', 'special', 'reading', 'review']) {
-      expect(tpl(g), `${g} 应携带成题区判据`).toContain(NUMBERING_BRANCH_RULE);
+      expect(tpl(g), `${g} 应携带一组只做一个动作判据`).toContain(NUMBERING_BRANCH_RULE);
     }
   });
 
-  it('判据本体：两道及以上成句 → 编号；其余 → 不编号，且只按这一条判', () => {
-    expect(NUMBERING_BRANCH_RULE, '正向半：成题区 → 编号').toMatch(/成题区.*→\s*\*\*编号\*\*/);
-    expect(NUMBERING_BRANCH_RULE, '反向半：其余 → 不编号').toMatch(/其余\s*→\s*\*\*不编号\*\*/);
-    expect(NUMBERING_BRANCH_RULE, '只判一次').toContain('只按这一条判');
-    expect(NUMBERING_BRANCH_RULE, '不看题型名（防诱导）').toContain('不看题型名');
-    expect(NUMBERING_BRANCH_RULE, '不看载体形态').toContain('不看载体形态');
-    expect(NUMBERING_BRANCH_RULE, '行只是排版、不承载语义').toContain('行只是排版，不承载语义');
+  it('判据本体：一组只做一个动作（写号就逐题标分／不写号就单价进标题）', () => {
+    expect(NUMBERING_BRANCH_RULE, '动作只一个：给不给每个小题写号').toContain('一组只做一个动作：给不给每个小题写号');
+    expect(NUMBERING_BRANCH_RULE, '写号支：每题顶格号').toContain('**写号**：每题顶格号');
+    expect(NUMBERING_BRANCH_RULE, '写号支：每题行末标自己的分').toContain('每题行末标自己的分');
+    expect(NUMBERING_BRANCH_RULE, '不写号支：单价进标题').toContain('**不写号**：**标题给一个单价**');
+    expect(NUMBERING_BRANCH_RULE, '不写号支：题内不标分').toContain('**题内不标分**');
+    expect(NUMBERING_BRANCH_RULE, '两半互锁（号与分同生同死）').toContain('不许只有号没有分，也不许没有号却在题内标分');
     // 🔴 判据里不得出现任何题型名（一列就变成诱导）
     expect(NUMBERING_BRANCH_RULE).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
     expect(NUMBERING_BRANCH_RULE).not.toMatch(/①|②|（1）|\(1\)/);
+    // 旧判据（"其余→不编号"）不得回潮：模型不认这个负向判据（"其余的也是题"）
+    expect(NUMBERING_BRANCH_RULE, '负向分类不得回潮').not.toContain('其余');
   });
 
-  it('真卷形态：作答位紧跟句末仍属同一句（判断题 `…。（　）` 不得被判成不编号）', () => {
-    expect(NUMBERING_BRANCH_RULE, '句末括注/横线算同一句').toContain('作答位紧跟句末属同一句');
+  it('真卷形态：判断题 `…。（　）` 不被误判（判据不再是"句子"，不再需要这句边界）', () => {
+    // 判据已改为"写不写号"的动作，句末形态不参与判定——这条只作防回潮锁。
+    expect(NUMBERING_BRANCH_RULE, '不再以"成句"作判据').not.toContain('完整句子');
   });
 
   it('第二把尺不得回潮（同一决定只准一把尺）', () => {
@@ -120,11 +123,11 @@ describe('题量口径与卷面层级（不受本次改动影响）', () => {
   });
 
   // 🔴 2026-10-10（〔346〕产物实证·编号冲动根因）：原判据不可自判（"并列的算式算不算多个小题"）。
-  //   2026-10-23 起由成题区接管：并列算式行没有"以句号/问号收尾的完整句子" ⇒ 成题区不成立 ⇒ 不编号。
-  it('〔346〕不可自判的旧锚不得回潮；由成题区接管', () => {
+  //   2026-10-23 起由一组只做一个动作接管：并列算式行没有"以句号/问号收尾的完整句子" ⇒ 一组只做一个动作不成立 ⇒ 不编号。
+  it('〔346〕不可自判的旧锚不得回潮；由一组只做一个动作接管', () => {
     expect(QUESTION_OBJECT_CALIBER, '不可自判的旧锚不得回潮').not.toContain('全大题仅一个小题时');
     expect(tpl('exam'), '卷面自洽条旧锚须一并改准').not.toContain('全大题仅一个小题时');
-    expect(NUMBERING_BRANCH_RULE, '并列算式行由"成题区"自然判为不编号').toContain('成题区');
+    expect(NUMBERING_BRANCH_RULE, '并列算式行由"一组只做一个动作"自然判为不编号').toContain('一组只做一个动作');
   });
 
   it('M5 自测：教辅"组标题自拟"与"只写作答方式"**同份在场**——来源 vs 写法两维，非同源冲突', () => {

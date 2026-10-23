@@ -1319,16 +1319,18 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     } catch (e) { console.warn('⚠️ 多余题号取证失败（不影响其它修复）:', e.message); }
   }
 
-  // ── 1.6f. 编号与内容不符：其下没有成句的题却写了题号（**只报不改**）──
-  //   🔴 2026-10-23（属主："不该编号的还是编号了"）：A 侧判据（成题区）与写出来的号对不上时，
-  //     程序此前**没有任何报点**（算式行被编号 → 静默通过）。本块用**与 A 同一口径**做确定性核对：
-  //     带号行摘掉行末分值、再摘掉句末紧跟的括号空位后，**不以句号/问号收尾的就不算"成句的题"**；
-  //     全组题号 ≥2 而成句行 <2 ⇒ 与"成题区不成立 ⇒ 不编号"相抵，报出来（不改结构、不删号）。
-  //   与 1.6e 的分工：全是"标题复述行"时由 1.6e 报（那边更准），本块跳过，避免同一段报两遍。
+  // ── 1.6f. 分值承载互斥：不写号的一组，分值不得落在题内（**只报不改**）──
+  //   🔴 2026-10-23（属主改判据："其余→不编号"模型不认——"其余的也是题"，就还是会编号）：
+  //     原实现用"有没有句号收尾的句子"反推该不该编号，既不可被模型执行，又与 1.6b（已按编号合成标题）
+  //     给出相反结论（同一张卷上两条报告互相打架）。现只查**可核事实**：
+  //       · 有号 ⇒ 每题行末必须有分（缺分交 1.6b-pre 补，补不了由它报）；
+  //       · 无号 ⇒ 分值只能由标题单价承载，题内出现逐题分即报。
+  //   判的是 A 的原稿（B 会把标题合成出"每题X分"，拿改后的文本判会把合法编号组全报一遍）。
   if (has('title-detail-fix')) {
     try {
       const tplF = document.createElement('template');
-      tplF.innerHTML = out;
+      // 判 A 的原稿：B 会把标题合成成"（每题X分，共Y分）"（也含单价），拿 out 判会把**合法编号组**全报一遍。
+      tplF.innerHTML = html;
       const boundF = findAnswerBound(tplF.content);
       const headsF = Array.from(tplF.content.querySelectorAll('h2, h3, h4'))
         .filter((h) => !isInAnswerArea(h, boundF));
@@ -1353,23 +1355,46 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (boundF && (node === boundF || isInAnswerArea(node, boundF))) break;
           walk(node);
         }
+        const mUnit = title.match(/[（(]\s*每\s*[^\d，,）)]{1,6}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*共\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*$/);
         const numRows = rows.filter((r) => NUMBERED_LINE_RE.test(r));
-        if (numRows.length < 2) return;
-        const isSentenceRow = (r) => {
-          let v = stripTrailScoreParen(r);
-          v = v.replace(/[（(][\s　]*[)）]\s*$/, '').trim();      // 句末紧跟的括号空位属同一句
-          return /[。？?]$/.test(v);
-        };
-        const sentenceRows = numRows.filter(isSentenceRow);
-        if (sentenceRows.length >= 2) return;                    // 成句 ≥2 ⇒ 判编号是对的
-        const bare = (r) => r
-          .replace(/^\s*(?:[（(][\s　]*[)）]\s*)?\d{1,2}\s*[.、．]\s*/, '')
-          .replace(/[（(][^（）()]{0,24}分[)）]\s*$/, '').trim();
-        if (numRows.every((r) => title.includes(bare(r)))) return; // 全是标题复述 ⇒ 交 1.6e
-        silentCount('spurious-row-number',
-          `大题「${title}」其下有 ${numRows.length} 个题号，但成句的题只有 ${sentenceRows.length} 道——按【分值标注】的成题区判据，这一组应判"不编号"（不写小题号、分值只由标题承载）；程序不改结构`, 'warn');
+        const scoredRows = rows.filter((r) => /[（(][^（）()]{0,24}\d+(?:\.\d+)?\s*分[)）]\s*$/.test(r));
+        if (numRows.length === 0 && scoredRows.length > 0) {
+          const why = mUnit ? '标题已有单价' : '标题也没有单价';
+          silentCount('title-unit-misplaced',
+            `大题「${title}」没有写小题号，题内却出现了 ${scoredRows.length} 处逐题分（${why}）——不写号的一组，分值只由标题的单价承载（题内不标分）；程序不改结构`, 'warn');
+        }
       });
-    } catch (e) { console.warn('⚠️ 编号与内容不符核对失败（不影响其它修复）:', e.message); }
+    } catch (e) { console.warn('⚠️ 分值承载互斥核对失败（不影响其它修复）:', e.message); }
+  }
+
+  // ── 1.6i. 试卷层账目（第④层）：各大题标题分之和 vs 卷首满分（**只报不改**）──
+  //   🔴 2026-10-23（属主真卷："满分100，各题合计 86"——A 侧第④层没核）：B 侧给一个可核的落点。
+  //   只在大题标题**同处一层**（同标签）且带"共X分"时求和——若卷面另有"大类层"标题也带总分，
+  //   两层会重复计，故此时不判（宁可少报，不误报）。
+  if (has('title-detail-fix')) {
+    try {
+      const tplS = document.createElement('template');
+      tplS.innerHTML = out;
+      const ansS = findAnswerBound(tplS.content);
+      const mfS = (tplS.content.textContent || '').match(/满分\s*[:：]?\s*(\d+(?:\.\d+)?)\s*分/);
+      const rowsS = [];
+      Array.from(tplS.content.querySelectorAll('h2, h3, h4'))
+        .filter((h) => !isInAnswerArea(h, ansS))
+        .forEach((h) => {
+          const t = (h.textContent || '').trim();
+          if (!/^[一二三四五六七八九十]+、/.test(t)) return;
+          const m = t.match(/共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
+          if (m) rowsS.push({ tag: h.tagName, v: parseFloat(m[1]) });
+        });
+      const tagsS = new Set(rowsS.map((r) => r.tag));
+      if (mfS && rowsS.length >= 2 && tagsS.size === 1) {
+        const sumS = rowsS.reduce((a, r) => a + r.v, 0);
+        const fullS = parseFloat(mfS[1]);
+        if (Math.abs(sumS - fullS) > 1e-6) {
+          silentCount('score-sum-mismatch', `各大题标题分值合计 ${fmtScore(sumS)} 分，与卷首满分 ${fmtScore(fullS)} 分不符（差 ${fmtScore(fullS - sumS)} 分）——按【分值标注】第④层须逐层核到卷首（若为选做/附加题请忽略本提示）；程序不改数、不动结构`, 'warn');
+        }
+      }
+    } catch (e) { console.warn('⚠️ 试卷层账目核对失败（不影响其它修复）:', e.message); }
   }
 
   // ── 2. 大题级：分值账目 + 载体结构校验（DOM 内直接操作，避免字符串与 DOM 序列化差异）──

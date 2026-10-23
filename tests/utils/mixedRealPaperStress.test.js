@@ -25,7 +25,7 @@ const section = (html, prefix) => {
 
 const PAPER = [
   '<h1>单元测评</h1>',
-  '<p>（考试时间：60分钟　满分：46分）</p>',
+  '<p>（考试时间：60分钟　满分：42分）</p>',
   '<h3>一、直接写得数（每题1分，共8分）</h3>',
   '<p>3×5＝____　2×6＝____　4×3＝____　5×5＝____</p>',
   '<p>6×4＝____　7×2＝____　8×3＝____　9×4＝____</p>',
@@ -117,13 +117,13 @@ describe('① 合规整卷：六种形态混在一张卷里各走各的支', () 
 });
 
 describe('② 违规整卷（A 违约）：该报的报、该补的补，不得静默', () => {
-  it('口算被编号 ⇒ 报"成句的题只有 0 道"（不删号）', () => {
-    const bad = PAPER.replace('<p>3×5＝____　2×6＝____　4×3＝____　5×5＝____</p>', '<p>1. 3×5＝____</p>')
-      .replace('<p>6×4＝____　7×2＝____　8×3＝____　9×4＝____</p>', '<p>2. 6×4＝____</p>');
+  it('口算被编号并逐题标分 ⇒ 合法的一组（B 按 Σ 合成标题，不删号、不挑刺）', () => {
+    const bad = PAPER.replace('<p>3×5＝____　2×6＝____　4×3＝____　5×5＝____</p>', '<p>1. 3×5＝____（4分）</p>')
+      .replace('<p>6×4＝____　7×2＝____　8×3＝____　9×4＝____</p>', '<p>2. 6×4＝____（4分）</p>');
     const r = run(bad);
-    const warn = (r.silentDetails || []).filter((x) => /成句的题/.test(x.message));
-    expect(warn.length, '必须报').toBe(1);
-    expect(r.html, '号保留（程序不删结构）').toContain('1. 3×5＝____');
+    const warn = (r.silentDetails || []).filter((x) => /逐题分|单价与题号/.test(x.message));
+    expect(warn.length, '不该挑刺').toBe(0);
+    expect(r.html, '号保留').toContain('1. 3×5＝____');
   });
 
   it('填空带了号但全无分 ⇒ B 全部补齐（不得留空）', () => {
@@ -146,5 +146,14 @@ describe('② 违规整卷（A 违约）：该报的报、该补的补，不得�
     const t = heads(r.html).find((x) => x.startsWith('三、填空'));
     expect(t, 'Σ 为准').toContain('共6分');
     expect(t, '原 12 不残留').not.toContain('12分');
+  });
+
+  it('试卷层（第④层）：各题合计与卷首满分不符 ⇒ 报出来（只报不改数）', () => {
+    const bad = PAPER.replace('满分：42分', '满分：100分');
+    const r = run(bad);
+    const warn = (r.silentDetails || []).filter((x) => /与卷首满分/.test(x.message));
+    expect(warn.length, '必须报').toBe(1);
+    expect(warn[0].message, '报出两个数').toMatch(/42.*100/);
+    expect(r.html, '程序不改数').toContain('满分：100分');
   });
 });
