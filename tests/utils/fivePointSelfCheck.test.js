@@ -24,7 +24,7 @@ describe('① 编号/不编号：单一判据 + 两条边界', () => {
     expect(NUMBERING_BRANCH_RULE, '互锁：只有号／只有分都不成立').toContain('不许只有号没有分，也不许没有号却在题内标分');
     expect(NUMBERING_BRANCH_RULE, '不做内容分类（不按"成句/并列/形态"判支）').not.toMatch(/成句|完整句子|并列算式/);
     expect(tpl(), '判据就地内联（写分值处能读到）').toContain('一组只做一个动作：给不给每个小题写号');
-    expect(tpl(), '按写作顺序：标题行先定支').toContain('第①步：每道大题在写标题那一行就定支');
+    expect(tpl(), '按写作顺序：标题行先定支').toContain('第①步：每道大题在写标题那一行就定区');
   });
 
   it('行为：判断题（句末带括号空位）按编号题逐题补分', () => {
@@ -71,6 +71,42 @@ describe('① 编号/不编号：单一判据 + 两条边界', () => {
     const warn = (r.silentDetails || []).filter((x) => /没有写小题号/.test(x.message));
     expect(warn.length, '必须有报点').toBe(1);
     expect(rows0(r.html), '程序不加号').toBe(0);
+  });
+});
+
+// 🔴 2026-10-23（属主真卷 `1. 5×3＝　2. 6×2＝…` 被编号，并追问"是不是模型不知道什么叫不该编号的？"）：
+//   症结＝判据只说"两支各怎么做"，**没说凭什么选这一支**——对模型来说它们全是题，只能按习惯编号。
+//   故补**正面事实**：号是点名用的（有自己一句话才要号；只有算式/符号、同一动作换数就不要），
+//   并补一条 A 侧排版约束"写了号就一题一段"（否则 B 只能按段取分，出现"每题7分"这种按行数算出的价）。
+describe('①-b 凭什么这一组不写号：两区各有判据（不是"其余"兜底）', () => {
+  it('判据给的是可自判的事实，不是题型名、不留兜底', () => {
+    expect(NUMBERING_BRANCH_RULE, '号有用途才写').toContain('号是点名用的');
+    expect(NUMBERING_BRANCH_RULE, '两区都得有判据').toContain('两区各有判据');
+    expect(NUMBERING_BRANCH_RULE, '成题区判据（有一句自己的话）').toContain('有一句只属于它自己的话');
+    expect(NUMBERING_BRANCH_RULE, '直答区判据（只有那一处作答内容本身）').toContain('只有那一处作答内容本身、没有只属于它的话');
+    expect(NUMBERING_BRANCH_RULE, '两区名都在').toMatch(/成题区[\s\S]*直答区/);
+    expect(NUMBERING_BRANCH_RULE, '不按题型名枚举').not.toMatch(/口算|竖式|脱式|判断|选择|填空/);
+    expect(NUMBERING_BRANCH_RULE, '不留"其余"兜底').not.toContain('其余');
+  });
+
+  it('行为：纯算式连排、标题给单价 ⇒ 一个号都不加、一分不加、不挑刺', () => {
+    const r = run(page('一、直接写出得数（每式1分，共14分）', [
+      '<p>5×3＝____　6×2＝____　4×4＝____　3×6＝____</p>',
+      '<p>2×5＝____　1×6＝____　4×3＝____　6×5＝____</p>',
+    ]));
+    expect(rows0(r.html), '不得自己补号').toBe(0);
+    expect(pTexts(r.html).join(''), '题内不得出现逐题分').not.toMatch(/（\d+分）/);
+    expect(head(r.html), '标题不动（单价承载）').toBe('一、直接写出得数（每式1分，共14分）');
+    expect((r.silentDetails || []).filter((x) => x.level === 'warn').length, '不该挑刺').toBe(0);
+  });
+
+  it('行为：7 道题连写在一段、段末给整段分 ⇒ 报"一题一段"（不改结构）', () => {
+    const r = run(page('一、直接写出得数（每题7分，共14分）', [
+      '<p>1. 5×3＝____　2. 6×2＝____　3. 4×4＝____　4. 3×6＝____　（每题1分，共7分）</p>',
+    ]));
+    const warn = (r.silentDetails || []).filter((x) => /连写在同一段/.test(x.message));
+    expect(warn.length, '必须报').toBe(1);
+    expect(r.html, '程序不改结构（题号仍在）').toContain('1. 5×3');
   });
 });
 

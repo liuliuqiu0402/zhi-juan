@@ -1363,6 +1363,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           silentCount('title-unit-misplaced',
             `大题「${title}」没有写小题号，题内却出现了 ${scoredRows.length} 处逐题分（${why}）——不写号的一组，分值只由标题的单价承载（题内不标分）；程序不改结构`, 'warn');
         }
+        // ── 一题一段（🔴 2026-10-23 属主真卷：`1. 5×3＝　2. 6×2＝ … 7. 4×3＝（每题1分，共7分）`）──
+        //   一段里塞进多个题号 ⇒ 程序只能按"一道题"取整段分，逐题分也对不上位置（同一张卷上
+        //   出现过"每题7分，共14分"这种按行数算出来的荒谬单价）。只报不改：拆段是结构手术。
+        //   只查**末尾带整段分**的行，避免把材料里的编号列表当成题。
+        const crammed = scoredRows.filter((r) => (r.match(/(?:^|[\s\u3000])\d{1,2}[.、．](?!\d)/g) || []).length >= 2);
+        if (crammed.length) {
+          const n = (crammed[0].match(/(?:^|[\s\u3000])\d{1,2}[.、．](?!\d)/g) || []).length;
+          silentCount('multi-question-line',
+            `大题「${title}」有 ${crammed.length} 段把多道题连写在同一段里（首段含 ${n} 个题号、末尾却给整段标分）——写了号就一题一段，一段只放一道题；程序不改结构`, 'warn');
+        }
       });
     } catch (e) { console.warn('⚠️ 分值承载互斥核对失败（不影响其它修复）:', e.message); }
   }

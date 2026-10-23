@@ -146,7 +146,7 @@ describe('判据可判定性：口算/竖式/填空 各自命中且只命中一�
   const score = (t.match(/【分值标注】([\s\S]*?)\n\n【/) || [, ''])[1];
 
   it('两支互斥且穷尽：条件就是"编号 / 不编号"这一个事实', () => {
-    expect(score, '不编号支').toContain('不写号的那一组');
+    expect(score, '不编号支').toContain('直答区');
     expect(score, '编号支').toContain('编号的大题');
   });
 
