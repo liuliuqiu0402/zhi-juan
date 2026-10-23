@@ -68,3 +68,27 @@ describe('② B 的补分是逐行的（一处带分不再挡住其余）', () =
     expect(ps[2], '缺分的要补（三处写全式）').toMatch(/（每空1分，共3分）$/);
   });
 });
+
+// 🔴 2026-10-23（A/B 分工核查·覆盖缺口）：
+//   标题只写"（共X分）"（A 最常写的形态）时，1.6b-pre 不触发（它只认"每…共…"），1.6b 又因取不到逐题分
+//   直接 return ⇒ "写了题号的行没标分"整段**零提示通过**（实测：判断对错 3 题全无分 → 无任何 issue）。
+//   按 A 的硬规则"带号题个数＝标分个数"，B 至少要报出来；但**不得改数**（无单价可推，猜就是改总分）。
+describe('③ 编号题缺分：B 必须报（只报不改）', () => {
+  const html = [
+    '<h1>单元测评</h1>',
+    '<h3>三、判断对错（共10分）</h3>',
+    '<p class="question">1. 0 既不是正数也不是负数。（　）</p>',
+    '<p class="question">2. 分数的分子分母同时乘一个数，分数大小不变。（　）</p>',
+    '<p class="question">3. 假分数一定大于 1。（　）</p>',
+  ].join('\n');
+
+  it('标题只写共X分 + 3 道带号题全未标分 ⇒ 报 warn，正文与分数一字不动', () => {
+    const r = run(html);
+    const warn = (r.silentDetails || []).filter((x) => x.level === 'warn' && /没标分/.test(x.message));
+    expect(warn.length, '必须有报点（原先零提示）').toBe(1);
+    expect(warn[0].message, '报点要指名大题').toContain('判断对错');
+    expect(warn[0].message, '报点要说清几道').toContain('3 道');
+    expect(r.html, '程序不改数：一行都不许被追加分值').not.toMatch(/（\d+分）/);
+    expect(r.html, '标题不动').toContain('三、判断对错（共10分）');
+  });
+});

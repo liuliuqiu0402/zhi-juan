@@ -58,12 +58,14 @@ describe('程序侧不得新增小题号/小题标题', () => {
     expect(numbered(out)[0], '原行原样保留（程序不改正文）').toContain('直接写出得数');
   });
 
+  // 🔴 2026-10-23（属主基准·撤第二把尺）：原锁"并列的同类作答项／其下不再另起题号与题干行"两句已随第二套
+  //   判据删除；结果不变、判据换源——无成句 ⇒ 成题区不成立 ⇒ 不编号 ⇒ 不写小题号、其下不得出现任何题号。
   it('A 侧条款（两学段）：无题号大题不补题号、不补题干', () => {
     for (const stage of ['primary_low', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t, `${stage}：分值不许成为补号/补题干的理由`).toContain('只标本来就有的子题');
-      expect(t, `${stage}：并列同类项不编号`).toContain('并列的同类作答项');
-      expect(t, `${stage}：不另起题号与题干行`).toContain('其下不再另起题号与题干行');
+      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('不写小题号（顶格 1. 2. 3.）');
+      expect(t, `${stage}：单价随标题时其下不得出现任何题号`).toContain('单价随标题时，其下不得出现任何题号');
     }
   });
 });

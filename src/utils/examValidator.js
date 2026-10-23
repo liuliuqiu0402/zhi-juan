@@ -965,10 +965,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   //     **标题写单价与带号子题并不互斥**——"每空1分，共24分"是真题常见写法，A 照样要逐题标分。
   //     故本块不再按"标题形态"报缺陷：能补齐就补齐（交给 1.6b 合成），补不齐只报"带号题没标分"。
   //   本块的界（**不改数、不猜、不删正文、不改标题**）：
-  //     ① 只补"一行都没标过"的；已有任一行自带标分 → 不补（交给 1.6b 直接合成）；
+  //     ① **逐行**补：只给"这一行没分"的补，已带分的行不动（原实现是**全或无**——一处带分就整段不补，
+  //        结果标题复述行的一个"（1分）"挡住了下面全部小题的标分）；
   //     ② 每行分值＝标题单价 × 该行判分处数（单位是"空"时判分处数必须数得出，数不出即放弃；
   //        单位不是"空"且该行无空位载体时，按"一行一个单位"计）；
-  //     ③ **Σ 必须等于标题所写共Y分才补**——对不上整段不动（只在账能对平时纠正，绝不改总分）。
+  //     ③ **不设"Σ 必须等于标题所写共Y分"这道闸**（2026-10-23 已撤）：B 的职责是把逐题分合成标题，
+  //        **Σ 即真值**；对不上只留一条修复记录，标题照 Σ 合成（闸在当时直接导致"分组式合成永不执行"）。
   //   标题本身仍由 1.6b 按逐题总分合成（本块不碰标题，避免两处改同一处）。
   if (has('title-detail-fix')) {
     try {
@@ -1114,7 +1116,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (answerBoundB && (node === answerBoundB || isInAnswerArea(node, answerBoundB))) break;
           collectB(node);
         }
-        if (itemsB.length < 2 || itemsB.some((x) => x.total == null)) return;
+        if (itemsB.length < 2) return;
+        // 🔴 2026-10-23（A/B 分工核查·**覆盖缺口**）：标题只写"（共X分）"（A 最常写的形态）且部分小题
+        //   未标分时，1.6b-pre 不触发（它只认"每…共…"），1.6b 又因取不到逐题分直接返回 ⇒
+        //   "写了题号的行没标分"整段**零提示通过**（实测：三、判断对错（共10分）＋3 道带号题全无分 → 无任何 issue）。
+        //   按 A 的硬规则"带号题个数＝标分个数"，这里补一个**只报不改**的报点；单价形态已由 1.6b-pre 报过，
+        //   故此处只对非单价标题报，避免同一句报两遍。
+        const missingB = itemsB.filter((x) => x.total == null);
+        if (missingB.length) {
+          if (!/[（(]\s*每/.test(t)) {
+            silentCount('title-unit-misplaced',
+              `大题「${t}」其下有 ${missingB.length} 道带题号的题没标分——请按【分值标注】在带号行末逐题标分；程序不改数、不动结构`, 'warn');
+          }
+          return;
+        }
         // Σ 一律取各小题标分之和；标题原总数只作核对，不参与合成（A 侧负责把账做平）。
         const sumTotals = itemsB.reduce((a, x) => a + x.total, 0);
         const uniqTotals = [...new Set(itemsB.map((x) => x.total))];

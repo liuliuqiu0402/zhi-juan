@@ -7,7 +7,7 @@
 //   ③ "共用一条作答要求⇒不编号" ⇒ 判断题10小题不编号，模型改把**大题本身**编成一个号（9.）去承载单价。
 // 处置一律改**判据式**（按内容判），并把结构/要求注降为**参考**；本文件锁住这三条与 B 侧边界。
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate, QUESTION_OBJECT_CALIBER, buildStructureText } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, QUESTION_OBJECT_CALIBER, NUMBERING_BRANCH_RULE, buildStructureText } from '../../src/config/promptLibrary.js';
 import { buildCarrierInstruction } from '../../src/config/layoutSpec.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
 
@@ -43,12 +43,16 @@ describe('① 标题声称的提示形态必须与题内一致——结构/要�
 });
 
 describe('② 大题标题已写全时，其下不得再出现带号说明行（判断题组各自编号）', () => {
-  it('A 侧：编号对象的正向判据在位——每项自带一句陈述/问题的，即使作答动作相同也各自编号', () => {
-    expect(QUESTION_OBJECT_CALIBER, '正向判据（治"整组编成一个号"）').toMatch(/各自有独立题干/);
-    expect(QUESTION_OBJECT_CALIBER, '并列算式/待填位/同类词仍不编号').toMatch(/并列的同类作答项/);
-    expect(QUESTION_OBJECT_CALIBER, '不编号组的出口仍在').toMatch(/其下不再另起题号与题干行/);
+  // 🔴 2026-10-23（属主基准·撤第二把尺）：本用例原本锁"共用一条作答要求 ⇒ 不编号"这条第二判据，
+  //   它正是 ③ 号事故的根：判断题 10 小题**各有成句**（真卷形态 `…。（　）`）却被判成"共用一条要求"⇒ 不编号。
+  //   现编号只判一次、只看成题区；判断题的作答位紧跟句末属同一句 ⇒ 仍是"各自成句"⇒ **编号**。
+  it('A 侧：编号判据＝成题区——每项自带一句陈述/问题的，即使作答动作相同也各自编号', () => {
+    expect(NUMBERING_BRANCH_RULE, '正向判据（治"整组编成一个号"）').toMatch(/成题区/);
+    expect(NUMBERING_BRANCH_RULE, '句末作答位不算另起一句（判断题真卷形态）').toContain('作答位紧跟句末的括号空位或横线属同一句');
+    expect(NUMBERING_BRANCH_RULE, '并列算式/待填位（无成句）→ 不编号').toContain('其余 → **不编号**');
+    expect(QUESTION_OBJECT_CALIBER, '第二把尺（共用一条作答要求）不得回潮').not.toMatch(/共用一条作答要求|各自有独立题干/);
     // 零题型名（防定形诱导）
-    expect(QUESTION_OBJECT_CALIBER).not.toMatch(/判断|选择|填空|口算|竖式|连线/);
+    expect(NUMBERING_BRANCH_RULE).not.toMatch(/判断|选择|填空|口算|竖式|连线/);
   });
 
   it('A 侧（两学段）：标题条仍禁"把作答要求写成带号题干"，防止再长出一条小标题', () => {

@@ -72,7 +72,8 @@ export const buildDiagramSvg = (spec, opts = {}) => {
     //     · 一行放得下 ⇒ 不折行（少折行、少空高）；
     //     · 版心装不下 ⇒ 收到刚好装得下（不缩字号，只调折行宽度）。
     //   原实现只在"已超宽"时才 ×0.85 硬收窄，既收过头（120 够用会收到 87），也从不肯放宽到 150 以上。
-    const narrow = (o) => {
+    /** 二分：返回"整幅仍 ≤ 版心"的最宽折行宽那一版；`__wrap` 只为下面比较用，不外传 */
+    const narrowTo = (o) => {
       const start = Number(o.maxLabelWidth) || 150;
       const hiCap = Math.max(start, Math.min(260, Math.round(fit * 0.38)));
       let lo = 56;
@@ -81,15 +82,23 @@ export const buildDiagramSvg = (spec, opts = {}) => {
       while (lo <= hi) {
         const mid = Math.round((lo + hi) / 2);
         const cur = BUILDERS[type](body, { ...o, maxLabelWidth: mid });
-        if (cur.width <= fit) { best = cur; lo = mid + 1; } else { hi = mid - 1; }
+        if (cur.width <= fit) { best = { ...cur, __wrap: mid }; lo = mid + 1; } else { hi = mid - 1; }
       }
       // 二分假设"越窄越窄"；个别图种（按条数排的时间轴）不单调 → 兜底再试一次最小宽度，仍超宽就交给导出侧。
-      return best || BUILDERS[type](body, { ...o, maxLabelWidth: 56 });
+      return best || { ...BUILDERS[type](body, { ...o, maxLabelWidth: 56 }), __wrap: 56 };
     };
-    r = narrow(merged);
-    if (r.width > fit && type === 'mindmap' && merged.layout !== 'right') {
-      r = narrow({ ...merged, layout: 'right' });
+    const primary = narrowTo(merged);
+    // 🔴 2026-10-23（属主真机："有的根本不需要换行而换行了…看着很乱很长"·根因）：
+    //   左右分布把宽度**按两侧各算一次**（画布 = 较宽一侧 ×2），所以深一点的树会被迫把折行宽一路压到 56，
+    //   自然宽 100–170 的标签全被折成 2–5 行（实测框宽 89、最长那条 5 行）；同一内容换成"向右生长"只用一次
+    //   版心宽，折行宽能取到 244、**全部保持一行**。故两版式各排一次，取"折行更少"的那一版：
+    //   另一版式能把折行宽放宽到 1.25 倍以上才换（否则仍尊重用户选的版式，不无谓改观感）。
+    let best = primary;
+    if (type === 'mindmap') {
+      const alt = narrowTo({ ...merged, layout: merged.layout === 'right' ? 'balanced' : 'right' });
+      if (alt.width <= fit && alt.__wrap >= primary.__wrap * 1.25) best = alt;
     }
+    r = best;
   }
   return { svg: r.svg, width: r.width, height: r.height, nodes: r.nodes || [], type };
 };

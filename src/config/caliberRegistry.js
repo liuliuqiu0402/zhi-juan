@@ -72,6 +72,9 @@ export const PROMPT_CONSTANTS = {
     'DECLARATION_TRUTH_CLAUSE',
     'SUBJECT_FACT_DISCIPLINE',
     'NUMBERING_HIERARCHY_RULE',
+    // 2026-10-23（属主基准）：编号/不编号的**唯一判据**（成题区）——原散在【分值标注】与题号口径两处，
+    //   现单源为本常量，随【层级与组织】进实发（考试卷与教辅都带）。补登记，否则漏登记即红。
+    'NUMBERING_BRANCH_RULE',
     // 🗑 2026-10-10（属主裁定·删编法规定）：'QUESTION_NUMBERING_CALIBER' 已整块删除
     //   （小题号"全卷连续／各自起编"是**约束**、会逼出硬编小题号；"哪些题该编号"由编号对象口径单源承载）。
     'QUESTION_OBJECT_CALIBER',

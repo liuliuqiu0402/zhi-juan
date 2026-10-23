@@ -105,15 +105,19 @@ describe('不该有题号／小题标题的题组：一个号都不许冒出来�
     });
   }
 
-  it('A 侧判据（两学段）：一组共用一条作答要求 ⇒ 不编号、不另起题干行、不补号承载分值', () => {
+  // 🔴 2026-10-23（属主基准·撤第二把尺）：原先这里锁的是"并列的同类作答项／哪怕并列多少项／
+  //   其下不再另起题号与题干行"——那三句随编号对象口径（第二套判据）一并删除。**结果不变、判据换源**：
+  //   口算／竖式这类并列项没有"以句号或问号收尾的完整句子" ⇒ 成题区不成立 ⇒ 不编号 ⇒ 不写小题号、
+  //   其下不得出现任何题号。断言随之改锚（锁结果，不锁旧措辞）。
+  it('A 侧判据（两学段）：无成句 ⇒ 不编号、不写小题号、不补号承载分值', () => {
     for (const stage of ['primary_low', 'primary_mid', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, `${stage}：并列同类作答项不编号（哪怕并列多少项）`).toContain('并列的同类作答项');
-      expect(t, `${stage}：哪怕并列多少项`).toContain('哪怕并列多少项');
-      expect(t, `${stage}：其下不再另起题号与题干行`).toContain('其下不再另起题号与题干行');
+      expect(t, `${stage}：编号判据＝成题区`).toContain('成题区');
+      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('不写小题号（顶格 1. 2. 3.）');
+      expect(t, `${stage}：单价随标题时其下不得出现任何题号`).toContain('单价随标题时，其下不得出现任何题号');
       expect(t, `${stage}：不得为标分新增题号或题干`).toContain('只标本来就有的子题');
     }
-    expect(QUESTION_OBJECT_CALIBER, '编号对象＝共用一条作答要求一把尺').toMatch(/共用一条作答要求/);
+    expect(QUESTION_OBJECT_CALIBER, '第二把尺（共用一条作答要求）不得回潮').not.toMatch(/共用一条作答要求/);
   });
 
   it('A 侧判据（两学段）：大题标题不得被写成带号的题干／其下不得另起说明行', () => {
