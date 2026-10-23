@@ -113,7 +113,7 @@ describe('不该有题号／小题标题的题组：一个号都不许冒出来�
     for (const stage of ['primary_low', 'primary_mid', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t, `${stage}：编号判据＝一组只做一个动作`).toContain('一组只做一个动作');
-      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('不写小题号（顶格 1. 2. 3.）');
+      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('每题不写小题号');
       expect(t, `${stage}：不许只有号没有分，也不许没有号却在题内标分`).toContain('不许只有号没有分，也不许没有号却在题内标分');
       expect(t, `${stage}：不得为标分新增题号或题干`).toContain('只标本来就有的子题');
     }
