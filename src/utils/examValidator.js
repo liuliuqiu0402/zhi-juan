@@ -48,7 +48,11 @@ const PINYIN_GROUP_RE = new RegExp(`(?<![${PINYIN_CHARS}])[${PINYIN_CHARS}]+(?![
 // 🔧 算式填空容器同列（2026-09 对称）：math-circle-blank-18 因含 "blank-" 子串被上一式命中；
 //    square-box（算式 □ 归一产物）无 blank- 子串曾漏计 → 与圆圈空位同口径计入（"每空X分"验证用）
 const BLANK_TAG_RE = /<span[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/span>|<u[^>]*class=["'][^"']*blank-\d+[^"']*["'][^>]*>[\s\S]*?<\/u>|<span[^>]*class=["'][^"']*square-box[^"']*["'][^>]*>[\s\S]*?<\/span>/gi;
-const PAREN_BLANK_RE = /[（(]\s*[　\u3000 ]{1,12}\s*[)）]/g;
+// 2026-10-23（属主真机："带单价的逐题标分，目前没有执行"·数不出判分处的另一半原因）：
+//   括号空位内的空白常用**实体**写（`（&emsp;）`／`（&nbsp;&nbsp;）`），原字符类只认全角/半角空格
+//   ⇒ 这类题被判"一处判分处都没有"，按"每空X分"推不出该题分值、只能报缺陷。现把常用空白实体并入同一字符类
+//   （仍是一对括号计 1 空，不改变计数语义）。
+const PAREN_BLANK_RE = /[（(]\s*(?:[　\u3000 \u00A0\u2000-\u200A\u202F\u205F]|&emsp;|&ensp;|&nbsp;|&thinsp;){1,12}\s*[)）]/g;
 // 2026-09-28 选择类题首作答位·归一目标形态（唯一口径 = layoutSpec.buildAnswerSpaceInstruction；半角基准）：
 //    contentCleaner.normalizeBlankMarkers 把全角字面括号空位「（　）」（1 全角空格内宽）收敛为
 //    `<span class="blank-N">&emsp;</span>`（N 由 spaceBlankWidth 按内宽换算 → blank-2）；span.blank-N
@@ -1030,7 +1034,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           // 🔴 2026-10-23（按属主定的 A/B 分工重写口径）：B 只对**编号的题**做事——
           //   缺分就按标题单价补；补不了（数不出判分处）才只报不改。报点只陈述**可核事实**：
           //   哪几道带号题没分、为什么补不了；不再给"应得几分"这类推算判决。
-          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${needP.length} 道带题号的题没标分（其中含程序数不出判分处的作答形态）——请按【分值标注】在带号行末逐题标分；程序不改数、不动结构`, 'warn');
+          // 🔴 2026-10-23（属主真机："带单价的逐题标分，目前没有执行"·报点要能指认原因）：
+          //   "数不出判分处"不是程序不想算，而是那几题**题内没有可数的空位/括号/横线**（载体缺失），
+          //   或标题单位是"空"但这一题一处空都没有。报点把"几道"与"为什么"分开说，
+          //   并给出两条 A 侧可执行的出路（补作答位 / 直接写该题分值）。
+          const blind = scoredP.filter((x) => x.per == null || x.per <= 0).length;
+          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${needP.length} 道带题号的题没标分；其中 ${blind} 道题内数不出判分处（没有空位/括号/横线，无法按"每${unitName}${fmtScore(unitPrice)}分"推出该题分值）——请按【分值标注】在带号行末逐题标分（补齐作答位后按单位分计，或直接写该题总分）；程序不改数、不动结构`, 'warn');
           return;
         }
         const sumP = scoredP.reduce((a, x) => a + x.per, 0);
