@@ -95,6 +95,24 @@ describe('标题单价错位：B 补逐题标分 + 合成真题标题', () => {
     for (const t of ps) expect(t, '单判分处写（X分）').toMatch(/（2分）$/);
   });
 
+  // 🔴 2026-10-23（属主真机：列竖式「每题3分，共12分」只识别到 2 行 ⇒ 旧文案报"合计 6 分"）
+  //   单价单位是"题/式/处"时，合计＝单价×**识别到的行数**，而**行数≠题数**（并列排版一行可放两三道竖式）
+  //   ⇒ 这个数会系统性偏小，不得当"合计"报；只报缺逐题标分 + 总分请一并核对。
+  it('单价单位为"题"（竖式）：不按行数报合计，只报缺标分并要求一并核对总分', () => {
+    const html = [
+      '<h1>阶段测评</h1>',
+      '<h3>二、列竖式计算（每题3分，共12分）</h3>',
+      '<p>1. 24×3＝</p><p>2. 45×2＝</p>',
+      '<div class="answer-section"><h2>参考答案</h2><p>1. 72</p></div>',
+    ].join('\n');
+    const r = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
+    const msg = (r.silentDetails || []).find((d) => d.type === 'title-unit-misplaced')?.message || '';
+    expect(msg, '须指出真实缺陷').toContain('道带题号的题没标分');
+    expect(msg, '不得按行数报"合计X分"').not.toContain('按可判分空位计的合计');
+    expect(msg, '须提示题数与判分处数一并核对').toContain('题数与判分处数请一并核对');
+    expect(r.html, '不改内容').toContain('2. 45×2＝');
+  });
+
   it('真 0 段（标题单价、其下无题号）：不动', () => {
     const html = [
       '<h1>阶段测评</h1>',

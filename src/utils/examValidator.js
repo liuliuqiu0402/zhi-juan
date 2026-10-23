@@ -1024,7 +1024,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //   ② 又拿它当"应得"去断言，等于**程序猜数**（与本产品"不猜数、不改总分"的口径相抵）。
           //   现措辞只说清三件事：缺什么（没逐题标分）、合计怎么来的（按可判分空位计）、该核对什么；
           //   数字保留（它是核对线索，不是判决），并明示它的可靠边界。
-          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${linesP.length} 道带题号的题没标分；按可判分空位计的合计为 ${sumP} 分、与标题所写 ${declared} 分不符（若本大题含圆圈里填、竖式、分条等程序数不到的作答形态，此合计仅供参考）——带号题须逐题标分，或按并列区去掉题号、分值只由标题承载；程序不改数、不动结构，请重生成或人工补标`, 'warn');
+          // 🔴 2026-10-23 二次（属主真机：列竖式「每题3分，共12分」只报"合计 6 分"）：
+          //   单价单位是**题/式/处**时，合计＝单价×**识别到的行数**，而**行数≠题数**——
+          //   并列排版一行可放两三道竖式 ⇒ 这个数会系统性偏小，不能当"合计"报。
+          //   ⇒ 单位不是"空"时**不再报数**，只报"缺逐题标分 + 总分请一并核对"（能自证的才说）。
+          const tail = unitName === '空'
+            ? `按可判分空位计的合计为 ${sumP} 分、与标题所写 ${declared} 分不符（含圆圈里填、竖式、分条等程序数不到的形态时，此合计仅供参考）`
+            : `本大题按标题单价核算的总分与标题所写 ${declared} 分不符（单价单位为「${unitName}」，题数与判分处数请一并核对；并列排版下一行可能有多题，程序不按行数下结论）`;
+          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${linesP.length} 道带题号的题没标分；${tail}——带号题须逐题标分，或按并列区去掉题号、分值只由标题承载；程序不改数、不动结构，请重生成或人工补标`, 'warn');
           return;
         }
         for (const x of scoredP) {
@@ -1453,8 +1460,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     //    且"大题标题不得重名"条已覆盖全部学段（模型侧单源），程序侧不重复报，免增噪音。
     if (has('cn-ordinal-guard') && genType === 'exam' && /^primary/.test(String(normalizeStage(stage) || ''))) {
       try {
+        // 🔴 2026-10-23（属主真机："怎么带出这么多问题呢？"·一条里八对"一/一、二/二…八/八"）：
+        //   原扫描对象是 `out`（整份），而**答案区会按大题原样镜像标题**（答案本来就按大题分块写），
+        //   于是一个有 8 个大题的卷子，每个大题都"出现两次、连序号都相同" ⇒ 系统性误报 8 对。
+        //   改为**只扫正文区**（答案区起点单源，与 1.5.2 同口径）；正文内部真·整卷重出仍能抓到。
+        const ansIdxN = answerAreaStartIndex(out);
+        const bodyN = ansIdxN >= 0 ? out.slice(0, ansIdxN) : out;
         const tplN = document.createElement('template');
-        tplN.innerHTML = out;
+        tplN.innerHTML = bodyN;
         const seenN = new Map();
         const dupN = [];
         for (const h of Array.from(tplN.content.querySelectorAll('h1, h2, h3'))) {

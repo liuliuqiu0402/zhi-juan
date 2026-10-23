@@ -460,3 +460,29 @@ describe('⑧ 判据域：标题管本大题、形态管全卷（防"别处对�
     expect(notes(run(html), 'answer-blank-form')).toBe('');
   });
 });
+
+// 🔴 2026-10-23（属主真机："怎么带出这么多问题呢？"）
+//   一条告警里出现八对"一/一、二/二…八/八"——不是卷子有八处重名，而是**答案区按大题镜像标题**
+//   被当成了第二次出现。答案区逐大题分块写标题是**正常形态**，不该算重名。
+describe('⑨ 大题标题重名：判据域＝正文区（答案区镜像不算重名）', () => {
+  const run = (html) => auditExamPaper(html, { subject: '英语', stage: 'primary_high', genType: 'exam' });
+  const notes = (r, type) => (r.silentDetails || []).filter((d) => d.type === type).map((d) => d.message).join(' | ');
+  const BODY = [
+    '<h1>阶段测评</h1>',
+    '<h2>一、填空（共4分）</h2><p>1. ____（2分）</p><p>2. ____（2分）</p>',
+    '<h2>二、选择（共4分）</h2><p>1. 选（2分）</p><p>2. 选（2分）</p>',
+  ].join('\n');
+
+  it('答案区逐大题镜像标题 → 不报重名', () => {
+    const html = `${BODY}<div class="answer-section"><h2>参考答案</h2>`
+      + '<h2>一、填空（共4分）</h2><p>1. 3</p><p>2. 5</p>'
+      + '<h2>二、选择（共4分）</h2><p>1. A</p><p>2. B</p></div>';
+    expect(notes(run(html), 'cn-ordinal'), '不得把答案区镜像当重名').not.toContain('大题标题重名');
+  });
+
+  it('正文内真·同名大题（截断续写）仍报', () => {
+    const html = `${BODY}<h2>一、填空（共4分）</h2><p>1. ____（2分）</p>`
+      + '<div class="answer-section"><h2>参考答案</h2><p>1. 3</p></div>';
+    expect(notes(run(html), 'cn-ordinal')).toContain('大题标题重名');
+  });
+});
