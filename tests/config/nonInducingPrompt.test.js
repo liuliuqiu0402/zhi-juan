@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -7,6 +7,7 @@ import {
   getPromptTemplate,
   SUBJECT_STAGE_EXTRAS,
   LISTENING_SCRIPT_FORMAT,
+  NUMBERING_BRANCH_RULE,
 } from '../../src/config/promptLibrary.js';
 import {
   TEACHING_BLUEPRINTS,
@@ -331,7 +332,7 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     //   （竖式那种"算式不同、作答动作相同"）⇒ 已删。本锁：第二把尺不得回潮。
     expect(src, '编号判据＝成题区（唯一一把尺）').toContain('成题区');
     expect(src, '第二把尺（独立作答要求→各自编号）不得回潮').not.toContain('各自是一道要作答的题');
-    expect(src, '作答位紧跟句末仍属同一句（判断题真卷形态）').toContain('作答位紧跟句末的括号空位或横线属同一句');
+    expect(src, '作答位紧跟句末仍属同一句（判断题真卷形态）').toContain('作答位紧跟句末属同一句');
     // 🔴 2026-10-19（属主反证："题内一条标分都没有 ⇒ A 没执行"）：逐题标分缺**完整性判据**，
     //   且与【卷面自洽】"只出一次/不逐题复述"相抵（模型把逐题标分当成复述，于是全删）。
     //   本锁：每道题都要标（缺一即不合规）＋ 显式豁免"只出一次"。
@@ -676,7 +677,7 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
   it('内容型其余风格：主形态指定 + 其余按内容选最优（不再一种形态定全篇）', () => {
     const tb = styleInstructions.table;
     expect(tb, '主形态：对照类用表格').toContain('用表格承载');
-    expect(tb, '结构与从属关系用导图').toContain('结构与从属关系用导图');
+    expect(tb, '其余内容的形态按内容选最优').toContain('其余内容的形态按内容选最优');
     expect(tb, '形态按内容选最优').toContain('形态按内容选最优');
     expect(tb, '同一内容不重复两种形态').toContain('同一内容不重复两种形态');
     expect(tb, '旧"全篇以表格对比呈现"不得回潮').not.toContain('以表格对比呈现信息');
@@ -692,6 +693,23 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(td, '先给预读材料再设问').toContain('先给预读材料');
     expect(td, '形态按内容选最优').toContain('形态按内容选最优');
     expect(td, '无锚的"可操作可检查"不得回潮').not.toContain('可操作可检查');
+  });
+
+  // 🔴 2026-10-23（属主："没有枚举、诱导行为吧？"）：本轮把几处**情形/形态清单**换成判据，
+  //   并加反向锁——同类清单不得回潮（它们会把注意力钉在那几个词上，反而漏掉别的形态）。
+  it('去枚举：判据里不列情形/形态清单（反向锁）', () => {
+    expect(NUMBERING_BRANCH_RULE, '载体形态不点名（括号空位/横线）').not.toContain('括号空位或横线');
+    for (const k of ['mindmap', 'mindmap_full', 'table', 'context_chain']) {
+      const v = styleInstructions[k];
+      expect(v, `${k}：内容情形清单不得回潮`).not.toMatch(/缘由、过程|易混点对照|结构用导图、对照用表格/);
+    }
+    expect(styleInstructions.task_driven, '示例清单不得回潮').not.toContain('（知识点、例题）');
+    // 表格判据只留"行列一一对应"这一条结构判据，不再列"分类对比/属性并置/数据对照"。
+    expect(JSON.stringify(styleInstructions), '表格内容清单不得回潮').not.toContain('如分类对比、属性并置');
+    // 内容型实发里的表格判据同样只留"行列一一对应"这一条结构判据。
+    expect(getPromptTemplate({ grade: 'primary_low', subject: '数学', genType: 'summary' }).template,
+      '内容型表格清单不得回潮').not.toContain('如分类对比、属性并置');
+    expect(getValidatorRule('text-format-fix').promptHint, '规则侧表格清单不得回潮').not.toContain('如分类对比、属性并置');
   });
 
   // 🔴 2026-10-22（属主："为啥其他组织风格的都没有表格呢？…各种形式都能用的吧"）：

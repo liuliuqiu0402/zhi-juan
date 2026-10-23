@@ -48,7 +48,7 @@ describe('② 大题标题已写全时，其下不得再出现带号说明行（
   //   现编号只判一次、只看成题区；判断题的作答位紧跟句末属同一句 ⇒ 仍是"各自成句"⇒ **编号**。
   it('A 侧：编号判据＝成题区——每项自带一句陈述/问题的，即使作答动作相同也各自编号', () => {
     expect(NUMBERING_BRANCH_RULE, '正向判据（治"整组编成一个号"）').toMatch(/成题区/);
-    expect(NUMBERING_BRANCH_RULE, '句末作答位不算另起一句（判断题真卷形态）').toContain('作答位紧跟句末的括号空位或横线属同一句');
+    expect(NUMBERING_BRANCH_RULE, '句末作答位不算另起一句（判断题真卷形态）').toContain('作答位紧跟句末属同一句');
     expect(NUMBERING_BRANCH_RULE, '并列算式/待填位（无成句）→ 不编号').toContain('其余 → **不编号**');
     expect(QUESTION_OBJECT_CALIBER, '第二把尺（共用一条作答要求）不得回潮').not.toMatch(/共用一条作答要求|各自有独立题干/);
     // 零题型名（防定形诱导）

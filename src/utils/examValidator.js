@@ -1,4 +1,4 @@
-﻿// ==================== 整卷结构质量校验器（ExamPaperAuditor）====================
+// ==================== 整卷结构质量校验器（ExamPaperAuditor）====================
 // 定位：生成后程序化质检层（所有资料类型 × 所有学科 × 所有学段通用）。
 //    提示词规则（promptLibrary 指令库）约束 AI"应该怎么出题"，
 //    本校验器兜底"AI 没做到时怎么办"——能自动修复的修复（fix），
@@ -1039,7 +1039,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           //   或标题单位是"空"但这一题一处空都没有。报点把"几道"与"为什么"分开说，
           //   并给出两条 A 侧可执行的出路（补作答位 / 直接写该题分值）。
           const blind = scoredP.filter((x) => x.per == null || x.per <= 0).length;
-          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${needP.length} 道带题号的题没标分；其中 ${blind} 道题内数不出判分处（没有空位/括号/横线，无法按"每${unitName}${fmtScore(unitPrice)}分"推出该题分值）——请按【分值标注】在带号行末逐题标分（补齐作答位后按单位分计，或直接写该题总分）；程序不改数、不动结构`, 'warn');
+          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${needP.length} 道带题号的题没标分；其中 ${blind} 道题内数不出判分处（题内没有可数的作答位，无法按"每${unitName}${fmtScore(unitPrice)}分"推出该题分值）——请按【分值标注】在带号行末逐题标分（补齐作答位后按单位分计，或直接写该题总分）；程序不改数、不动结构`, 'warn');
           return;
         }
         const sumP = scoredP.reduce((a, x) => a + x.per, 0);

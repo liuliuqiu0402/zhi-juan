@@ -17,7 +17,7 @@ const page = (title, rows) => ['<h1>单元测评</h1>', `<h3>${title}</h3>`, ...
 describe('① 编号/不编号：单一判据 + 两条边界', () => {
   it('判据只有一个正面锚（成题区），且写死两条边界', () => {
     expect(NUMBERING_BRANCH_RULE, '正面锚').toContain('成题区');
-    expect(NUMBERING_BRANCH_RULE, '边界一：句末作答位属同一句').toContain('作答位紧跟句末的括号空位或横线属同一句');
+    expect(NUMBERING_BRANCH_RULE, '边界一：句末作答位属同一句').toContain('作答位紧跟句末属同一句');
     expect(NUMBERING_BRANCH_RULE, '边界二：复述行不算').toContain('标题的复述行不算');
     expect(NUMBERING_BRANCH_RULE, '只按这一条判').toContain('只按这一条判');
     expect(tpl(), '不编号支有"成题区不成立"的作用域').toContain('成题区不成立');
