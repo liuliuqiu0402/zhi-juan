@@ -6479,6 +6479,20 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   });
   // 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
   const tplBodyText = instructionDraft.value;
+  // 🔴 2026-10-24（属主："改了很多轮，带题号的小题题干后还是不标分"）：根因定位——**指令来源**。
+  //   getPromptTemplate 是"用户自定义优先"：指令库里只要存过一份（哪怕是旧版），代码里的内置判据
+  //   **永远进不来**。此处把来源与关键判据的在位性打到日志里，一眼就能看出这次生成用的是哪一份。
+  {
+    const ANCHOR_SCORE_ON_STEM = '带题号的题，分就写在题干行末';
+    const hasAnchor = instructionDraft.value.includes(ANCHOR_SCORE_ON_STEM);
+    console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜含"题干行末标分"判据=${hasAnchor}`);
+    if (tpl.source === 'user' && !hasAnchor) {
+      console.warn(
+        '⚠️ 本次生成用的是「指令库·用户自定义模板」，与内置判据不一致——代码里的修改不会生效。' +
+        '处理：到指令库把该条「恢复默认」（或删除自定义模板）后重新生成。',
+      );
+    }
+  }
   // 说明：渲染指令契约（EduRender）/ 卷面质检规则 / 守门条款兜底 均属程序侧形态与规则知识，
   //    复位工程·S3.2 起统一由 buildProgramAttach 汇总、随写作请求以 system 角色注入，不进委托正文——
   //    本函数**不再自行拼装**这三段。✅ A20：兜底"缺哪段补哪段"的唯一实现在 programAttach 单源内，
