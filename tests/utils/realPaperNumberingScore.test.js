@@ -25,6 +25,70 @@ const KOU_SUAN = [
   '<p>5×5＝____　6×4＝____　3×3＝____</p>',
 ].join('\n');
 
+// 🔴 2026-10-23（属主真卷"三、填空（每空1分，共24分）7 道没标分"）：7 道里只有 1 道数不出判分处时，
+//   原实现整段 return ⇒ 其余 6 道能算的也一道不补（全或无）。
+const SEVEN = [
+  '<h1>单元测评</h1>',
+  '<h3>三、填空（每空1分，共7分）</h3>',
+  '<p>1. 2＋3＝____。</p>',
+  '<p>2. 4＋5＝____。</p>',
+  '<p>3. 6＋7＝____。</p>',
+  '<p>4. 在○里填上"＞""＜"或"＝"。</p>',
+  '<p>5. 8＋9＝____。</p>',
+  '<p>6. 9＋9＝____。</p>',
+  '<p>7. 10＋1＝____。</p>',
+].join('\n');
+
+describe('①·补 全或无已撤：能算的先补齐，算不出的只报', () => {
+  it('7 道里 1 道数不出空位 ⇒ 其余 6 道照样补标，标题因 Σ 不完整不动', () => {
+    const r = run(SEVEN);
+    const rows = pTexts(r.html).filter((t) => /^\d\./.test(t));
+    expect(rows.filter((t) => /（1分）$/.test(t)).length, '6 道补标').toBe(6);
+    expect(rows[3], '数不出的那道不猜数').not.toMatch(/（\d+分）$/);
+    const warn = (r.silentDetails || []).filter((x) => /补标 6 道/.test(x.message));
+    expect(warn.length, '报点指明补了几道').toBe(1);
+    expect(heads(r.html), 'Σ 不完整 ⇒ 标题不合成').toContain('三、填空（每空1分，共7分）');
+  });
+
+  it('长空格写的作答位也算判分处（真卷形态：写成十几个全角空格）', () => {
+    const row = `<p>1. 4个3相加，写成加法算式是${'　'.repeat(10)}，写成乘法算式是${'　'.repeat(10)}，读作：${'　'.repeat(10)}。</p>`;
+    const r = run(['<h1>卷</h1>', '<h3>三、填空（每空1分，共3分）</h3>', row].join('\n'));
+    const t = pTexts(r.html).find((x) => x.startsWith('1.'));
+    expect(t, '3 空 ⇒ 全式').toMatch(/（每空1分，共3分）$/);
+  });
+
+  it('零宽占位符写的作答位也算判分处（真卷形态：2×\u200C＝6）', () => {
+    const row = '<p>1. 2×\u200C ＝6，\u200C ×5＝30。</p>';
+    const r = run(['<h1>卷</h1>', '<h3>三、填空（每空1分，共2分）</h3>', row].join('\n'));
+    const t = pTexts(r.html).find((x) => x.startsWith('1.'));
+    expect(t, '2 空 ⇒ 全式').toMatch(/（每空1分，共2分）$/);
+  });
+
+  it('真卷「三、填空」7 道原样重放：一道都不留空（空位按导出的长空格/零宽符还原）', () => {
+    const S = '　'.repeat(12);
+    const Z = '\u200C';
+    const rows = [
+      `<p>9. 4个3相加，写成加法算式是${S}，写成乘法算式是${S}，读作：${S}。</p>`,
+      `<p>10. 5+5+5+5+5＝${S}，用乘法表示是${Z} ×${Z} ，用的口诀是${S}。</p>`,
+      `<p>11. 一六得${S}，三六${S}，四五${S}。</p>`,
+      `<p>12. 2×6＝12中，2和6是${S}，12是${S}，×叫作${S}。</p>`,
+      `<p>13. 3×5＝15，那么5×3＝${S}，这说明交换两个乘数的位置，积${S}。</p>`,
+      `<p>14. 2×${Z} ＝6，${Z} ×5＝30，5×${Z} ＝20，${Z} ×4＝24。</p>`,
+      `<p>15. 6×2+6＝${S}，6×3-6＝${S}，5×4+4＝${S}。</p>`,
+    ];
+    const r = run(['<h1>二年级数学上册综合检测</h1>', '<h3>三、填空（每空1分，共24分）</h3>', ...rows].join('\n'));
+    const got = pTexts(r.html).filter((t) => /^\d+\./.test(t));
+    expect(got.length, '7 道都在').toBe(7);
+    const unscored = got.filter((t) => !/（\d+分）$|（每.*共.*分）$/.test(t));
+    expect(unscored, `每道都要有分：${JSON.stringify(unscored)}`).toEqual([]);
+    // 真卷标题写 24 分，而各题空位合计不等于 24 ⇒ Σ 为准，差异只记一条
+    const title = heads(r.html).find((t) => t.startsWith('三、填空'));
+    expect(title, '标题按 Σ 合成').not.toContain('24分');
+    expect((r.silentDetails || []).concat(r.issues || []).some((x) => /Σ|按逐题分/.test(x.message)) ||
+      (r.issues || []).some((x) => /共/.test(x.message)), '差异要留痕').toBe(true);
+  });
+});
+
 describe('① A 的禁令在位：不编号的大题不得把作答要求写成带号题', () => {
   it('B 侧只报不改：复述行带号 → 报"多余题号"，号与文字都保留（不删号会断连续序号）', () => {
     const r = run(KOU_SUAN);

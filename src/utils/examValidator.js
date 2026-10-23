@@ -185,7 +185,20 @@ export const countBlanks = (html) => {
     const text = stripped.replace(/<[^>]+>/g, '').replace(/&(?:emsp|ensp|nbsp|thinsp);|[\u3000\u00A0\u2000-\u200B\uFEFF 　]/g, '');
     if (!text.trim()) tableCount += 1;
   }
-  return tagCount + parenCount + bareUCount + underlineCount + tableCount;
+  // 🔴 2026-10-23（属主真卷：填空的作答位写成**长空格**或**零宽占位符**，程序数不出空位 ⇒ 该题算不出分）：
+  //   先摘掉已计形态（blank 标签/括号空位/裸横线）与表格单元，再把"≥3 个连续空白（含实体）"记 1 空、
+  //   零宽占位符各记 1 空。阈值取 3 是为了不把"选项之间两个全角空格"这类排版空白算成作答位。
+  const noTd = html.replace(/<td[^>]*>[\s\S]*?<\/td>/gi, 'x');
+  const textOnly = noTd
+    .replace(BLANK_TAG_RE, 'x')
+    .replace(PAREN_BLANK_RE, 'x')
+    .replace(BARE_U_BLANK_RE, 'x')
+    .replace(BARE_UNDERLINE_RE, 'x')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&(?:emsp|ensp|nbsp|thinsp);/gi, '\u3000');
+  const spaceRuns = (textOnly.match(/[ \u00A0\u3000]{3,}/g) || []).length;
+  const zeroWidth = (textOnly.match(/[\u200B\u200C\u200D\uFEFF]/g) || []).length;
+  return tagCount + parenCount + bareUCount + underlineCount + tableCount + spaceRuns + zeroWidth;
 };
 
 /** 统计一段 HTML 中的拼音词条数（看拼音写词语"每词"验证用）：
@@ -1028,19 +1041,24 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           else if (unitName !== '空') per = unitPrice;
           return { el: x.el, per };
         });
-        if (scoredP.some((x) => x.per == null || x.per <= 0)) {
+        const blind = scoredP.filter((x) => x.per == null || x.per <= 0).length;
+        if (blind > 0) {
           // 2026-10-21 属主纠正：**这不是要程序兜底的事**——逐题标分缺失是生成侧缺陷；
           //   该题以非空位方式作答（如"在○里填"）时程序数不出判分处，只报不改（不猜数、不改总分）。
           // 🔴 2026-10-23（按属主定的 A/B 分工重写口径）：B 只对**编号的题**做事——
           //   缺分就按标题单价补；补不了（数不出判分处）才只报不改。报点只陈述**可核事实**：
           //   哪几道带号题没分、为什么补不了；不再给"应得几分"这类推算判决。
-          // 🔴 2026-10-23（属主真机："带单价的逐题标分，目前没有执行"·报点要能指认原因）：
-          //   "数不出判分处"不是程序不想算，而是那几题**题内没有可数的空位/括号/横线**（载体缺失），
-          //   或标题单位是"空"但这一题一处空都没有。报点把"几道"与"为什么"分开说，
-          //   并给出两条 A 侧可执行的出路（补作答位 / 直接写该题分值）。
-          const blind = scoredP.filter((x) => x.per == null || x.per <= 0).length;
-          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${needP.length} 道带题号的题没标分；其中 ${blind} 道题内数不出判分处（题内没有可数的作答位，无法按"每${unitName}${fmtScore(unitPrice)}分"推出该题分值）——请按【分值标注】在带号行末逐题标分（补齐作答位后按单位分计，或直接写该题总分）；程序不改数、不动结构`, 'warn');
-          return;
+          // 🔴 2026-10-23（属主真机："三、填空…7 道没标分"）：原来这里**整段 return**——
+          //   7 道里只要有 1 道数不出判分处，**其余 6 道能算的也一道不补**（全或无）。
+          //   现改为：**能算的先补齐**，只把算不出的那几道留在报点里；Σ 不完整时不合成标题。
+          const fillable = scoredP.filter((x) => x.per != null && x.per > 0);
+          for (const x of fillable) {
+            const label = (x.per === unitPrice) ? `（${x.per}分）` : `（每${unitName}${unitPrice}分，共${x.per}分）`;
+            x.el.appendChild(document.createTextNode(label));
+          }
+          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${needP.length} 道带题号的题没标分；已按标题单价补标 ${fillable.length} 道，其中 ${blind} 道题内数不出判分处（题内没有可数的作答位，无法按"每${unitName}${fmtScore(unitPrice)}分"推出该题分值）——请按【分值标注】在带号行末逐题标分（补齐作答位后按单位分计，或直接写该题总分）；标题因 Σ 不完整暂不合成，程序不改数、不动结构`, 'warn');
+          if (fillable.length) fixed += 1;
+          return;                                        // Σ 不完整 ⇒ 不合成标题（1.6b 也不动）
         }
         const sumP = scoredP.reduce((a, x) => a + x.per, 0);
         // 🔴 2026-10-23（属主定 A/B 分工·撤闸）：B 的职责是"把**逐题分**合成标题"，**Σ 即真值**；
