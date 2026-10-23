@@ -27,7 +27,7 @@ describe('编号/不编号：单一判据（成题区）', () => {
     expect((lib.match(/export const NUMBERING_BRANCH_RULE/g) || []).length, '只允许一处定义').toBe(1);
     // 只数"代码行"的引用（注释里提到常量名不算消费）——否则每次留痕都会把计数抬高。
     const codeLines = lib.split('\n').filter((l) => !/^\s*(\*|\/\*|\/\/)/.test(l)).join('\n');
-    expect((codeLines.match(/NUMBERING_BRANCH_RULE/g) || []).length, '定义 1 + 消费 1（注释不计）').toBe(2);
+    expect((codeLines.match(/NUMBERING_BRANCH_RULE/g) || []).length, '定义 1 + 消费 2（考试卷内联在分值标注／其余在层级与组织）').toBe(3);
     for (const g of ['exam', 'practice', 'special', 'reading', 'review']) {
       expect(tpl(g), `${g} 应携带成题区判据`).toContain(NUMBERING_BRANCH_RULE);
     }

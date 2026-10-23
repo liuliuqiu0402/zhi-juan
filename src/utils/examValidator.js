@@ -1301,6 +1301,59 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     } catch (e) { console.warn('⚠️ 多余题号取证失败（不影响其它修复）:', e.message); }
   }
 
+  // ── 1.6f. 编号与内容不符：其下没有成句的题却写了题号（**只报不改**）──
+  //   🔴 2026-10-23（属主："不该编号的还是编号了"）：A 侧判据（成题区）与写出来的号对不上时，
+  //     程序此前**没有任何报点**（算式行被编号 → 静默通过）。本块用**与 A 同一口径**做确定性核对：
+  //     带号行摘掉行末分值、再摘掉句末紧跟的括号空位后，**不以句号/问号收尾的就不算"成句的题"**；
+  //     全组题号 ≥2 而成句行 <2 ⇒ 与"成题区不成立 ⇒ 不编号"相抵，报出来（不改结构、不删号）。
+  //   与 1.6e 的分工：全是"标题复述行"时由 1.6e 报（那边更准），本块跳过，避免同一段报两遍。
+  if (has('title-detail-fix')) {
+    try {
+      const tplF = document.createElement('template');
+      tplF.innerHTML = out;
+      const boundF = findAnswerBound(tplF.content);
+      const headsF = Array.from(tplF.content.querySelectorAll('h2, h3, h4'))
+        .filter((h) => !isInAnswerArea(h, boundF));
+      headsF.forEach((h, i) => {
+        const title = (h.textContent || '').trim();
+        if (!/^[一二三四五六七八九十]+、/.test(title)) return;   // 只核对大题级
+        const endF = headsF.slice(i + 1)
+          .find((x) => /^[一二三四五六七八九十]+、/.test((x.textContent || '').trim())) || null;
+        const rows = [];
+        const walk = (root) => {
+          if (!root || root.nodeType !== 1) return;
+          const cands = [];
+          if (root.matches?.('.question, p')) cands.push(root);
+          root.querySelectorAll?.('.question, p').forEach((el) => cands.push(el));
+          const leaves = cands.filter((el) => !cands.some((o) => o !== el && el.contains(o)));
+          for (const el of leaves) {
+            const txt = (el.textContent || '').trim();
+            if (txt && !rows.includes(txt)) rows.push(txt);
+          }
+        };
+        for (let node = h.nextSibling; node && node !== endF; node = node.nextSibling) {
+          if (boundF && (node === boundF || isInAnswerArea(node, boundF))) break;
+          walk(node);
+        }
+        const numRows = rows.filter((r) => NUMBERED_LINE_RE.test(r));
+        if (numRows.length < 2) return;
+        const isSentenceRow = (r) => {
+          let v = stripTrailScoreParen(r);
+          v = v.replace(/[（(][\s　]*[)）]\s*$/, '').trim();      // 句末紧跟的括号空位属同一句
+          return /[。？?]$/.test(v);
+        };
+        const sentenceRows = numRows.filter(isSentenceRow);
+        if (sentenceRows.length >= 2) return;                    // 成句 ≥2 ⇒ 判编号是对的
+        const bare = (r) => r
+          .replace(/^\s*(?:[（(][\s　]*[)）]\s*)?\d{1,2}\s*[.、．]\s*/, '')
+          .replace(/[（(][^（）()]{0,24}分[)）]\s*$/, '').trim();
+        if (numRows.every((r) => title.includes(bare(r)))) return; // 全是标题复述 ⇒ 交 1.6e
+        silentCount('spurious-row-number',
+          `大题「${title}」其下有 ${numRows.length} 个题号，但成句的题只有 ${sentenceRows.length} 道——按【分值标注】的成题区判据，这一组应判"不编号"（不写小题号、分值只由标题承载）；程序不改结构`, 'warn');
+      });
+    } catch (e) { console.warn('⚠️ 编号与内容不符核对失败（不影响其它修复）:', e.message); }
+  }
+
   // ── 2. 大题级：分值账目 + 载体结构校验（DOM 内直接操作，避免字符串与 DOM 序列化差异）──
   {
     let tpl = null;

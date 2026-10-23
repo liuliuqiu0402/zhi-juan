@@ -46,6 +46,34 @@ describe('① 编号/不编号：单一判据 + 两条边界', () => {
     expect(pTexts(r.html).join(''), '不得给无编号的行补分').not.toMatch(/（\d+分）/);
     expect(head(r.html), '标题保持原样（单价承载）').toBe('一、直接写得数（每题1分，共4分）');
   });
+
+  // 🔴 2026-10-23（属主："不该编号的还是编号了"）：程序侧补一个**只报不改**的核对——
+  //   题号 ≥2 而成句的题 <2 ⇒ 与成题区判据相抵（该组应"不编号"）。
+  it('行为：算式行被编号 ⇒ 程序报"成句的题只有 0 道"（只报不改）', () => {
+    const html = page('一、直接写得数（每题1分，共4分）', [
+      '<p>1. 3×5＝____</p>',
+      '<p>2. 2×6＝____</p>',
+    ]);
+    const r = run(html);
+    const warn = (r.silentDetails || []).filter((x) => x.level === 'warn' && /成句的题/.test(x.message));
+    expect(warn.length, '必须有报点').toBe(1);
+    expect(warn[0].message, '指出该组应判不编号').toContain('应判"不编号"');
+    expect(rows0(r.html), '程序不删号、不改结构').toBe(2);
+  });
+
+  it('行为：判断题/填空（都成句）被编号 ⇒ 不报（判编号是对的）', () => {
+    const judge = run(page('三、判断对错（每题2分，共4分）', [
+      '<p>1. 0 既不是正数也不是负数。（　）</p>',
+      '<p>2. 假分数一定大于 1。（　）</p>',
+    ]));
+    const fill = run(page('四、填空（每空1分，共2分）', [
+      '<p>1. 5＋____＝9。</p>',
+      '<p>2. 8 里面有____个 2。</p>',
+    ]));
+    for (const r of [judge, fill]) {
+      expect((r.silentDetails || []).filter((x) => /成句的题/.test(x.message)).length).toBe(0);
+    }
+  });
 });
 
 describe('② 标分：带不带单位可精准区分', () => {
@@ -130,3 +158,28 @@ describe('⑥ Σ 为真值：按小题分合成，可替换原标题', () => {
 function rows0(html) {
   return numbered(html).length;
 }
+
+// 🔴 2026-10-23（属主："分值自洽是模型侧的硬性要求，一层层验"）：
+//   四层：独立题干 → 大题 → 大类 → 试卷；中学不设大类层，该层由大标题承担（位置不同、算法同一）。
+describe('⑦ 分值自洽：模型侧逐层核（硬性·四层不得跳）', () => {
+  it('四层齐备且按"题→大题→大类→试卷"排列', () => {
+    const t = tpl();
+    const i1 = t.indexOf('该题分＝标题单价×该题判分处数');
+    const i2 = t.indexOf('大题总分＝其下各子题分之和');
+    const i3 = t.indexOf('大类总分＝其下各大题分之和');
+    const i4 = t.indexOf('试卷总分＝各大类分之和');
+    for (const [name, i] of [['①题', i1], ['②大题', i2], ['③大类', i3], ['④试卷', i4]]) {
+      expect(i, `${name} 层必须在位`).toBeGreaterThan(-1);
+    }
+    expect(i1 < i2 && i2 < i3 && i3 < i4, '四层必须按顺序验（一层都不得跳）').toBe(true);
+    expect(t, '硬性要求写明').toContain('四层都要验');
+    expect(t, '试卷层要落到卷首满分').toContain('须等于卷首满分');
+    expect(t, '差额只在层内调（不跨大题）').toContain('不跨大题挪分');
+  });
+
+  it('中学：不设大类层，该层由大标题承担（位置不同、算法同一）', () => {
+    const mid = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' }).template;
+    expect(mid, '中学映射写明').toContain('中学不设大类层');
+    expect(mid, '同一套四层算法仍在（不是另一套）').toContain('试卷总分＝各大类分之和');
+  });
+});
