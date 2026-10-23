@@ -1373,6 +1373,26 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           silentCount('multi-question-line',
             `大题「${title}」有 ${crammed.length} 段把多道题连写在同一段里（首段含 ${n} 个题号、末尾却给整段标分）——写了号就一题一段，一段只放一道题；程序不改结构`, 'warn');
         }
+        // ── 处数没数（🔴 2026-10-23 属主："有一题多载体的，出现了三空2分的情形，并没有标单价"）──
+        //   判据：一处写"（X分）"、两处及以上写全式"（每〈单位〉X分，共Y分）"。
+        //   一道题有 ≥2 个作答位却只写裸分 ⇒ 处数被按"一道题＝一处"记了：三空题与一空题同分、单价消失。
+        //   只报不改（改分会动账）。选项行不计空白串（选项间空格是排版，不是作答位）。
+        const blanksInText = (s) => {
+          const paren = (s.match(/[（(]\s*[　\u3000 \u00A0]{1,12}\s*[)）]/g) || []).length;
+          const under = (s.match(/_{2,}|＿{2,}/g) || []).length;
+          const zw = (s.match(/[\u200B\u200C\u200D\uFEFF]/g) || []).length;
+          const runs = /[A-D][.、．]/.test(s) ? 0 : (s.match(/[ \u00A0\u3000]{4,}/g) || []).length;
+          return paren + under + zw + runs;
+        };
+        const bareScored = rows.filter((r) => {
+          const m = r.match(/[（(]\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
+          if (!m || /每/.test(m[0])) return false;
+          return blanksInText(r.slice(0, r.length - m[0].length)) >= 2;
+        });
+        if (bareScored.length) {
+          silentCount('blank-count-ignored',
+            `大题「${title}」有 ${bareScored.length} 道题的作答位在两处及以上，却只写了裸分（如"…${bareScored[0].slice(-12)}"）——处数没数：一处写"（X分）"，两处及以上写"（每〈单位〉X分，共Y分）"；否则三空题与一空题同分、单价消失（程序不改数）`, 'warn');
+        }
       });
     } catch (e) { console.warn('⚠️ 分值承载互斥核对失败（不影响其它修复）:', e.message); }
   }
