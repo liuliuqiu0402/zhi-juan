@@ -145,14 +145,15 @@ describe('判据可判定性：口算/竖式/填空 各自命中且只命中一�
   const t = getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'exam' }).template;
   const score = (t.match(/【分值标注】([\s\S]*?)\n\n【/) || [, ''])[1];
 
-  it('两支互斥且穷尽：条件就是"其下有没有题号"这一个布尔事实', () => {
-    expect(score, '无题号支').toContain('大题下面没有子题');
-    expect(score, '有题号支').toContain('大题下面有子题');
+  it('两支互斥且穷尽：条件就是"编号 / 不编号"这一个事实', () => {
+    expect(score, '不编号支').toContain('不编号的大题');
+    expect(score, '编号支').toContain('编号的大题');
   });
 
-  it('口算/竖式（无题号）⇒ 无题号支，且该支必须禁止其下出现任何题号', () => {
+  it('口算/竖式（不编号）⇒ 不编号支：不写小题号、题内不标分', () => {
     expect(score, '单价随标题').toContain('单价随标题写');
-    expect(score, '关键反向约束在位（防按行造号）').toContain('单价随标题时，其下不得出现任何题号');
+    expect(score, '关键反向约束在位（不编号不写号）').toContain('不写小题号（顶格 1. 2. 3.）');
+    expect(score, '不编号 ⇒ 分值只由标题承载').toContain('分值只由标题承载');
     expect(score, '不得为分值补号/补题干').toContain('只标本来就有的子题');
   });
 
@@ -168,8 +169,8 @@ describe('判据可判定性：口算/竖式/填空 各自命中且只命中一�
     expect(t, '有独立题干的各自编号').toMatch(/各自有独立题干/);
   });
 
-  it('中学域型名标题不被无题号支误伤（该支带"不是只作范围标识"闸）', () => {
-    expect(score).toContain('且标题不是只作范围标识的');
+  it('中学域型名标题（只作范围标识）⇒ 判为不编号，不被"编号"支误伤', () => {
+    expect(score, '不编号判据只看"有没有各自独立的题"').toContain('各自独立、需分别判分');
     const mid = getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template;
     expect(mid, '中学支在位').toContain('标题只作范围标识');
   });

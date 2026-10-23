@@ -45,27 +45,28 @@ describe('标题单价错位：B 补逐题标分 + 合成真题标题', () => {
     expect((twice.match(/（每空2分，共4分）/g) || []).length, '不得重复追加').toBe(2);
   });
 
-  it('账对不平（单价×判分处数 ≠ 标题共Y分）：整段不动、不补标分、不改标题', () => {
+  // 🔴 2026-10-23（属主定 A/B 分工·撤闸）：B 的职责是"把逐题分合成标题"，**Σ 即真值**；
+  //   原标题总数只作核对、不参与合成。原实现有闸"Σ 必须＝原标题总数才补分"，导致
+  //   "分组式合成永远不执行"（属主实测）。现：账差只留一条修复记录，补分与合照样发生。
+  it('账对不平（单价×判分处数 ≠ 标题共Y分）：**照常逐题补分并按 Σ 合成**，差异只记一条', () => {
     const bad = FILL.replace('每空2分，共14分', '每空2分，共10分');
     const r = auditExamPaper(bad, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
     const out = r.html;
-    expect(heads(out)[0], '标题不得被程序擅改').toBe('三、填空（每空2分，共10分）');
-    expect(pTexts(out).filter((t) => /（每空\d+分，共\d+分）$/.test(t)).length, '不得补标分').toBe(0);
+    expect(heads(out)[0], '标题按逐题分（Σ）合成，而不是照抄原标题总数')
+      .toBe('三、填空（第1、3小题各4分，第2小题6分，共14分）');
+    const ps = pTexts(out).filter((t) => /^\d{1,2}\s*[.、．]/.test(t));
+    expect(ps.length, '题号不得增删').toBe(3);
+    expect(ps[0], '第1题：2空×2分').toMatch(/（每空2分，共4分）$/);
+    expect(ps[2], '第3题：2空×2分').toMatch(/（每空2分，共4分）$/);
+    const note = (r.issues || []).map((x) => x.message).join(' | ');
+    expect(note, '须记录"原标题写共10分、按逐题分合计14分"').toMatch(/原标题写共 10 分/);
+    expect(note).toMatch(/14 分/);
   });
 
-  // 🔴 2026-10-23（属主："这个之前不是好了吗？怎么又出现了呢？"）
-  //   这一支不是回归：账能对平时 B 静默补齐（上一轮），账对不平时才报——报的是"带号题没标分"这个**可核事实**。
-  //   但旧文案"按标题单价补齐应得 X 分"里的 X 是**数空位推出来的**（圆圈填/竖式/分条数不到会偏小），
-  //   当"应得"用＝程序猜数 ⇒ 改为只说清口径与出路，不再用"应得"。
-  it('账不平的提示：只报可核事实＋合计口径＋可执行出路，不再写"应得"', () => {
-    const bad = FILL.replace('每空2分，共14分', '每空2分，共10分');
-    const r = auditExamPaper(bad, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
-    const msg = (r.silentDetails || []).find((d) => d.type === 'title-unit-misplaced')?.message || '';
-    expect(msg, '须指出真实缺陷').toContain('道带题号的题没标分');
-    expect(msg, '合计须明示"按可判分空位计"').toContain('按可判分空位计');
-    expect(msg, '不得再拿推导值当"应得"').not.toContain('应得');
-    expect(msg, '须给出可执行出路').toMatch(/逐题标分/);
-    expect(msg, '须说明程序不改内容').toContain('程序不改数');
+  it('账对平时不产生"账差"记录（同一份数据，不误报差异）', () => {
+    const r = auditExamPaper(FILL, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
+    const note = (r.issues || []).map((x) => x.message).join(' | ');
+    expect(note).not.toContain('原标题写共');
   });
 
   it('已逐题标分（A 做对了、只是标题还写单价）：不重复追加，标题照样合成', () => {
@@ -95,10 +96,9 @@ describe('标题单价错位：B 补逐题标分 + 合成真题标题', () => {
     for (const t of ps) expect(t, '单判分处写（X分）').toMatch(/（2分）$/);
   });
 
-  // 🔴 2026-10-23（属主真机：列竖式「每题3分，共12分」只识别到 2 行 ⇒ 旧文案报"合计 6 分"）
-  //   单价单位是"题/式/处"时，合计＝单价×**识别到的行数**，而**行数≠题数**（并列排版一行可放两三道竖式）
-  //   ⇒ 这个数会系统性偏小，不得当"合计"报；只报缺逐题标分 + 总分请一并核对。
-  it('单价单位为"题"（竖式）：不按行数报合计，只报缺标分并要求一并核对总分', () => {
+  // 🔴 2026-10-23（按属主定的基准）：编号题缺分 → B 按标题单价补分，再由 1.6b 按 Σ 合成标题；
+  //   单价单位是"题/式/处"时每行算一道（空数 0 也成立），**不再因"Σ≠原标题总数"停手**。
+  it('单价单位为"题"（竖式带号）：按单价补逐题分，标题按 Σ 合成（不是照抄原标题总数）', () => {
     const html = [
       '<h1>阶段测评</h1>',
       '<h3>二、列竖式计算（每题3分，共12分）</h3>',
@@ -106,11 +106,13 @@ describe('标题单价错位：B 补逐题标分 + 合成真题标题', () => {
       '<div class="answer-section"><h2>参考答案</h2><p>1. 72</p></div>',
     ].join('\n');
     const r = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
-    const msg = (r.silentDetails || []).find((d) => d.type === 'title-unit-misplaced')?.message || '';
-    expect(msg, '须指出真实缺陷').toContain('道带题号的题没标分');
-    expect(msg, '不得按行数报"合计X分"').not.toContain('按可判分空位计的合计');
-    expect(msg, '须提示题数与判分处数一并核对').toContain('题数与判分处数请一并核对');
-    expect(r.html, '不改内容').toContain('2. 45×2＝');
+    const ps = pTexts(r.html).filter((t) => /^\d{1,2}\s*[.、．]/.test(t) && /（3分）$/.test(t));
+    expect(ps.length, '两道带号题各补一处标分（答案区不算）').toBe(2);
+    for (const t of ps) expect(t, '每题按单价标分（单判分处写（X分））').toMatch(/（3分）$/);
+    expect(heads(r.html)[0], '标题按逐题分（Σ=6）合成').toBe('二、列竖式计算（每题3分，共6分）');
+    expect((r.silentDetails || []).some((d) => d.type === 'title-unit-misplaced'), '账差不再当缺陷报').toBe(false);
+    const note = (r.issues || []).map((x) => x.message).join(' | ');
+    expect(note, '账差只记一条修复记录').toMatch(/原标题写共 12 分/);
   });
 
   it('真 0 段（标题单价、其下无题号）：不动', () => {

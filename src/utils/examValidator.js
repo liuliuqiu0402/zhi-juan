@@ -20,6 +20,18 @@ import { isPerBigQuestionNumbering } from './gradeStage.js'; // 题号编法按�
 import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer, detectCarrierFormMismatch } from './contentCleaner.js'; // 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；extractBodyQuestionNumbers=同一口径的**题号序列**投影（2026-09-29 答案区逐题对应明细取证用，不新造正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
 
 // ---------- 通用正则 ----------
+/** 带号行（**编号题的唯一识别口径**）：行首允许先出现一个作答位空括号——
+ *  "（　）8. 题干" 也是第 8 题（属主真机形态）。只认"行首数字"会漏认这类行，
+ *  B 据此算总分就会算少（实测：5 题只认 3 题 ⇒ 标题被合成成少 4 分）。
+ *  2026-10-23（按属主定的基准）：编号/不编号判定在 A，B 这边只做"认出编号行"。 */
+const NUMBERED_LINE_RE = /^\s*(?:[（(][\s　]*[）)]\s*)?(\d{1,2})\s*[.、．]/;
+
+/** 摘掉行末的分值括注（"（2分）""（每空1分，共3分）"）——判"作答位是否在行首/行末"前先摘掉。
+ *  2026-10-23：B 会按标题单价补逐题分，补完后行末是分值；不摘就会把带分那行判成"作答位不在末尾"，
+ *  位置归并（2j-6）与形态统计整支失效（实测：外语类搬不到题首、中文科目搬不到末尾）。 */
+const stripTrailScoreParen = (s) => String(s == null ? '' : s)
+  .replace(/[（(]\s*(?:每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*)?共?\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*$/, '')
+  .trimEnd();
 // 全角拼音字符归一表（IPA 音标字符混入小学拼音、全角字母）
 const PINYIN_NORM_MAP = {
   '\u0261': 'g',  // ɡ (IPA 带钩 g) → g
@@ -986,7 +998,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           for (const el of leaves) {
             if (seenP.has(el)) continue;
             const tt = (el.textContent || '').trim();
-            if (!/^\d{1,2}\s*[.、．]/.test(tt)) continue;
+            if (!NUMBERED_LINE_RE.test(tt)) continue;
             const hasOwn = /(?:共\s*\d+(?:\.\d+)?\s*分|[（(]\s*\d+(?:\.\d+)?\s*分)\s*[)）]\s*$/.test(tt);
             linesP.push({ el, hasOwn });
             seenP.add(el);
@@ -1008,37 +1020,30 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         if (scoredP.some((x) => x.per == null || x.per <= 0)) {
           // 2026-10-21 属主纠正：**这不是要程序兜底的事**——逐题标分缺失是生成侧缺陷；
           //   该题以非空位方式作答（如"在○里填"）时程序数不出判分处，只报不改（不猜数、不改总分）。
-          // 🔴 2026-10-22（属主："标题标分与小题进行绑定、互斥关系吗？…带题号的题后标分应该是能够天然执行的"）：
-          //   报点只写**真实缺陷＝带题号的题没标分**，不再说"标题应写（共X分）"——标题写单价与本条无关。
-          // 🔴 2026-10-23（属主："这个之前不是好了吗？怎么又出现了呢？"）：**不是回归**——上一轮治的是
-          //   "标题写单价不算错"，账能对平时 B 会静默补齐（所以那几轮看着"好了"）；这一轮模型又把填空写成
-          //   "7 道带号题 + 一道都没逐题标分"，走的是同一判定的**另一支**（账对不平）。提示补上可执行出路。
-          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${linesP.length} 道带题号的题没标分（其中含程序数不出判分处的作答形态）——带号题须逐题标分，或按并列区去掉题号、分值只由标题承载；程序不改数、不动结构，请重生成或人工补标`, 'warn');
+          // 🔴 2026-10-23（按属主定的 A/B 分工重写口径）：B 只对**编号的题**做事——
+          //   缺分就按标题单价补；补不了（数不出判分处）才只报不改。报点只陈述**可核事实**：
+          //   哪几道带号题没分、为什么补不了；不再给"应得几分"这类推算判决。
+          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${linesP.length} 道带题号的题没标分（其中含程序数不出判分处的作答形态）——请按【分值标注】在带号行末逐题标分；程序不改数、不动结构`, 'warn');
           return;
         }
         const sumP = scoredP.reduce((a, x) => a + x.per, 0);
-        if (Math.abs(sumP - declared) > 1e-6) {
-          // 同上：标题写了单价、其下带号题未标分——这是**生成侧漏标**，不是"标题写法错"。
-          // 🔴 2026-10-23（属主追问后改准）：原句"按标题单价补齐应得 15 分、与标题所写 24 分不符"——
-          //   ① 那个数是**按可判分空位数推出来的**：圆圈填/竖式/分条等形态程序数不到时它会偏小；
-          //   ② 又拿它当"应得"去断言，等于**程序猜数**（与本产品"不猜数、不改总分"的口径相抵）。
-          //   现措辞只说清三件事：缺什么（没逐题标分）、合计怎么来的（按可判分空位计）、该核对什么；
-          //   数字保留（它是核对线索，不是判决），并明示它的可靠边界。
-          // 🔴 2026-10-23 二次（属主真机：列竖式「每题3分，共12分」只报"合计 6 分"）：
-          //   单价单位是**题/式/处**时，合计＝单价×**识别到的行数**，而**行数≠题数**——
-          //   并列排版一行可放两三道竖式 ⇒ 这个数会系统性偏小，不能当"合计"报。
-          //   ⇒ 单位不是"空"时**不再报数**，只报"缺逐题标分 + 总分请一并核对"（能自证的才说）。
-          const tail = unitName === '空'
-            ? `按可判分空位计的合计为 ${sumP} 分、与标题所写 ${declared} 分不符（含圆圈里填、竖式、分条等程序数不到的形态时，此合计仅供参考）`
-            : `本大题按标题单价核算的总分与标题所写 ${declared} 分不符（单价单位为「${unitName}」，题数与判分处数请一并核对；并列排版下一行可能有多题，程序不按行数下结论）`;
-          silentCount('title-unit-misplaced', `大题「${t}」其下有 ${linesP.length} 道带题号的题没标分；${tail}——带号题须逐题标分，或按并列区去掉题号、分值只由标题承载；程序不改数、不动结构，请重生成或人工补标`, 'warn');
-          return;
-        }
+        // 🔴 2026-10-23（属主定 A/B 分工·撤闸）：B 的职责是"把**逐题分**合成标题"，**Σ 即真值**；
+        //   标题原来写的总数只作核对、不参与合成（1.6b 的既有口径）。原实现有一道闸
+        //   "Σ 必须＝原标题总数才补分"，与这条分工**相反**，直接导致"分组式合成永远不执行"
+        //   （属主实测：B 该分组式改标题的，没执行出来）。现：账差只留一条修复记录，不阻断补分与合成。
+        const drift = Math.abs(sumP - declared) > 1e-6;
+        // 🔴 2026-10-23：**编号题必须逐题标分**（A 的硬规则，B 缺分就补）。标题已写"每题X分"时
+        //   此处也不省——卷面上每道小题都要能看到自己的分，批量"靠标题推"正是上一轮属主指出的缺陷。
+
         for (const x of scoredP) {
           const label = (x.per === unitPrice) ? `（${x.per}分）` : `（每${unitName}${unitPrice}分，共${x.per}分）`;
           x.el.appendChild(document.createTextNode(label));
         }
-        issues.push({ severity: 'info', type: 'title-detail', message: `标题单价已下推为逐题标分（${t}，补标 ${scoredP.length} 题）` });
+        issues.push({
+          severity: 'info',
+          type: 'title-detail',
+          message: `标题单价已下推为逐题标分（${t}，补标 ${scoredP.length} 题）${drift ? `；原标题写共 ${declared} 分，按逐题分合计为 ${sumP} 分，标题将按逐题分合成（Σ 为准，原标题总数只作核对）` : ''}`,
+        });
         fixed += 1;
       });
       out = tplP.innerHTML;
@@ -1090,7 +1095,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           for (const el of leaves) {
             if (seenB.has(el)) continue;
             const tt = (el.textContent || '').trim();
-            const nm = tt.match(/^(\d{1,2})\s*[.、．]/);
+            const nm = tt.match(NUMBERED_LINE_RE);
             if (!nm) continue;
             // 只取带题号那一行末尾的小题总分；题干内部各分条的标分不计入合成。
             const sm = tt.match(/共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]?\s*$/);
@@ -1202,12 +1207,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
 
   // ── 1.6e. 多余题号：**只报不改**（题号归模型侧判；程序不删正文，删了全卷连续号会断）──
   //   属主 2026-10-21 定：编号只能模型侧判对，程序侧删号会破坏连续序号 ⇒ 这里只做取证/提示。
-  //   两条判据（都只看卷面）：
-  //     ① 标题声明单价（每〈单位〉X分，共Y分）且该组每一行都是**并列算式行**（含等号、无句末标点）、却带着题号
-  //        ⇒ “并列区不该有小题号”；
-  //     ② 某带号行的文字（去号、去分值括注）覆盖标题核心字 ≥80%、长度与核心相近、且无作答载体
-  //        ⇒ “该行只是标题的复述，不是一道题”。
-  //   命中只进 issues（warn），不改 html、不改号。
+  //   判据（只看卷面）：某带号行的文字（去号、去分值括注）覆盖标题核心字 ≥80%、长度与核心相近、
+  //   且无作答载体 ⇒ "该行只是标题的复述，不是一道题"。
+  //   🔴 2026-10-23（按属主定的基准）：原另有一条"整组并列算式＋单价标题 ⇒ 并列区不该有号"——
+  //     属**按形态枚举**去反推"A 判错了类别"，既不完整（覆盖不到整段/表格等），又与"B 只对编号题合成"
+  //     的分工相抵（一边说别标号、一边说没标分）。编号归 A，本块删除该支。
   if (has('title-detail-fix')) {
     try {
       const tplE = document.createElement('template');
@@ -1233,24 +1237,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           }
           for (const el of cands) {
             if (lines.includes(el)) continue;
-            if (!/^\s*\d{1,2}\s*[.、．]/.test(el.textContent || '')) continue;
+            if (!NUMBERED_LINE_RE.test(el.textContent || '')) continue;
             lines.push(el);
           }
         }
         if (!lines.length) return;
-        const isUnitTitle = /[（(]\s*每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*共\s*\d+(?:\.\d+)?\s*分\s*[)）]\s*$/.test(t);
-        const allArith = lines.every((el) => {
-          const txt = el.textContent || '';
-          return /[＝=]/.test(txt) && !/[。？！?]/.test(txt);
-        });
-        if (isUnitTitle && allArith) {
-          issues.push({
-            severity: 'warn',
-            type: 'spurious-row-number',
-            message: `大题「${t}」是并列区（整组并列算式），其下却有 ${lines.length} 处小题号——生成侧判错了类别，程序不改正文（删号会断全卷连续序号），请重生成`,
-          });
-          return;
-        }
+        // 🔴 2026-10-23（按属主定的基准撤掉"并列区不该有号"这一支）：
+        //   基准是"A 先定编号/不编号，B 只对**编号的题**合成标分"。B 侧**无法自证**某道大题
+        //   "本来不该编号"（要判就得按形态枚举——算式的、整段的、表格的……即题型/形态诱导），
+        //   旧实现只认"整组并列算式＋单价标题"这一种形态，覆盖窄且与 1.6b-pre（要求逐题标分）
+        //   方向相抵：一条说"别标号"、一条说"没标分"。现删去该支，编号归 A，B 不再越权判类别。
         const core = normE(t);
         if (core.length < 4) return;
         const coreSet = new Set(core);
@@ -1349,6 +1345,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             if (!optionBearing.has(n)) continue; // 非含选项的题（填空/简答等）不参与题首空位归一
             const t = n.textContent || '';
             if (!/^[\s\u3000\u2003]*\d{1,2}[.、．]/.test(t)) continue; // 段首必须是（空位 +）题号
+            // 段末若已有分值括注（B 按标题单价补的逐题分），空位要落在**分值之前**——分值括注始终在行末。
+            const appendBeforeTrailScore = (el, node) => {
+              const last = el.lastChild;
+              const mTxt = last && last.nodeType === Node.TEXT_NODE
+                ? String(last.textContent || '').match(/[（(][^（）()]{0,24}\d+(?:\.\d+)?\s*分[^（）()]{0,8}[）)]\s*$/) : null;
+              if (!mTxt) { el.appendChild(node); return; }
+              const tail = mTxt[0];
+              last.textContent = String(last.textContent).slice(0, mTxt.index);
+              el.appendChild(node);
+              el.appendChild(document.createTextNode(tail));
+            };
             const fc0 = n.firstElementChild;
             const isCarrier = !!fc0 && (fc0.tagName === 'U' || fc0.tagName === 'SPAN')
               && /(?:^|\s)blank-\d+/.test(fc0.getAttribute('class') || '');
@@ -1359,7 +1366,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               } else {
                 // 中文科目：题首载体搬到题干末尾（按学科条款落位，位置兜底）
                 fc0.remove();
-                n.appendChild(makeChoiceBlankNode());
+                appendBeforeTrailScore(n, makeChoiceBlankNode());
               }
               fx += 1;
             } else if (!fc0 && /^[　\u3000\s]{2,}/.test(t)) {
@@ -1369,7 +1376,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
                 const rest = String(firstText.textContent).replace(/^[　\u3000\s]{2,}/, '');
                 firstText.textContent = rest;
                 if (toHead) n.insertBefore(makeChoiceBlankNode(), firstText);
-                else n.appendChild(makeChoiceBlankNode());
+                else appendBeforeTrailScore(n, makeChoiceBlankNode());
                 fx += 1;
               }
             }
@@ -1568,7 +1575,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const secStr = String(sec);
           const headText = (secStr.match(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/i) || ['', ''])[1].replace(/<[^>]+>/g, '');
           if (!figureKeywordRe.test(headText)) continue;
-          const secBody = secStr.replace(/<h[23][^>]*>[\s\S]*?<\/h[23]>/i, ' ').replace(/<[^>]+>/g, ' ');
+          const secBodyRaw = secStr.replace(/<h[23][^>]*>[\s\S]*?<\/h[23]>/i, ' ').replace(/<[^>]+>/g, ' ');
+          // 🔴 2026-10-23：判"有没有替代提示形态"前，先摘掉**分值括注**——B 会按标题单价补逐题分
+          //   （"（2分）""（每空1分，共3分）"），它含汉字且被括号包住，会被"中文括注"这一支当成提示形态，
+          //   把"确实没有替代提示"误判成"用的是中文提示"（实测：同一份卷文案整支翻面）。
+          const secBody = secBodyRaw.replace(/[（(][^（）()]{0,24}\d+(?:\.\d+)?\s*分[^（）()]{0,8}[）)]/g, ' ');
           if (/\[IMAGE\]|\[GRAPH\]/.test(secStr)) continue;   // 本大题真的给了图 → 标题与内容相符
           if (figureKeywordRe.test(secBody)) continue;        // 题干自己也要图 → 属"漏图"，由 image-missing 报
           const hasAltHint = /[（(][^）)]*[\u4e00-\u9fa5][^）)]*[）)]/.test(secBody)
@@ -1609,7 +1620,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             .replace(/<[^>]+>/g, '').split('\n');
           let headN = 0; let tailN = 0; let fullN = 0; let halfN = 0;
           for (const raw of lines) {
-            const t = String(raw).replace(/&nbsp;|&emsp;/g, ' ').trim();
+            const t = stripTrailScoreParen(String(raw).replace(/&nbsp;|&emsp;/g, ' ').trim());
             if (!t) continue;
             const head = t.match(/^[（(][\s\u3000]{1,}[）)]/);
             const tail = t.match(/[（(][\s\u3000]{1,}[）)]\s*$/);
@@ -1638,8 +1649,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
               // 只处理"纯文本段"（无子元素）：判断题类的括号位都在纯文本行里；
               // 含作答载体（<u class="blank-N">）或其它子元素的段一律不动——那是短答载体，位置语义不同。
               const ps = blocks.filter((x) => x.nodeType === 1 && x.tagName === 'P' && (!x.children || x.children.length === 0));
-              const isHead = (p) => /^[（(][\s\u3000]{1,}[）)]/.test((p.textContent || '').trim());
-              const isTail = (p) => /[（(][\s\u3000]{1,}[）)]\s*$/.test((p.textContent || '').trim());
+              // 🔴 2026-10-23（B 补逐题分后的连带修复）：行末若已有分值括注（如"（2分）"），
+              //   判"作答位是否在末尾"时必须先把它摘掉——否则带分那行永远判"不在末尾"，
+              //   位置归并整支失效（实测：外语类搬不到题首、中文科目搬不到末尾）。
+              const stripTrailScore = stripTrailScoreParen;
+              const isHead = (p) => /^[（(][\s\u3000]{1,}[）)]/.test(stripTrailScore((p.textContent || '').trim()));
+              const isTail = (p) => /[（(][\s\u3000]{1,}[）)]\s*$/.test(stripTrailScore((p.textContent || '').trim()));
               const hN = ps.filter(isHead).length; const tN = ps.filter(isTail).length;
               if (!(hN >= 2 && tN >= 2)) continue;
               const toHead = moveDirHead;   // 方向恒取条款（外语题首 / 中文题干末尾），同数亦取条款
@@ -1648,11 +1663,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
                 const mis = toHead ? (isTail(p) && !isHead(p)) : (isHead(p) && !isTail(p));
                 if (!mis) continue;
                 const t = p.textContent || '';
-                const m = toHead ? t.match(/([（(][\s\u3000]{1,}[）)])\s*$/) : t.match(/^([（(][\s\u3000]{1,}[）)])/);
+                const body = stripTrailScore(t.trim());                 // 去掉行末分值括注后再判形态
+                const scoreTail = t.trim().slice(body.length);          // 被摘掉的分值括注，原样拼回行末
+                const m = toHead ? body.match(/([（(][\s\u3000]{1,}[）)])\s*$/) : body.match(/^([（(][\s\u3000]{1,}[）)])/);
                 if (!m) continue;
                 const paren = m[1];
-                const rest = t.replace(paren, '').replace(/\s+$/, '').trim();
-                p.textContent = toHead ? `${paren}${rest}` : `${rest} ${paren}`;   // 题首用规范式"（　）1."（不插空格）；句末保持"… （　）"的可读间隔
+                const rest = body.replace(paren, '').replace(/\s+$/, '').trim();
+                // 题首用规范式"（　）1."（不插空格）；句末保持"… （　）"的可读间隔；分值括注始终留在最后
+                p.textContent = toHead ? `${paren}${rest}${scoreTail}` : `${rest} ${paren}${scoreTail}`;
                 movedTotal += 1;
               }
             }

@@ -139,19 +139,21 @@ describe('B 侧边界：只在账能对平时纠正（对不平就不猜、不�
     expect(numbered(out), '不得补题号').toEqual([]);
   });
 
-  it('旧形（单价标题 + 其下带号题 + 无逐题标分 + 账对不平）：B 不猜——标题不变、题号不删、不补标分', () => {
-    // 该样本单价×判分处数（2 空×1 分＝2 分）≠ 标题"共8分" ⇒ **账对不平**，B 一律不动（不改数）。
-    // 账能对平的同一形态：1.6b-pre 下推逐题标分、1.6b 合成标题（见 titleUnitPriceDowngrade.test.js）。
+  // 🔴 2026-10-23（属主定基准·撤闸）：B 的职责＝把**逐题分**合成标题，Σ 即真值，原标题总数只作核对。
+  //   故"账对不平"不再让 B 停手：按标题单价补出逐题分 → 标题按 Σ 合成；差异只留一条修复记录。
+  it('旧形（单价标题 + 其下带号题 + 无逐题标分 + 账对不平）：B 照常补分并按 Σ 合成，题号不删', () => {
     const html = [
       '<h1>阶段测评</h1>',
       '<h3>三、填空（每空1分，共8分）</h3>',
       '<p>1. 6＋6＋6＋6表示____个6相加。</p>',
       '<p>2. 3个5相加，用乘法算式表示是____。</p>',
     ].join('\n');
-    const out = run(html);
-    expect(heads(out), '标题不得被程序擅改').toEqual(heads(html));
+    const r = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
+    const out = r.html;
     expect(numbered(out).length, '题号不得被程序删（不删正文）').toBe(2);
-    expect((out.match(/每[^\s，,。；;：:（）()0-9]{1,3}\d+分/g) || []).length, '不得凭空补单价/标分（只允许标题里原有那一处）').toBe(1);
+    expect(heads(out)[0], '标题按逐题分合计（Σ=2）合成').toContain('共2分');
+    const note = (r.issues || []).map((x) => x.message).join(' | ');
+    expect(note, '账差只记一条').toMatch(/原标题写共 8 分/);
   });
 
   it('同卷并存：单价组（A2）不动，逐题标分组（A1）才由 B 合成——不以全卷口径误伤', () => {
