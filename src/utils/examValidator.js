@@ -1093,8 +1093,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         // 2026-10-21：标题末的括注认两态——"（共X分）"与"（每〈单位〉X分，共Y分）"。
         //   🔴 2026-10-22（属主："标题标分与小题…互斥关系吗？合成交给B程序侧就好了"）：
         //     单价形态**不是错误写法**，是真题常见写法；B 一律按逐题分合成，不看 A 写的是哪一态。
+        //   🔴 2026-10-23（属主："程序侧对于带小题号的题进行合成大标题的标分，分单档和多档"）：
+        //     原来是"标题必须有共X分**才**合成"（`if (!mB) return`）——标题没写分值就永远不合成，
+        //     与"B 负责给带小题号的大题合成标题分值"相反。现改为：**标题有没有分值都合成**；
+        //     没有逐题分时仍按下面的报点处理（不猜数）。
         const mB = t.match(/[（(]\s*(?:每\s*[^\d，,）)]{1,4}?\s*\d+(?:\.\d+)?\s*分\s*[，,]\s*)?共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
-        if (!mB) return;
+        const hadScoreB = !!mB;
         const idx = headsB.indexOf(h);
         // 作用域：下一个**大题级**标题（汉字序号），不是下一个任意标题；
         // 组内小标题（h3/h4、非汉字序号）不截断。
@@ -1168,7 +1172,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const nextB = `${baseB.trim()}${labelB}`;
         if (nextB !== t) {
           h.textContent = nextB;
-          issues.push({ severity: 'info', type: 'title-detail', message: `大题标题已改为真题标分样式：${nextB}` });
+          issues.push({ severity: 'info', type: 'title-detail', message: `大题标题${hadScoreB ? '已改为真题标分样式' : '已按逐题分补写分值（原标题无分值）'}：${nextB}` });
           fixed += 1;
         }
         // 答案区同名大题标题镜像同一个分值括注（按汉字序号匹配）。
