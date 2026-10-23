@@ -143,9 +143,9 @@ describe('B 侧边界：只在账能对平时纠正（对不平就不猜、不�
     expect(numbered(out), '不得补题号').toEqual([]);
   });
 
-  // 🔴 2026-10-23（属主定基准·撤闸）：B 的职责＝把**逐题分**合成标题，Σ 即真值，原标题总数只作核对。
-  //   故"账对不平"不再让 B 停手：按标题单价补出逐题分 → 标题按 Σ 合成；差异只留一条修复记录。
-  it('旧形（单价标题 + 其下带号题 + 无逐题标分 + 账对不平）：B 照常补分并按 Σ 合成，题号不删', () => {
+  // 🔴 2026-10-23（属主："我们不要程序侧补小题标分，小题标分必须是模型侧根据题的实际内容标出"）：
+  //   原"按标题单价补分 → Σ 合成"已整段删除。现锁：缺分只报，题号不删、标题不改。
+  it('旧形（单价标题 + 其下带号题 + 无逐题标分）：只报不补，题号不删、标题不动', () => {
     const html = [
       '<h1>阶段测评</h1>',
       '<h3>三、填空（每空1分，共8分）</h3>',
@@ -155,9 +155,11 @@ describe('B 侧边界：只在账能对平时纠正（对不平就不猜、不�
     const r = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
     const out = r.html;
     expect(numbered(out).length, '题号不得被程序删（不删正文）').toBe(2);
-    expect(heads(out)[0], '标题按逐题分合计（Σ=2）合成').toContain('共2分');
-    const note = (r.issues || []).map((x) => x.message).join(' | ');
-    expect(note, '账差只记一条').toMatch(/原标题写共 8 分/);
+    expect(numbered(out).join('|'), '不得代补分值').not.toMatch(/（\d+分）/);
+    expect(heads(out)[0], 'Σ 不完整 ⇒ 标题不动').toBe('三、填空（每空1分，共8分）');
+    const w = (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message, '报 2 道').toContain('2 道');
   });
 
   it('同卷并存：单价组（A2）不动，逐题标分组（A1）才由 B 合成——不以全卷口径误伤', () => {

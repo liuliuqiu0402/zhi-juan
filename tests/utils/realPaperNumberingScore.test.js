@@ -3,11 +3,12 @@
 //   二、列竖式计算（每题3分，共12分）→ 其下却出现 `2. 用竖式计算下面各题，书写要规范。（3分）`
 //   三、填空（每空1分，共24分）→ 其下小题**一处分都没有**
 // ============================================================
-// 本文件锁两件事：
+// 本文件锁三件事：
 //   ① A 侧：直答区（口算/竖式这类并列项）**不得把作答要求单独写成带号题**——
 //      这是 A 的禁令（promptLibrary 题名条）；B 只能报、不能删（删号会断全卷连续序号）。
-//   ② B 侧：补逐题分是**逐行**的——原实现"只要有一段带分就整段不补"，
-//      一处标题复述行带分，就把它下面所有小题的标分全挡住（属主："这个下面小题未标分，是因为啥？"）。
+//   ② **程序不代模型补分**（属主 2026-10-23："我们不要程序侧补小题标分，小题标分必须是模型侧
+//      根据题的实际内容标出…这个得严格执行才行，不能有任何折扣"）——缺分只报，正文一个字都不动。
+//   ③ 报点要**准确**：报"几道没标分"必须点到实数（含长空格／零宽符写的作答位，不算"数不出"）。
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
@@ -16,6 +17,8 @@ const run = (html, subject = '数学') => auditExamPaper(html, { subject, stage:
 const pTexts = (h) => [...h.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)]
   .map((m) => m[1].replace(/<[^>]+>/g, '').replace(/&emsp;|&nbsp;/g, ' ').trim());
 const heads = (h) => [...h.matchAll(/<h[2-4]>([\s\S]*?)<\/h[2-4]>/g)].map((m) => m[1]);
+/** 缺分报点（1.6b-pre 的那一条） */
+const missWarn = (r) => (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
 
 const KOU_SUAN = [
   '<h1>单元测评</h1>',
@@ -25,8 +28,7 @@ const KOU_SUAN = [
   '<p>5×5＝____　6×4＝____　3×3＝____</p>',
 ].join('\n');
 
-// 🔴 2026-10-23（属主真卷"三、填空（每空1分，共24分）7 道没标分"）：7 道里只有 1 道数不出判分处时，
-//   原实现整段 return ⇒ 其余 6 道能算的也一道不补（全或无）。
+// 7 道里只有 1 道数不出判分处（"在○里填上"没有空位载体）。
 const SEVEN = [
   '<h1>单元测评</h1>',
   '<h3>三、填空（每空1分，共7分）</h3>',
@@ -39,32 +41,38 @@ const SEVEN = [
   '<p>7. 10＋1＝____。</p>',
 ].join('\n');
 
-describe('①·补 全或无已撤：能算的先补齐，算不出的只报', () => {
-  it('7 道里 1 道数不出空位 ⇒ 其余 6 道照样补标，标题因 Σ 不完整不动', () => {
+describe('① 程序不代补：缺分只报，正文一字不动', () => {
+  it('7 道全没标分 ⇒ 报 7 道，一道都不补，标题因 Σ 不完整不合成', () => {
     const r = run(SEVEN);
     const rows = pTexts(r.html).filter((t) => /^\d\./.test(t));
-    expect(rows.filter((t) => /（1分）$/.test(t)).length, '6 道补标').toBe(6);
-    expect(rows[3], '数不出的那道不猜数').not.toMatch(/（\d+分）$/);
-    const warn = (r.silentDetails || []).filter((x) => /补标 6 道/.test(x.message));
-    expect(warn.length, '报点指明补了几道').toBe(1);
-    expect(heads(r.html), 'Σ 不完整 ⇒ 标题不合成').toContain('三、填空（每空1分，共7分）');
+    expect(rows.length, '题号不得增删').toBe(7);
+    expect(rows.filter((t) => /（\d+分）$|（每.*共.*分）$/.test(t)), '一行都不许被追加分值').toEqual([]);
+    const w = missWarn(r);
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message, '报点要点到实数').toContain('7 道');
+    expect(w[0].message, '报点要说明程序不补').toContain('程序不补分');
+    expect(heads(r.html), 'Σ 不完整 ⇒ 标题不动').toContain('三、填空（每空1分，共7分）');
   });
 
-  it('长空格写的作答位也算判分处（真卷形态：写成十几个全角空格）', () => {
+  it('长空格写的作答位也算判分处（真卷形态：十几个全角空格）⇒ 报"没标分"而不报"数不出"', () => {
     const row = `<p>1. 4个3相加，写成加法算式是${'　'.repeat(10)}，写成乘法算式是${'　'.repeat(10)}，读作：${'　'.repeat(10)}。</p>`;
     const r = run(['<h1>卷</h1>', '<h3>三、填空（每空1分，共3分）</h3>', row].join('\n'));
-    const t = pTexts(r.html).find((x) => x.startsWith('1.'));
-    expect(t, '3 空 ⇒ 全式').toMatch(/（每空1分，共3分）$/);
+    const w = missWarn(r);
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message, '①②③ 三处作答位都数得出来').not.toContain('没有被识别到的作答位');
+    expect(pTexts(r.html).find((x) => x.startsWith('1.')), '不得补分').not.toMatch(/（每空1分，共3分）$/);
   });
 
   it('零宽占位符写的作答位也算判分处（真卷形态：2×\u200C＝6）', () => {
     const row = '<p>1. 2×\u200C ＝6，\u200C ×5＝30。</p>';
     const r = run(['<h1>卷</h1>', '<h3>三、填空（每空1分，共2分）</h3>', row].join('\n'));
-    const t = pTexts(r.html).find((x) => x.startsWith('1.'));
-    expect(t, '2 空 ⇒ 全式').toMatch(/（每空1分，共2分）$/);
+    const w = missWarn(r);
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message, '两处都数得出').not.toContain('没有被识别到的作答位');
+    expect(pTexts(r.html).find((x) => x.startsWith('1.')), '不得补分').not.toMatch(/（每空1分，共2分）$/);
   });
 
-  it('真卷「三、填空」7 道原样重放：一道都不留空（空位按导出的长空格/零宽符还原）', () => {
+  it('真卷「三、填空」7 道原样重放：一道都不补，报 7 道，标题保持原样', () => {
     const S = '　'.repeat(12);
     const Z = '\u200C';
     const rows = [
@@ -79,13 +87,11 @@ describe('①·补 全或无已撤：能算的先补齐，算不出的只报', (
     const r = run(['<h1>二年级数学上册综合检测</h1>', '<h3>三、填空（每空1分，共24分）</h3>', ...rows].join('\n'));
     const got = pTexts(r.html).filter((t) => /^\d+\./.test(t));
     expect(got.length, '7 道都在').toBe(7);
-    const unscored = got.filter((t) => !/（\d+分）$|（每.*共.*分）$/.test(t));
-    expect(unscored, `每道都要有分：${JSON.stringify(unscored)}`).toEqual([]);
-    // 真卷标题写 24 分，而各题空位合计不等于 24 ⇒ Σ 为准，差异只记一条
-    const title = heads(r.html).find((t) => t.startsWith('三、填空'));
-    expect(title, '标题按 Σ 合成').not.toContain('24分');
-    expect((r.silentDetails || []).concat(r.issues || []).some((x) => /Σ|按逐题分/.test(x.message)) ||
-      (r.issues || []).some((x) => /共/.test(x.message)), '差异要留痕').toBe(true);
+    expect(got.filter((t) => /（\d+分）$|（每.*共.*分）$/.test(t)), '一道都不许补').toEqual([]);
+    const w = missWarn(r);
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message).toContain('7 道');
+    expect(heads(r.html).find((t) => t.startsWith('三、填空')), 'Σ 不完整 ⇒ 标题不合成').toBe('三、填空（每空1分，共24分）');
   });
 });
 
@@ -99,8 +105,8 @@ describe('① A 的禁令在位：直答区不得把作答要求写成带号题'
   });
 });
 
-describe('② B 的补分是逐行的（一处带分不再挡住其余）', () => {
-  it('三、填空：小题一处分都没有 → 按标题单价逐题补 + 按逐题分合成标题', () => {
+describe('② 报点按"哪几道"数，不按"整段"一刀切', () => {
+  it('三、填空：3 道全没分 ⇒ 报 3 道，一行都不补', () => {
     const html = [
       '<h1>单元测评</h1>',
       '<h3>三、填空（每空1分，共6分）</h3>',
@@ -111,13 +117,14 @@ describe('② B 的补分是逐行的（一处带分不再挡住其余）', () =
     const r = run(html);
     const ps = pTexts(r.html).filter((t) => /^\d{1,2}\s*[.、．]/.test(t));
     expect(ps.length, '题号不得增删').toBe(3);
-    expect(ps[0]).toMatch(/（1分）$/);
-    expect(ps[1]).toMatch(/（1分）$/);
-    expect(ps[2], '三处判分写全式').toMatch(/（每空1分，共3分）$/);
-    expect(heads(r.html)[0], '标题按逐题分合计（1+1+3=5）合成').toContain('共5分');
+    expect(ps.join('|'), '不得补任何分').not.toMatch(/（\d+分）|（每空/);
+    const w = missWarn(r);
+    expect(w.length, '只报一条').toBe(1);
+    expect(w[0].message).toContain('3 道');
+    expect(heads(r.html)[0], '标题不动').toBe('三、填空（每空1分，共6分）');
   });
 
-  it('部分小题已带分：只补没分的那几行，已带分的一字不动（原实现全段跳过 → 一直不补）', () => {
+  it('部分已带分：报点只数没带的那几道，已带的一字不动、没带的也不补', () => {
     const html = [
       '<h1>单元测评</h1>',
       '<h3>三、填空（每空1分，共5分）</h3>',
@@ -128,14 +135,14 @@ describe('② B 的补分是逐行的（一处带分不再挡住其余）', () =
     const r = run(html);
     const ps = pTexts(r.html).filter((t) => /^\d{1,2}\s*[.、．]/.test(t));
     expect(ps[0], '已有分不得重复追加').toBe('1. 6＋6＋6＋6表示____个6相加。（每空1分，共1分）');
-    expect(ps[1], '缺分的要补').toMatch(/（1分）$/);
-    expect(ps[2], '缺分的要补（三处写全式）').toMatch(/（每空1分，共3分）$/);
+    expect(ps[1], '缺分不补').toBe('2. 3个5相加，用乘法算式表示是____。');
+    expect(ps[2], '缺分不补').toBe('3. 4×5读作____，表示____个____相加。');
+    const w = missWarn(r);
+    expect(w.length).toBe(1);
+    expect(w[0].message, '只数没带的 2 道').toContain('2 道');
   });
 
-  // 🔴 2026-10-23（属主真机："带单价的逐题标分，目前没有执行"·程序侧那一半）：
-  //   括号空位里的空白常写成实体（`（&emsp;）`），原字符类只认全角/半角空格 ⇒ 判"一处判分处都没有"，
-  //   于是补不了、只能报"数不出判分处"。本锁：实体空白同样按 1 空计，照常按单位分补并合成标题。
-  it('括号空位用空白实体（&emsp;／&nbsp;）也计为判分处：照常补分并合成', () => {
+  it('括号空位写成空白实体（&emsp;／&nbsp;）也数得出：报 3 道，不误报"数不出"', () => {
     const html = [
       '<h1>单元测评</h1>',
       '<h3>三、填空（每空1分，共5分）</h3>',
@@ -144,16 +151,14 @@ describe('② B 的补分是逐行的（一处带分不再挡住其余）', () =
       '<p>3. 8 里面有（&emsp;）个 2，还有（&nbsp;&nbsp;）个 1。</p>',
     ].join('\n');
     const r = run(html);
-    const ps = pTexts(r.html).filter((t) => /^\d{1,2}\s*[.、．]/.test(t));
-    expect(ps[0], '1 空 ⇒ （1分）').toMatch(/（1分）$/);
-    expect(ps[1], '1 空 ⇒ （1分）').toMatch(/（1分）$/);
-    expect(ps[2], '2 空 ⇒ 全式（每空1分，共2分）').toMatch(/（每空1分，共2分）$/);
-    expect(heads(r.html)[0], '标题按逐题分合计（1+1+2=4）合成').toContain('共4分');
+    const w = missWarn(r);
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message).toContain('3 道');
+    expect(w[0].message, '三道的空位都数得出').not.toContain('没有被识别到的作答位');
+    expect(pTexts(r.html).join('|'), '不补分').not.toMatch(/（\d+分）|（每空/);
   });
 
-  // 🔴 2026-10-23（属主定分工："程序侧对于带小题号的题进行合成大标题的标分，分单档和多档"）：
-  //   原实现要求标题**已经写着**共X分才合成（`if (!mB) return`）——标题没写分值就永远不合成。
-  //   现改为：只要每道带号题都各有分值，B 就合成标题（标题有没有分值都合成）。
+  // 合成仍归程序（属主定：真题标分样式由程序侧合成）——这几条不受"不代补"影响。
   it('标题没写分值，但小题各有分 ⇒ B 仍合成（单档）', () => {
     const html = [
       '<h1>单元测评</h1>',
@@ -178,11 +183,8 @@ describe('② B 的补分是逐行的（一处带分不再挡住其余）', () =
   });
 });
 
-// 🔴 2026-10-23（A/B 分工核查·覆盖缺口）：
-//   标题只写"（共X分）"（A 最常写的形态）时，1.6b-pre 不触发（它只认"每…共…"），1.6b 又因取不到逐题分
-//   直接 return ⇒ "写了题号的行没标分"整段**零提示通过**（实测：判断对错 3 题全无分 → 无任何 issue）。
-//   按 A 的硬规则"带号题个数＝标分个数"，B 至少要报出来；但**不得改数**（无单价可推，猜就是改总分）。
-describe('③ 编号题缺分：B 必须报（只报不改）', () => {
+// 标题只写"（共X分）"时不走 1.6b-pre（它只认"每…共…"），由 1.6b 报——两处不得同时报同一条。
+describe('③ 编号题缺分：B 必须报（只报不改），且同一处只报一条', () => {
   const html = [
     '<h1>单元测评</h1>',
     '<h3>三、判断对错（共10分）</h3>',
@@ -191,10 +193,10 @@ describe('③ 编号题缺分：B 必须报（只报不改）', () => {
     '<p class="question">3. 假分数一定大于 1。（　）</p>',
   ].join('\n');
 
-  it('标题只写共X分 + 3 道带号题全未标分 ⇒ 报 warn，正文与分数一字不动', () => {
+  it('标题只写共X分 + 3 道带号题全未标分 ⇒ 报 warn（仅一条），正文与分数一字不动', () => {
     const r = run(html);
     const warn = (r.silentDetails || []).filter((x) => x.level === 'warn' && /没标分/.test(x.message));
-    expect(warn.length, '必须有报点（原先零提示）').toBe(1);
+    expect(warn.length, '必须有报点、且只一条（不许两处各报一遍）').toBe(1);
     expect(warn[0].message, '报点要指名大题').toContain('判断对错');
     expect(warn[0].message, '报点要说清几道').toContain('3 道');
     expect(r.html, '程序不改数：一行都不许被追加分值').not.toMatch(/（\d+分）/);

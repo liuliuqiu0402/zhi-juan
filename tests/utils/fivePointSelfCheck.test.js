@@ -27,7 +27,9 @@ describe('① 编号/不编号：单一判据 + 两条边界', () => {
     expect(tpl(), '按写作顺序：标题行先定支').toContain('第①步：每道大题在写标题那一行就定区');
   });
 
-  it('行为：判断题（句末带括号空位）按编号题逐题补分', () => {
+  // 🔴 2026-10-23（属主："我们不要程序侧补小题标分…这个得严格执行，不能有任何折扣"）：
+  //   缺分从"程序补"改为"只报"——报点必须点到实数，正文一个字都不动。
+  it('行为：判断题带号却全无分 ⇒ 报 3 道，不补、标题不合成', () => {
     const html = page('三、判断对错（每题2分，共6分）', [
       '<p class="question">1. 0 既不是正数也不是负数。（　）</p>',
       '<p class="question">2. 分数的分子分母同时乘一个数，分数大小不变。（　）</p>',
@@ -36,8 +38,11 @@ describe('① 编号/不编号：单一判据 + 两条边界', () => {
     const r = run(html);
     const rows = numbered(r.html);
     expect(rows.length, '题号不得增删').toBe(3);
-    for (const row of rows) expect(row, '每行都要有分').toMatch(/（2分）$/);
-    expect(head(r.html), '标题按逐题分合成').toContain('（每题2分，共6分）');
+    expect(rows.filter((t) => /（\d+分）$/.test(t)), '一行都不许补分').toEqual([]);
+    const w = (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message).toContain('3 道');
+    expect(head(r.html), 'Σ 不完整 ⇒ 标题不动').toBe('三、判断对错（每题2分，共6分）');
   });
 
   it('行为：并列算式（无成句）不编号、不补分、标题不动', () => {
@@ -53,13 +58,13 @@ describe('① 编号/不编号：单一判据 + 两条边界', () => {
 
   // 🔴 2026-10-23（属主改判据）：模型不认"其余→不编号"（"其余的也是题"，就还是会编号）。
   //   程序只查可核事实：有号 ⇒ 每题有分；无号 ⇒ 分值只在标题、题内不得标分。
-  it('行为：写了号、也逐题标了分 ⇒ 不报（这是合法的一组，标题由程序合成）', () => {
+  it('行为：写了号、也逐题标了分 ⇒ 不报（这是合法的一组，标题由程序按 Σ 合成）', () => {
     const r = run(page('四、填空（每空1分，共4分）', [
-      '<p>1. 5＋____＝9。</p>',
-      '<p>2. 8 里面有____个 2。</p>',
+      '<p>1. 5＋____＝9。（1分）</p>',
+      '<p>2. 8 里面有____个 2。（1分）</p>',
     ]));
     expect(rows0(r.html), '号保留').toBe(2);
-    expect((r.silentDetails || []).filter((x) => /逐题分/.test(x.message)).length, '不该挑刺').toBe(0);
+    expect((r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message)).length, '不该挑刺').toBe(0);
     expect(head(r.html), '标题按 Σ 合成').toContain('共2分');
   });
 
@@ -118,14 +123,26 @@ describe('② 标分：带不带单位可精准区分', () => {
     expect(t).toContain('两处及以上写全式');
   });
 
-  it('行为：1 空 →（1分）；3 空 →（每空1分，共3分）', () => {
+  // 形态判据不变；但写法归 A——程序只校验"写的对不对、缺了报不报"，不再代写。
+  it('行为：A 已按判据写（一处裸分／多处全式）⇒ 原样保留、按 Σ 合成', () => {
     const html = page('三、填空（每空1分，共4分）', [
-      '<p>1. 5＋____＝9。</p>',
-      '<p>2. 8 里面有____个 2，____个 4，共____个 1。</p>',
+      '<p>1. 5＋____＝9。（1分）</p>',
+      '<p>2. 8 里面有____个 2，____个 4，共____个 1。（每空1分，共3分）</p>',
     ]);
     const rows = numbered(run(html).html);
     expect(rows[0], '一处判分 ⇒ 裸分').toMatch(/（1分）$/);
     expect(rows[1], '多处判分 ⇒ 全式带单位').toMatch(/（每空1分，共3分）$/);
+  });
+
+  it('行为：A 没写 ⇒ 只报不写（程序不代标）', () => {
+    const html = page('三、填空（每空1分，共4分）', [
+      '<p>1. 5＋____＝9。</p>',
+      '<p>2. 8 里面有____个 2，____个 4，共____个 1。</p>',
+    ]);
+    const r = run(html);
+    expect(numbered(r.html).join('|'), '不得代标').not.toMatch(/（\d+分）|（每空/);
+    expect((r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message))[0].message,
+      '报点报 2 道').toContain('2 道');
   });
 });
 
@@ -158,14 +175,18 @@ describe('②-b 处数要数：一题三空＝三处，不是一处', () => {
   });
 });
 
-describe('③ 逐题标：每道带号题都要有分', () => {
-  it('行为：5 道带号题全无分 ⇒ 全部补上（缺一不可）', () => {
+describe('③ 逐题标：每道带号题都要有分（A 的活，缺了程序只报）', () => {
+  it('行为：5 道带号题全无分 ⇒ 报 5 道、一道不补', () => {
     const html = page('三、填空（每空1分，共5分）', [
       '<p>1. a____</p>', '<p>2. b____</p>', '<p>3. c____</p>', '<p>4. d____</p>', '<p>5. e____</p>',
     ]);
-    const rows = numbered(run(html).html);
-    expect(rows.length).toBe(5);
-    expect(rows.filter((t) => /（\d+分）$|（每.*共.*分）$/.test(t)).length, '5 道全都要标').toBe(5);
+    const r = run(html);
+    const rows = numbered(r.html);
+    expect(rows.length, '题号不得增删').toBe(5);
+    expect(rows.filter((t) => /（\d+分）$|（每.*共.*分）$/.test(t)), '一道都不许补').toEqual([]);
+    const w = (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message).toContain('5 道');
   });
 });
 
