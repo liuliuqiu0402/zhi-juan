@@ -329,7 +329,10 @@ export const styleInstructions = {
   //    约定与容错见 utils/diagramBlock.js（解析失败会原样保留那块文字，不会丢内容）。
   'mindmap': '以「导图块」真实呈现知识结构（本风格的核心交付物）：'
     + '<div class="k-diagram" data-type="mindmap" data-layout="balanced">{"title":"中心主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
-    + 'data-type 按内容自选：mindmap(概念层级，可配 data-layout="balanced" 左右分布 或 "right" 向右生长)、'
+    // 🔴 2026-10-23（属主："左右分布、还是单独往右，这个不人为定，交由模型按内容定"）：
+    //   版式（data-layout）是**内容判断**，交给模型；判据绑在可自判的结果上——标签能否一行放下、图幅是否超版心。
+    //   几何侧不抢这个决定：模型写了就照办，程序只在"没写"或"已把一行压到不足 7 字"时兜底。
+    + 'data-type 与 data-layout 都按内容自选：mindmap(概念层级；**版式由你按内容定**——"balanced" 左右分布／"right" 向右生长，以"**标签不折行、图幅不超 A4 版心**"为准)、'
     + 'brace(整体与部分：title,children)、flow(步骤与判定：steps[{text,kind:"start|process|decision|end",branches:[{label,steps:[…]}]}])、'
     + 'timeline(时间顺序：items[{when,text,detail}])、fishbone(因果：effect,categories[{name,causes:[…]}])、'
     + 'concept(带关系标注：nodes[{id,text}],links[{from,to,label}])。'
@@ -352,7 +355,7 @@ export const styleInstructions = {
     //   把"偷懒"的两条退路直接堵死：**有板块就必须有图**（零块即不合规）、**能进图的一律进图**（不得退回条目清单）。
     + '；**有板块就必须有图——整份资料一块导图都没有即不合规**；**能在导图里承载的一律进图，不得以条目清单代替导图**：'
     + '<div class="k-diagram" data-type="mindmap" data-layout="balanced">{"title":"该板块主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
-    + 'data-type 按该板块内容自选：mindmap(概念层级，可配 data-layout="balanced" 左右分布 或 "right" 向右生长)、'
+    + 'data-type 与 data-layout 都按该板块内容自选：mindmap(概念层级；**版式由你按内容定**——"balanced" 左右分布／"right" 向右生长，以"**标签不折行、图幅不超 A4 版心**"为准)、'
     + 'brace(整体与部分：title,children)、flow(步骤与判定：steps[{text,kind:"start|process|decision|end",branches:[{label,steps:[…]}]}])、'
     + 'timeline(时间顺序：items[{when,text,detail}])、fishbone(因果：effect,categories[{name,causes:[…]}])、'
     + 'concept(带关系标注：nodes[{id,text}],links[{from,to,label}])。'

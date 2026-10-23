@@ -56,8 +56,14 @@ export const LAYOUTS = {
 export const buildDiagramSvg = (spec, opts = {}) => {
   const type = spec && BUILDERS[spec.type] ? spec.type : 'mindmap';
   const body = spec || {};
+  // 🔴 2026-10-23（属主："左右分布、还是单独往右，这个不人为定，交由模型按内容定，可以吗？"）：
+  //   **版式是内容判断，归模型**——`data-layout` / `spec.layout` 由模型按内容选，程序默认照办；
+  //   程序只在两种情况下接手：①模型没写版式（此时按"哪种版式折行更少"自动选）；②模型选的版式会把
+  //   标签压成窄柱（折行宽 < 100px ≈ 一行不足 7 个字），而另一版式能放宽 1.6 倍以上——这才兜底换版式。
+  //   折行与版式**解耦**：版式决定"宽往哪儿长"，折行宽仍按 643 版心自动算（一行放得下就不折）。
+  const specifiedLayout = type === 'mindmap' ? String(body.layout || opts.layout || '') : '';
   // 思维导图的版式从 spec.layout 取（balanced | right），其余图种忽略
-  const merged = type === 'mindmap' ? { ...opts, layout: body.layout || opts.layout || 'balanced' } : opts;
+  const merged = type === 'mindmap' ? { ...opts, layout: specifiedLayout || 'balanced' } : opts;
   let r = BUILDERS[type](body, merged);
   // 🔴 2026-10-22（属主："按 A4 尺寸排版"·取 643 版心）：**先排版、再整体缩放**会让字号跟着变小。
   //   这里加一步"**按版心宽度重排**"：宽了先收窄折行宽度（maxLabelWidth）再排，最多 8 轮，字号保持不变；
@@ -65,6 +71,8 @@ export const buildDiagramSvg = (spec, opts = {}) => {
   //   **改用向右生长（right）**再排一次——宽度不再翻倍；实在收不下（如时间轴按条数排）则保持原样，
   //   交给导出侧等比收敛并告警。
   const fit = Number(merged.fitWidth) || 0;
+  /** 实际采用的版式（模型指定的优先；未指定或触发可读性兜底时才会与入参不同） */
+  let layoutUsed = merged.layout;
   if (fit) {
     // 🔴 2026-10-22（属主："框的长短应该根据实际内容和 A4 尺寸来""一行不够才换行吧？"）：
     //   折行宽度的判据从"写死 150px"改成"**A4 版心允许多宽就用多宽**"——
@@ -91,16 +99,29 @@ export const buildDiagramSvg = (spec, opts = {}) => {
     // 🔴 2026-10-23（属主真机："有的根本不需要换行而换行了…看着很乱很长"·根因）：
     //   左右分布把宽度**按两侧各算一次**（画布 = 较宽一侧 ×2），所以深一点的树会被迫把折行宽一路压到 56，
     //   自然宽 100–170 的标签全被折成 2–5 行（实测框宽 89、最长那条 5 行）；同一内容换成"向右生长"只用一次
-    //   版心宽，折行宽能取到 244、**全部保持一行**。故两版式各排一次，取"折行更少"的那一版：
-    //   另一版式能把折行宽放宽到 1.25 倍以上才换（否则仍尊重用户选的版式，不无谓改观感）。
+    //   版心宽，折行宽能取到 244、**全部保持一行**。
+    //   处置分两档（见上方 specifiedLayout 的口径）：模型没写版式才按"折行更少"自动选；写了就以它为准，
+    //   只有当它把一行压到不足 ~7 个字、而另一版式能放宽 1.6 倍以上时，才兜底换（这是"可读性下限"，不是改观感）。
+    const WRAP_READABLE_MIN = 100;
     let best = primary;
     if (type === 'mindmap') {
-      const alt = narrowTo({ ...merged, layout: merged.layout === 'right' ? 'balanced' : 'right' });
-      if (alt.width <= fit && alt.__wrap >= primary.__wrap * 1.25) best = alt;
+      const altLayout = merged.layout === 'right' ? 'balanced' : 'right';
+      const alt = narrowTo({ ...merged, layout: altLayout });
+      const altFits = alt.width <= fit;
+      if (!specifiedLayout) {
+        if (altFits && alt.__wrap >= primary.__wrap * 1.25) { best = alt; layoutUsed = altLayout; }
+      } else if (altFits && primary.__wrap < WRAP_READABLE_MIN && alt.__wrap >= primary.__wrap * 1.6) {
+        best = alt;
+        layoutUsed = altLayout;
+      }
     }
     r = best;
   }
-  return { svg: r.svg, width: r.width, height: r.height, nodes: r.nodes || [], type };
+  return {
+    svg: r.svg, width: r.width, height: r.height, nodes: r.nodes || [], type,
+    // 版式只对思维导图有意义：回传实际采用值，便于调用方留痕/单测断言（其余图种不带该字段）
+    ...(type === 'mindmap' ? { layout: layoutUsed } : {}),
+  };
 };
 
 /**

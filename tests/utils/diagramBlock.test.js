@@ -178,34 +178,35 @@ describe('diagramBlock · 标记块渲染', () => {
   // 🔴 2026-10-23（属主真机："真实产出的，有的根本不需要换行而换行了…看着很乱很长"·根因）：
   //   折行宽不是"这一行放不下"，而是**全图一个数**——由"整幅 ≤ 643"二分得出。左右分布把宽度按两侧
   //   各算一次，深一点的树必然把折行宽一路压到 56 ⇒ 自然宽 100–170 的标签被折成 2–5 行。
-  //   口径：两版式（左右分布／向右生长）各排一次，取**折行更少**的那版；内容一行放得下就不许折。
+  //   口径：版式交模型（按内容定）；模型没写时程序按**折行更少**自动选；内容一行放得下就不许折。
+  /** 实测口径的近似：汉字 1em、数字/字母 0.55em（浏览器里走 canvas 实测，此处只要单调可比） */
+  const m = (t, f) => [...String(t)].reduce((s, ch) => s + (ch.codePointAt(0) > 0x2e80 ? f : f * 0.55), 0);
+  const MINDMAP = () => ({
+    type: 'mindmap',
+    root: {
+      title: '分数的意义与性质',
+      children: [
+        { title: '分数的意义', children: [
+          { title: '把单位“1”平均分成若干份，表示这样一份或几份的数' },
+          { title: '分数单位' },
+          { title: '分数与除法的关系' },
+        ] },
+        { title: '真分数与假分数', children: [
+          { title: '真分数：分子比分母小' },
+          { title: '假分数：分子大于或等于分母' },
+          { title: '带分数' },
+        ] },
+        { title: '分数的基本性质', children: [
+          { title: '分子分母同乘同除相同的数' },
+          { title: '约分' },
+          { title: '通分' },
+        ] },
+      ],
+    },
+  });
+
   it('内容一行放得下就不折行：自动改取"折行更少"的版式，且仍不超版心', () => {
-    // 实测口径的近似：汉字 1em、数字/字母 0.55em（浏览器里走 canvas 实测，此处只要单调可比）
-    const m = (t, f) => [...String(t)].reduce((s, ch) => s + (ch.codePointAt(0) > 0x2e80 ? f : f * 0.55), 0);
-    const spec = {
-      type: 'mindmap',
-      root: {
-        title: '分数的意义与性质',
-        children: [
-          { title: '分数的意义', children: [
-            { title: '把单位“1”平均分成若干份，表示这样一份或几份的数' },
-            { title: '分数单位' },
-            { title: '分数与除法的关系' },
-          ] },
-          { title: '真分数与假分数', children: [
-            { title: '真分数：分子比分母小' },
-            { title: '假分数：分子大于或等于分母' },
-            { title: '带分数' },
-          ] },
-          { title: '分数的基本性质', children: [
-            { title: '分子分母同乘同除相同的数' },
-            { title: '约分' },
-            { title: '通分' },
-          ] },
-        ],
-      },
-    };
-    const r = buildDiagramSvg(spec, { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
+    const r = buildDiagramSvg(MINDMAP(), { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
     expect(r.width, '不得超出版心').toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
     // 折行宽本身有上限（版心×0.38 ≈ 244：单个框不占半页）——超过这个宽的长句折行是**有意的**，不算"多折"。
     const CAP = Math.round(PRINT_SAFE_WIDTH * 0.38);
@@ -213,5 +214,27 @@ describe('diagramBlock · 标记块渲染', () => {
       .filter((n) => n.lines.length > 1 && m(n.title, n.fs) <= CAP)
       .map((n) => `${n.title}(${n.lines.length}行，自然宽${Math.round(m(n.title, n.fs))})`);
     expect(wrapped, '一行放得下的标签不得被折行').toEqual([]);
+  });
+
+  // 🔴 2026-10-23（属主："版式交由模型按内容定"）：模型写了版式就**照办**——折行宽仍按版心自动算，
+  //   但版式不因"另一种也许更宽"而被改掉；只有把一行压到不足 ~7 个字（<100px）才兜底换。
+  it('版式交模型定：指定 right 就按 right 出图（不在没必要时改观感）', () => {
+    const r = buildDiagramSvg({ ...MINDMAP(), layout: 'right' }, { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
+    expect(r.layout, '按模型指定的版式').toBe('right');
+    expect(r.width).toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
+  });
+
+  it('可读性兜底：指定 balanced 会把一行压到 <100px 时才换版式', () => {
+    const r = buildDiagramSvg({ ...MINDMAP(), layout: 'balanced' }, { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
+    expect(r.layout, '压成窄柱 ⇒ 兜底换向右生长').toBe('right');
+    expect(r.width).toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
+  });
+
+  it('折行与版式解耦：同一版式下，宽够就不折、宽不够才折（内容决定）', () => {
+    const wide = buildDiagramSvg({ ...MINDMAP(), layout: 'right' }, { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
+    const tiny = buildDiagramSvg({ ...MINDMAP(), layout: 'right' }, { measurer: m, fitWidth: 320 });
+    const count = (r) => r.nodes.reduce((s, n) => s + n.lines.length, 0);
+    expect(count(tiny), '版心窄 ⇒ 折行更多').toBeGreaterThan(count(wide));
+    expect(wide.layout, '版式不因版心变窄而改').toBe('right');
   });
 });
