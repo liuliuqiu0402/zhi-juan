@@ -69,9 +69,10 @@ describe('题量充足（语义口径 · 2026-09-15 定版）', () => {
     //   教辅侧根本不注入。断言随之改准：两侧各锁"不外溢"与"不得回潮旧写法"。
     // 🔴 2026-10-23（两区分支改名）：判据本体（`NUMBERING_BRANCH_RULE`）**本就全题类注入**（教辅也有编号问题），
     //   故"不外溢"的锚不能取判据里的词，只能取**exam 专属的分值标注块**才有的句子。
-    expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：分值写法在位').toContain('标题里的分与小题的分互不替代');
+    // 🔴 2026-10-24（同分/不同分两态）：分值条首句由"标题里的分与小题的分互不替代"改为"分写在哪，看同不同分"。
+    expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：分值写法在位').toContain('第②步：分写在哪');
     expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：单价方向在位').toContain('先定单价、再乘个数');
-    expect(tpl('语文', 'primary_low', 'practice'), '教辅侧：不得外溢').not.toContain('标题里的分与小题的分互不替代');
+    expect(tpl('语文', 'primary_low', 'practice'), '教辅侧：不得外溢').not.toContain('第②步：分写在哪');
     expect(tpl('语文', 'primary_low', 'practice'), '旧字符串前件写法不得回潮').not.toContain('（正式考卷）**书写类题按单位');
   });
 

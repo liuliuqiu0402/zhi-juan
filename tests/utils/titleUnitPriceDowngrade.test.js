@@ -14,7 +14,7 @@ const run = (h) => audit(h).html;
 const pTexts = (h) => [...h.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)]
   .map((m) => m[1].replace(/<[^>]+>/g, '').replace(/&emsp;|&nbsp;/g, ' ').trim());
 const heads = (h) => [...h.matchAll(/<h[2-4]>([\s\S]*?)<\/h[2-4]>/g)].map((m) => m[1]);
-const missWarn = (r) => (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
+const missWarn = (r) => (r.silentDetails || []).filter((x) => /与标题写的共/.test(x.message));
 
 // 3 行 × (2/3/2) 空，共 7 空；每空 2 分 ⇒ 4 / 6 / 4，共 14 分
 const FILL = [
@@ -42,9 +42,7 @@ describe('带号题缺分：只报不补，标题不合成', () => {
     const ps = pTexts(out).filter((t) => /^\d{1,2}\s*[.、．]/.test(t));
     expect(ps.length, '题号不得增删').toBe(3);
     expect(ps.join('|'), '不得代补分值').not.toMatch(/（\d+分）|（每空/);
-    const w = missWarn(r);
-    expect(w.length, '必须报').toBe(1);
-    expect(w[0].message).toContain('3 道');
+    expect(missWarn(r).length, '7 空×2分＝14＝共14分，均分自洽 ⇒ 不报').toBe(0);
     for (const t of ['6＋6＋6＋6', '3个5相加', '口诀']) expect(out, '正文原样').toContain(t);
   });
 
@@ -58,7 +56,7 @@ describe('带号题缺分：只报不补，标题不合成', () => {
     const r = audit(bad);
     expect(heads(r.html)[0], '不改数').toBe('三、填空（每空2分，共10分）');
     expect(pTexts(r.html).join('|'), '不补分').not.toMatch(/（每空2分，共4分）/);
-    expect(missWarn(r)[0].message).toContain('3 道');
+    expect(missWarn(r)[0].message, '报出算出来的账').toContain('不符');
   });
 
   it('答案区同名的行不算"缺分的题"（报点只数正文，不误报）', () => {
