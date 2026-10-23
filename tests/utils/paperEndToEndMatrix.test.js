@@ -170,7 +170,7 @@ describe('判据可判定性：口算/竖式/填空 各自命中且只命中一�
   });
 
   it('中学域型名标题（只作范围标识）⇒ 判为不编号，不被"编号"支误伤', () => {
-    expect(score, '不编号判据只看"有没有各自独立的题"').toContain('各自独立、需分别判分');
+    expect(score, '编号判据＝成题区（看"有没有各自成句的题"）').toContain('成题区');
     const mid = getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template;
     expect(mid, '中学支在位').toContain('标题只作范围标识');
   });
