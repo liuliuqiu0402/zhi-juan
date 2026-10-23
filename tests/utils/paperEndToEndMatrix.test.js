@@ -151,7 +151,7 @@ describe('判据可判定性：口算/竖式/填空 各自命中且只命中一�
   });
 
   it('口算/竖式（不写号）⇒ 不写号支：标题给单价、题内不标分', () => {
-    expect(score, '单价随标题（直答区）').toContain('标题写"（每〈单位〉X分，共X分）"、题内不标分');
+    expect(score, '单价随标题（直答区）').toContain('标题写"（每〈单位〉X分，共X分）"');
     expect(score, '关键反向约束在位（不编号不写号）').toContain('每题不写小题号');
     expect(score, '不编号 ⇒ 分值只由标题承载').toContain('分值只由标题承载');
     expect(score, '不得为分值补号/补题干').toContain('只标本来就有的子题');

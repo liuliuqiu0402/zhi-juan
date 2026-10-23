@@ -123,3 +123,31 @@ describe('analysis 多 schema：知识图谱响应不得被误判为坏结果', 
     expect(mockStore.has(KM_KEY)).toBe(false);
   });
 });
+
+// 🔴 2026-10-24 真机回归（属主："粘贴原文后进行分析，为啥返回的是空界面？"）：
+//   日志链路＝命中 L1 → 解析失败 → 修复失败 → 缺 knowledgeHierarchy → 丢弃 → 界面全空；
+//   再点"重试"**仍命中同一条坏缓存**，永远出不来。
+//   病根：原判据只查"content 里出现关键字段名"——残缺 JSON 里照样有 `knowledgeHierarchy` 这几个字。
+//   现判**结构**：剥掉 ```json 围栏后必须能 JSON.parse。
+const truncatedAnalysis = '{"knowledgeHierarchy":[{"bigConcept":"表内乘除","coreKnowledge":[{"name":"7的乘法口诀"';
+const fencedOk = '```json\n{"knowledgeHierarchy":[],"coreTopics":"表内乘除"}\n```';
+
+describe('坏 JSON（含字段名但残缺）→ 读写两端都拒，避免"重试永远空白"', () => {
+  beforeEach(() => { mockStore.clear(); });
+
+  it('写端：残缺 JSON 拒写（不污染缓存）', async () => {
+    await setCachedPromptResult(ANALYSIS_KEY, truncatedAnalysis, { taskType: 'analysis', model: 'deepseek-flash' });
+    expect(mockStore.has(ANALYSIS_KEY)).toBe(false);
+  });
+
+  it('读端：命中残缺 JSON 缓存 → 删除键并返回 null（放行真调，重试才有效）', async () => {
+    mockStore.set(ANALYSIS_KEY, freshEntry(truncatedAnalysis, 'analysis'));
+    expect(await getCachedPromptResult(ANALYSIS_KEY)).toBeNull();
+    expect(mockStore.has(ANALYSIS_KEY)).toBe(false);
+  });
+
+  it('带 ```json 围栏的完整 JSON 不算坏（仍可写入并命中）', async () => {
+    await setCachedPromptResult(ANALYSIS_KEY, fencedOk, { taskType: 'analysis', model: 'deepseek-flash' });
+    expect(await getCachedPromptResult(ANALYSIS_KEY)).toBe(fencedOk);
+  });
+});

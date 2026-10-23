@@ -217,6 +217,24 @@ const keyFieldsFor = (taskType: string, declared?: string[]): string[] =>
   (Array.isArray(declared) && declared.length ? declared : DEFAULT_CACHE_KEY_FIELDS[taskType] || []);
 
 /**
+ * 🔴 2026-10-24（真机：教材分析"返回空界面"）：原判据只查"content 里出现某个关键字段名"——
+ *   一段被截断/夹带说明的 JSON 里**照样出现** `knowledgeHierarchy` 这几个字，于是坏结果被判为有效、
+ *   反复命中（日志实证：命中 L1 → 解析失败 → 修复失败 → 缺 knowledgeHierarchy → 丢弃 → 界面全空，
+ *   再点"重试"仍命中同一条坏缓存，永远出不来）。
+ *   改为**结构判据**：剥掉 ```json 围栏后必须能被 JSON.parse 解析。解析不了就是坏结果，一律不认。
+ */
+const looksLikeWholeJson = (s: string): boolean => {
+  const t = String(s || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  if (!t.startsWith('{') && !t.startsWith('[')) return false;
+  try {
+    JSON.parse(t);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
  * 生成 prompt 级缓存键（确定性：相同 taskType+model+prompt → 相同键）
  */
 export function generatePromptCacheKey(taskType: string, model: string, prompt: string): string {
@@ -239,9 +257,9 @@ export async function getCachedPromptResult(cacheKey: string): Promise<string | 
     //    完整响应，否则视为坏缓存 → 删除并放行真调 API（防历史污染的坏键仍被命中冻结）。
     if (['analysis', 'blueprint'].includes(entry.taskType)) {
       const keyFields = keyFieldsFor(entry.taskType, entry.keyFields);
-      const valid = keyFields.some((f) => entry.content.includes(f));
+      const valid = keyFields.some((f) => entry.content.includes(f)) && looksLikeWholeJson(entry.content);
       if (!valid) {
-        console.warn(`🗑️ [L1缓存] 命中 ${entry.taskType} 坏缓存（缺关键字段），删除并放行真调（key:${cacheKey.slice(0, 24)}...）`);
+        console.warn(`🗑️ [L1缓存] 命中 ${entry.taskType} 坏缓存（缺关键字段或不是完整 JSON），删除并放行真调（key:${cacheKey.slice(0, 24)}...）`);
         await storage.removeItem(cacheKey);
         return null;
       }
@@ -273,8 +291,8 @@ export async function setCachedPromptResult(
     if (meta?.taskType === 'analysis' || meta?.taskType === 'blueprint') {
       const keyFields = keyFieldsFor(meta.taskType, meta.keyFields);
       // 空内容或缺关键字段 = 坏结果 → 拒写（空串是 falsy，不能走 `content &&` 放过）
-      if (!content || !content.trim() || !keyFields.some((f) => content.includes(f))) {
-        console.warn(`🚫 [L1缓存] 拒绝写入 ${meta?.taskType} 坏结果（空/缺关键字段），避免污染缓存（key:${cacheKey.slice(0, 24)}...）`);
+      if (!content || !content.trim() || !keyFields.some((f) => content.includes(f)) || !looksLikeWholeJson(content)) {
+        console.warn(`🚫 [L1缓存] 拒绝写入 ${meta?.taskType} 坏结果（空/缺关键字段/不是完整 JSON），避免污染缓存（key:${cacheKey.slice(0, 24)}...）`);
         return;
       }
     }
