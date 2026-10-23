@@ -113,7 +113,7 @@ describe('不该有题号／小题标题的题组：一个号都不许冒出来�
     for (const stage of ['primary_low', 'primary_mid', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t, `${stage}：编号判据＝一组只做一个动作`).toContain('一组只做一个动作');
-      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('每题不写小题号');
+      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('不写小题号（顶格 1. 2. 3.）');
       expect(t, `${stage}：不许只有号没有分，也不许没有号却在题内标分`).toContain('不许只有号没有分，也不许没有号却在题内标分');
       expect(t, `${stage}：不得为标分新增题号或题干`).toContain('只标本来就有的子题');
     }
@@ -157,9 +157,9 @@ describe('B 侧边界：只在账能对平时纠正（对不平就不猜、不�
     expect(numbered(out).length, '题号不得被程序删（不删正文）').toBe(2);
     expect(numbered(out).join('|'), '不得代补分值').not.toMatch(/（\d+分）/);
     expect(heads(out)[0], 'Σ 不完整 ⇒ 标题不动').toBe('三、填空（每空1分，共8分）');
-    const w = (r.silentDetails || []).filter((x) => /与标题写的共/.test(x.message));
-    expect(w.length, '2 处×1分＝2 分 ≠ 共8分 ⇒ 必须报').toBe(1);
-    expect(w[0].message, '报出实有处数').toContain('2 处');
+    const w = (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message, '报 2 道').toContain('2 道');
   });
 
   it('同卷并存：单价组（A2）不动，逐题标分组（A1）才由 B 合成——不以全卷口径误伤', () => {

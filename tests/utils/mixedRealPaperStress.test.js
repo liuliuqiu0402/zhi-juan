@@ -136,8 +136,9 @@ describe('② 违规整卷（A 违约）：该报的报、正文不动，不得�
     const r = run(stripped);
     const rows = section(r.html, '三、填空');
     expect(rows.filter((t) => /（\d+分）$|（每.*共.*分）$/.test(t)).length, '一道都不许补').toBe(0);
-    // 3 空+2 空+1 空＝6 处×1分＝共6分，标题自洽 ⇒ 均分不必逐题标、不报
-    expect((r.silentDetails || []).filter((x) => /与标题写的共/.test(x.message)).length, '账自洽 ⇒ 不报').toBe(0);
+    const w = (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message).toContain('3 道');
   });
 
   it('某题已带分、其余没带 ⇒ 只报没带的那几道，已带的一字不动、没带的也不补', () => {
@@ -148,7 +149,9 @@ describe('② 违规整卷（A 违约）：该报的报、正文不动，不得�
     const rows = section(r.html, '三、填空');
     expect(rows[0], '已带分不得重复追加').toBe('1. 6＋6＋6＋6表示____个6相加。（1分）');
     expect(rows[1], '缺分不补').toBe('2. 3个5相加，用乘法算式表示是____，读作____。');
-    expect((r.silentDetails || []).filter((x) => /与标题写的共/.test(x.message)).length, '账自洽 ⇒ 不报').toBe(0);
+    const w = (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message, '只数没带的 2 道').toContain('2 道');
   });
 
   it('标题总数与逐题分不符 ⇒ 按 Σ 替换标题（原标题数不残留）', () => {

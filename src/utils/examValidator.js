@@ -1031,22 +1031,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //   现改为**逐行补**：只有全段都带分才跳过；否则只给"没分的那几行"补，已带分的不动。
         const needP = linesP.filter((x) => !x.hasOwn);
         if (needP.length === 0) return;                // 全段已逐题标分 → 归 1.6b 合成
-        // 🔴 2026-10-23（属主："我们不要程序侧补小题标分…这个得严格执行，不能有任何折扣"）：
-        //   本块**只报不改**——原"按标题单价补标"整段删除（程序替 A 补＝把缺陷埋掉）。
-        // 🔴 2026-10-24（属主："是均分，大标题中是正确的了，还用标吗？"）：**均分且标题账自洽 ⇒ 不必逐题标**。
-        //   正规卷就是"（每题2分，共10分）"下面只印题号、不再重复分值。故本块只在**标题的账对不上**时报：
-        //   单价 ×（带号题数 或 题内实有处数）≠ 标题所写"共Y分"。
-        const nQ = linesP.length;
-        const totalBlanks = linesP.reduce((a, x) => a + countBlanks(x.el.innerHTML), 0);
-        const byQuestion = /题/.test(unitName);        // 单位是"题"：按题数结账；否则按处数结账
-        const units = byQuestion ? nQ : totalBlanks;
-        if (units > 0 && Math.abs(unitPrice * units - declared) < 1e-6) return;   // 均分且账自洽 ⇒ 不报
+        // 🔴 2026-10-23（属主："我们不要程序侧补小题标分，小题标分必须是模型侧根据题的实际内容标出。
+        //   而且按照模型的写题顺序，是能做到分值自洽的。所以这个得严格执行才行，不能有任何折扣"）：
+        //   本块**只报不改**——原"按标题单价补标"（含"能算的先补、补不了再报"的半修补）**整段删除**。
+        //   理由：程序只读得到标题上的单价，读不到这道题实际有几处判分、每处该值多少；替 A 补一个数，
+        //   等于把 A 的缺陷埋掉（真机"三空2分"正是这么补出来的）。Σ 不完整时标题也不合成（不拿残账当总数）。
         const blindP = needP.filter((x) => countBlanks(x.el.innerHTML) === 0).length;
-        const why = byQuestion
-          ? `${nQ} 道题×${fmtScore(unitPrice)}分＝${fmtScore(unitPrice * nQ)} 分`
-          : `题内共数出 ${totalBlanks} 处×${fmtScore(unitPrice)}分＝${fmtScore(unitPrice * totalBlanks)} 分`;
         silentCount('title-unit-misplaced',
-          `大题「${t}」：${why}，与标题写的共${fmtScore(declared)}分不符${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}——各题不同分时，逐题在带号行末标自己的分（标题只写"（共Y分）"）；同分时，把标题写成与内容相符的"（每${unitName}X分，共Y分）"、题内不必标；程序不补分、不改数、不动结构，Σ 对不上时标题也不合成`, 'warn');
+          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}——逐题标分只能由你按该题的实际内容给出：带号行末写"（每${unitName}X分，共Y分）"，只有一处判分写"（X分）"；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）`, 'warn');
         return;
       });
       out = tplP.innerHTML;

@@ -126,9 +126,9 @@ describe('② 违约形态：报出来、但程序不动正文', () => {
     expect(numbered(r.html)[0]).toMatch(/^1[.、．]/);
     expect(numbered(r.html)[2]).toMatch(/^3[.、．]/);
     expect(numbered(r.html).join('|'), '不得代补分值').not.toMatch(/（\d+分）|（每.*共.*分）/);
-    const w = (r.silentDetails || []).filter((x) => /与标题写的共/.test(x.message));
-    expect(w.length, '3 道题×1分＝3 分 ≠ 共14分 ⇒ 必须报').toBe(1);
-    expect(w[0].message, '报出算出来的账').toContain('3 道题');
+    const w = (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message, '报 3 道').toContain('3 道');
     expect(heads(r.html)[0], 'Σ 不完整 ⇒ 标题不动').toBe('一、直接写出得数（每题1分，共14分）');
   });
 
@@ -233,8 +233,8 @@ describe('③ 跨学段×学科混合扫描（基准：先编号/不编号 → �
         //   与"写标题那一行就定支"自相矛盾，模型只能先写题再补标题 ⇒ 逐题标分落空）。
         //   同批把分支名一律改成**动作**（直答区／成题区）：原先按"标题写了单价"命名，
         //   等于把"标题带单价"读成"不许写号"，而带号的那一组标题同样可以带单价（只供对账、程序合成）。
-        const nbLine = t.split('\n').find((x) => x.includes('直答区：每题不写小题号')) || '';
-        if (!nbLine.includes('每题不写小题号') || !nbLine.includes('分值只由标题承载')) {
+        const nbLine = t.split('\n').find((x) => x.includes('直答区：题内不标分')) || '';
+        if (!nbLine.includes('不写小题号（顶格 1. 2. 3.）') || !nbLine.includes('分值只由标题承载')) {
           bad.push(`${tag}：缺“不编号不写小题号／分值由标题承载”（须同一条内）`);
         }
         // 2026-10-22 属主："“1 道小题”的大题 这个不能有小题号，但是题内的条件序号，不能混淆了"——
@@ -245,7 +245,7 @@ describe('③ 跨学段×学科混合扫描（基准：先编号/不编号 → �
         //   一题多空（标题已"每空1分，共3分"）也不在题内复述。
         if (!t.includes('分值只由标题承载')) bad.push(`${tag}：缺“不编号的分值由标题承载”`);
         // 2026-10-22 属主定：**一小题一标分**（写完一道就标这道），不是整组写完再回头统一标。
-        if (!t.includes('写一道题就顺手标完这道题的分')) bad.push(`${tag}：缺“一题一标（写完就标）”`);
+        if (!t.includes('一题一标')) bad.push(`${tag}：缺“一题一标”`);
         if (!t.includes('不要整组写完再回头统一标')) bad.push(`${tag}：缺“禁整组批量标”`);
         if (!t.includes('题号与分值同生同死')) bad.push(`${tag}：缺“编号题同生同死”`);
         if (t.includes('两支的判法')) bad.push(`${tag}：旧“两支”写法回潮`);

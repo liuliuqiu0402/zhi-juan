@@ -18,7 +18,7 @@ const pTexts = (h) => [...h.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/g)]
   .map((m) => m[1].replace(/<[^>]+>/g, '').replace(/&emsp;|&nbsp;/g, ' ').trim());
 const heads = (h) => [...h.matchAll(/<h[2-4]>([\s\S]*?)<\/h[2-4]>/g)].map((m) => m[1]);
 /** 缺分报点（1.6b-pre 的那一条） */
-const missWarn = (r) => (r.silentDetails || []).filter((x) => /与标题写的共/.test(x.message));
+const missWarn = (r) => (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
 
 const KOU_SUAN = [
   '<h1>单元测评</h1>',
@@ -49,7 +49,7 @@ describe('① 程序不代补：缺分只报，正文一字不动', () => {
     expect(rows.filter((t) => /（\d+分）$|（每.*共.*分）$/.test(t)), '一行都不许被追加分值').toEqual([]);
     const w = missWarn(r);
     expect(w.length, '必须报').toBe(1);
-    expect(w[0].message, '报出算出来的账').toContain('6 处');
+    expect(w[0].message, '报点要点到实数').toContain('7 道');
     expect(w[0].message, '报点要说明程序不补').toContain('程序不补分');
     expect(heads(r.html), 'Σ 不完整 ⇒ 标题不动').toContain('三、填空（每空1分，共7分）');
   });
@@ -57,14 +57,18 @@ describe('① 程序不代补：缺分只报，正文一字不动', () => {
   it('长空格写的作答位也算判分处（真卷形态：十几个全角空格）⇒ 报"没标分"而不报"数不出"', () => {
     const row = `<p>1. 4个3相加，写成加法算式是${'　'.repeat(10)}，写成乘法算式是${'　'.repeat(10)}，读作：${'　'.repeat(10)}。</p>`;
     const r = run(['<h1>卷</h1>', '<h3>三、填空（每空1分，共3分）</h3>', row].join('\n'));
-    expect(missWarn(r).length, '3 处×1分＝共3分，账自洽 ⇒ 不报').toBe(0);
+    const w = missWarn(r);
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message, '①②③ 三处作答位都数得出来').not.toContain('没有被识别到的作答位');
     expect(pTexts(r.html).find((x) => x.startsWith('1.')), '不得补分').not.toMatch(/（每空1分，共3分）$/);
   });
 
   it('零宽占位符写的作答位也算判分处（真卷形态：2×\u200C＝6）', () => {
     const row = '<p>1. 2×\u200C ＝6，\u200C ×5＝30。</p>';
     const r = run(['<h1>卷</h1>', '<h3>三、填空（每空1分，共2分）</h3>', row].join('\n'));
-    expect(missWarn(r).length, '2 处×1分＝共2分，账自洽 ⇒ 不报').toBe(0);
+    const w = missWarn(r);
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message, '两处都数得出').not.toContain('没有被识别到的作答位');
     expect(pTexts(r.html).find((x) => x.startsWith('1.')), '不得补分').not.toMatch(/（每空1分，共2分）$/);
   });
 
@@ -86,7 +90,7 @@ describe('① 程序不代补：缺分只报，正文一字不动', () => {
     expect(got.filter((t) => /（\d+分）$|（每.*共.*分）$/.test(t)), '一道都不许补').toEqual([]);
     const w = missWarn(r);
     expect(w.length, '必须报').toBe(1);
-    expect(w[0].message, '报出实有处数').toContain('22 处');
+    expect(w[0].message).toContain('7 道');
     expect(heads(r.html).find((t) => t.startsWith('三、填空')), 'Σ 不完整 ⇒ 标题不合成').toBe('三、填空（每空1分，共24分）');
   });
 });
@@ -116,7 +120,7 @@ describe('② 报点按"哪几道"数，不按"整段"一刀切', () => {
     expect(ps.join('|'), '不得补任何分').not.toMatch(/（\d+分）|（每空/);
     const w = missWarn(r);
     expect(w.length, '只报一条').toBe(1);
-    expect(w[0].message, '报出实有处数').toContain('5 处');
+    expect(w[0].message).toContain('3 道');
     expect(heads(r.html)[0], '标题不动').toBe('三、填空（每空1分，共6分）');
   });
 
@@ -133,7 +137,9 @@ describe('② 报点按"哪几道"数，不按"整段"一刀切', () => {
     expect(ps[0], '已有分不得重复追加').toBe('1. 6＋6＋6＋6表示____个6相加。（每空1分，共1分）');
     expect(ps[1], '缺分不补').toBe('2. 3个5相加，用乘法算式表示是____。');
     expect(ps[2], '缺分不补').toBe('3. 4×5读作____，表示____个____相加。');
-    expect(missWarn(r).length, '5 处×1分＝共5分，账自洽 ⇒ 不报').toBe(0);
+    const w = missWarn(r);
+    expect(w.length).toBe(1);
+    expect(w[0].message, '只数没带的 2 道').toContain('2 道');
   });
 
   it('括号空位写成空白实体（&emsp;／&nbsp;）也数得出：报 3 道，不误报"数不出"', () => {
@@ -146,8 +152,9 @@ describe('② 报点按"哪几道"数，不按"整段"一刀切', () => {
     ].join('\n');
     const r = run(html);
     const w = missWarn(r);
-    expect(w.length, '4 处×1分＝4 分 ≠ 5 分 ⇒ 必须报').toBe(1);
-    expect(w[0].message, '报出实有处数').toContain('4 处');
+    expect(w.length, '必须报').toBe(1);
+    expect(w[0].message).toContain('3 道');
+    expect(w[0].message, '三道的空位都数得出').not.toContain('没有被识别到的作答位');
     expect(pTexts(r.html).join('|'), '不补分').not.toMatch(/（\d+分）|（每空/);
   });
 

@@ -64,7 +64,7 @@ describe('程序侧不得新增小题号/小题标题', () => {
     for (const stage of ['primary_low', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t, `${stage}：分值不许成为补号/补题干的理由`).toContain('只标本来就有的子题');
-      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('每题不写小题号');
+      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('不写小题号（顶格 1. 2. 3.）');
       expect(t, `${stage}：不许只有号没有分，也不许没有号却在题内标分`).toContain('不许只有号没有分，也不许没有号却在题内标分');
     }
   });
