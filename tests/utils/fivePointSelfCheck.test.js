@@ -20,8 +20,13 @@ describe('① 编号/不编号：单一判据 + 两条边界', () => {
   it('判据只有一个正面锚（一组只做一个动作），两支各自的动作都写死', () => {
     expect(NUMBERING_BRANCH_RULE, '正面锚').toContain('一组只做一个动作');
     expect(NUMBERING_BRANCH_RULE, '写号支：每道带号小题都要有自己的分值').toContain('每道带号小题都要有自己的分值');
-    expect(NUMBERING_BRANCH_RULE, '写号支：位置＝题号后或该题最后一行末尾').toContain('该题最后一行末尾');
+    // 2026-10-24（属主："不要人为干预模型的能力"→回补"大标题必带总分"）：标分位置只在【分值标注】写一次，
+    //   判据常量里不再复述（防双源）；断言随之改查模板。
+    expect(tpl(), '写号支：位置＝题号后或该题最后一行末尾').toContain('该题最后一行末尾');
     expect(NUMBERING_BRANCH_RULE, '不写号支：分值只写在大标题、题内不标分').toContain('**分值只写在大标题**、**题内不标分**');
+    // 🔴 2026-10-24（属主真卷：口算/竖式被编号、大标题无分、全卷差 26 分）：
+    //   不写号支补一个**可自判的现场动作**——遮住大题标题单独看该项，只有算式/作答内容就不知道要做什么 ⇒ 不编号。
+    expect(NUMBERING_BRANCH_RULE, '不写号支：可自判的现场动作').toContain('遮住大题标题就不知道要做什么');
     expect(NUMBERING_BRANCH_RULE, '互锁：只有号／只有分都不成立').toContain('不许只有号没有分，也不许没有号却在题内标分');
     expect(NUMBERING_BRANCH_RULE, '不做内容分类（不按"成句/并列/形态"判支）').not.toMatch(/成句|完整句子|并列算式/);
     expect(tpl(), '判据就地内联（写分值处能读到）').toContain('号是点名用的');
