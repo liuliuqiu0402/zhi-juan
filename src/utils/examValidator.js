@@ -60,6 +60,18 @@ const itemBlockText = (el) => {
   return text;
 };
 
+/** 整题块（含**分值所在行之前**的各行）：分写在末行时，空位常在它上面几行。
+ *  先回溯到最近的带号行，再从那里向后合并；回溯不到带号行就按该行本身算。 */
+const itemBlockAround = (el) => {
+  let start = el;
+  while (start && !NUMBERED_LINE_RE.test((start.textContent || '').trim())) {
+    const prev = start.previousElementSibling;
+    if (!prev || /^H[1-6]$/.test(prev.tagName)) break;
+    start = prev;
+  }
+  return itemBlockText(start || el);
+};
+
 /** 大题标题核心字（去序号、去分值括注、去标点）——1.6e 与 1.6b 共用的**同一口径**。
  *  2026-10-24（属主："标题复述行被当成一道题"）：1.6b 取 Σ 时曾不过滤复述行，
  *  "1. 直接写出得数。（每题2分，共10分）"会被算成一道 10 分的题 ⇒ Σ 虚高、档位被拉成多档。 */
@@ -1342,6 +1354,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const endF = headsF.slice(i + 1)
           .find((x) => /^[一二三四五六七八九十]+、/.test((x.textContent || '').trim())) || null;
         const rows = [];
+        const rowEls = new Map();
         const walk = (root) => {
           if (!root || root.nodeType !== 1) return;
           const cands = [];
@@ -1350,7 +1363,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const leaves = cands.filter((el) => !cands.some((o) => o !== el && el.contains(o)));
           for (const el of leaves) {
             const txt = (el.textContent || '').trim();
-            if (txt && !rows.includes(txt)) rows.push(txt);
+            if (txt && !rows.includes(txt)) { rows.push(txt); rowEls.set(txt, el); }
           }
         };
         for (let node = h.nextSibling; node && node !== endF; node = node.nextSibling) {
@@ -1377,23 +1390,34 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         }
         // ── 处数没数（🔴 2026-10-23 属主："有一题多载体的，出现了三空2分的情形，并没有标单价"）──
         //   判据：一处判分 ⇒ "（X分）"（不带单位）、两处及以上 ⇒ "（每〈单位〉X分，共Y分）"（带单位）。
-        //   一道题有 ≥2 个作答位却只写裸分 ⇒ 处数被按"一道题＝一处"记了：三空题与一空题同分、单价消失。
-        //   只报不改（改分会动账）。选项行不计空白串（选项间空格是排版，不是作答位）。
+        //   一道题有 ≥2 个作答位却只写裸分（或只给单价、不给共Y分）⇒ 处数被按"一道题＝一处"记了：
+        //   三空题与一空题同分、单价消失。只报不改（改分会动账）。
+        //   🔴 2026-10-24（属主："多处判分，没有按这个写"）：原来只数**该行内**的作答位——多行题的
+        //   空位散在题干行/选项行、分值落在末行时数不足 2 个，直接漏检。现按**整题**数（itemBlockText，
+        //   与取分同一口径）。选项行不计空白串（选项间空格是排版，不是作答位）。
         const blanksInText = (s) => {
-          const paren = (s.match(/[（(]\s*[　\u3000 \u00A0]{1,12}\s*[)）]/g) || []).length;
-          const under = (s.match(/_{2,}|＿{2,}/g) || []).length;
-          const zw = (s.match(/[\u200B\u200C\u200D\uFEFF]/g) || []).length;
-          const runs = /[A-D][.、．]/.test(s) ? 0 : (s.match(/[ \u00A0\u3000]{4,}/g) || []).length;
+          // 括注空位先数、再从句子里剥掉——否则括注内的全角空格会被下面的连续空白再数一遍（一处记两次）。
+          const parenSeg = /[（(]\s*[　\u3000 \u00A0]{1,12}\s*[)）]/g;
+          const paren = (s.match(parenSeg) || []).length;
+          const rest = s.replace(parenSeg, '');
+          const under = (rest.match(/_{2,}|＿{2,}/g) || []).length;
+          const zw = (rest.match(/[\u200B\u200C\u200D\uFEFF]/g) || []).length;
+          const runs = /[A-D][.、．]/.test(rest) ? 0 : (rest.match(/[ \u00A0\u3000]{4,}/g) || []).length;
           return paren + under + zw + runs;
         };
         const bareScored = rows.filter((r) => {
-          const m = r.match(/[（(]\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
-          if (!m || /每/.test(m[0])) return false;
-          return blanksInText(r.slice(0, r.length - m[0].length)) >= 2;
+          const m = r.match(/[（(]\s*([^（）()]{0,24}?)\s*[)）]\s*$/);
+          if (!m) return false;
+          const inner = m[1].trim();
+          const bare = /^\d+(?:\.\d+)?\s*分$/.test(inner);
+          const halfForm = /^每[^，,]{0,8}\d+(?:\.\d+)?\s*分$/.test(inner);
+          if (!bare && !halfForm) return false;
+          const el = rowEls.get(r);
+          return blanksInText(el ? itemBlockAround(el) : r) >= 2;
         });
         if (bareScored.length) {
           silentCount('blank-count-ignored',
-            `大题「${title}」有 ${bareScored.length} 道题的作答位在两处及以上，却只写了裸分（如"…${bareScored[0].slice(-12)}"）——处数没数：一处写"（X分）"，两处及以上写"（每〈单位〉X分，共Y分）"；否则三空题与一空题同分、单价消失（程序不改数）`, 'warn');
+            `大题「${title}」有 ${bareScored.length} 道题的作答位在两处及以上，却只写了裸分或只给了单价（如"…${bareScored[0].slice(-12)}"）——处数没数：一处写"（X分）"，两处及以上写"（每〈单位〉X分，共Y分）"；否则三空题与一空题同分、单价消失（程序不改数）`, 'warn');
         }
       });
     } catch (e) { console.warn('⚠️ 分值承载互斥核对失败（不影响其它修复）:', e.message); }

@@ -63,7 +63,10 @@ describe('程序侧不得新增小题号/小题标题', () => {
   it('A 侧条款（两学段）：无题号大题不补题号、不补题干', () => {
     for (const stage of ['primary_low', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, `${stage}：分值不许成为补号/补题干的理由`).toContain('不得为凑总分编题');
+      // 🔴 2026-10-24（属主："不要人为干预模型的能力"）："不得为凑总分编题"已删——
+      //   防"分值倒推编号"由编号判据承载（编号只看有没有只属于它自己的题干话）。
+      expect(t, `${stage}：分值不许成为补号的理由（判据在位）`).toContain('各项有只属于它自己的题干话');
+      expect(t, `${stage}："不得为凑总分编题"不得回潮`).not.toContain('不得为凑总分编题');
       expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('只有作答内容本身、没有只属于它的话');
       expect(t, `${stage}：不许只有号没有分，也不许没有号却在题内标分`).toContain('不许只有号没有分，也不许没有号却在题内标分');
     }
