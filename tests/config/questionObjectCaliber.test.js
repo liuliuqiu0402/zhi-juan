@@ -27,9 +27,14 @@ describe('编号/不编号：单一判据（一组只做一个动作）', () => 
     expect((lib.match(/export const NUMBERING_BRANCH_RULE/g) || []).length, '只允许一处定义').toBe(1);
     // 只数"代码行"的引用（注释里提到常量名不算消费）——否则每次留痕都会把计数抬高。
     const codeLines = lib.split('\n').filter((l) => !/^\s*(\*|\/\*|\/\/)/.test(l)).join('\n');
-    expect((codeLines.match(/NUMBERING_BRANCH_RULE/g) || []).length, '定义 1 + 消费 2（考试卷内联在分值标注／其余在层级与组织）').toBe(3);
-    for (const g of ['exam', 'practice', 'special', 'reading', 'review']) {
-      expect(tpl(g), `${g} 应携带一组只做一个动作判据`).toContain(NUMBERING_BRANCH_RULE);
+    expect((codeLines.match(/NUMBERING_BRANCH_RULE/g) || []).length, '定义 1 + 消费 2（考卷内联在分值标注／教辅那条按切点派生）').toBe(3);
+    // 🔴 2026-10-24（属主"收"）：编号判据两处引用——**考卷要整条**（含标分半句）；**教辅只要前一半**
+    //   （练习册不判分）。两处读的是同一份文本，不是两份判据。
+    const half = NUMBERING_BRANCH_RULE.split('**一组只做一个动作')[0];
+    expect(tpl('exam'), '考卷：整条（编号＋标分）').toContain(NUMBERING_BRANCH_RULE);
+    for (const g of ['practice', 'special', 'reading', 'review']) {
+      expect(tpl(g), `${g}：只带编号半句`).toContain(half);
+      expect(tpl(g), `${g}：不得带标分半句`).not.toContain('每题行末标自己的分');
     }
   });
 
