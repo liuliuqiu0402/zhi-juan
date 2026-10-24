@@ -41,7 +41,7 @@ describe('② A 侧：分值条只按"这一组是多件/是一件"判，不再�
     for (const st of ['primary_low', 'middle']) {
       const t = tpl('exam', '数学', st);
       expect(t, `${st}：不编号 → 分值随标题`).toContain('分值只写在大标题');
-      expect(t, `${st}：编号 → 逐题标分（位置按真题习惯）`).toContain('按真题习惯写在题号后或题干末尾');
+      expect(t, `${st}：编号 → 逐题标分（位置按真题习惯）`).toContain('该题最后一行末尾');
       expect(t, `${st}：不得再写"每道题各自编号"`).not.toContain('每道题各自编号');
       expect(t, `${st}：旧两支不得回潮`).not.toContain('这一组是多件');
       expect(t, `${st}：旧补救句不得回潮`).not.toContain('标题若已写成单价');

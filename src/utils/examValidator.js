@@ -43,6 +43,23 @@ const readItemScore = (text) => {
   return total;
 };
 
+/**
+ * 一道题的分值可能写在该题**最后一行**（多行题、带选项的题）——把带号行与其后、
+ * 下一个带号行之前的行合并后再取分。只读带号那一行会把"分写在选项后/末行"误判成没标分。
+ */
+const itemBlockText = (el) => {
+  let text = el.textContent || '';
+  let sib = el.nextElementSibling;
+  while (sib) {
+    const tt = (sib.textContent || '').trim();
+    if (NUMBERED_LINE_RE.test(tt)) break;
+    if (/^H[1-6]$/.test(sib.tagName)) break;
+    text += ` ${tt}`;
+    sib = sib.nextElementSibling;
+  }
+  return text;
+};
+
 /** 大题标题核心字（去序号、去分值括注、去标点）——1.6e 与 1.6b 共用的**同一口径**。
  *  2026-10-24（属主："标题复述行被当成一道题"）：1.6b 取 Σ 时曾不过滤复述行，
  *  "1. 直接写出得数。（每题2分，共10分）"会被算成一道 10 分的题 ⇒ Σ 虚高、档位被拉成多档。 */
@@ -1022,7 +1039,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             if (seenP.has(el)) continue;
             const tt = (el.textContent || '').trim();
             if (!NUMBERED_LINE_RE.test(tt)) continue;
-            const hasOwn = readItemScore(tt) != null;
+            const hasOwn = readItemScore(itemBlockText(el)) != null;
             linesP.push({ el, hasOwn });
             seenP.add(el);
           }
@@ -1127,7 +1144,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const nm = tt.match(NUMBERED_LINE_RE);
             if (!nm) continue;
             // 只取该题的分值括注（题号后或题干末尾均可，真题习惯）；题干内部各分条的标分不计入合成。
-            const itemTotal = readItemScore(tt);
+            const itemTotal = readItemScore(itemBlockText(el));
             itemsB.push({ num: nm[1], total: itemTotal });
             seenB.add(el);
           }

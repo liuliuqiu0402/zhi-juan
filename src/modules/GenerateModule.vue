@@ -6483,11 +6483,11 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   //   getPromptTemplate 是"用户自定义优先"：指令库里只要存过一份（哪怕是旧版），代码里的内置判据
   //   **永远进不来**。此处把来源与关键判据的在位性打到日志里，一眼就能看出这次生成用的是哪一份。
   {
-    const ANCHOR_SCORE_ON_STEM = '按真题习惯写在题号后或题干末尾';
+    const ANCHOR_SCORE_ON_STEM = '每道带号小题都要有自己的分值';
     const hasAnchor = instructionDraft.value.includes(ANCHOR_SCORE_ON_STEM);
     const staleScore = instructionDraft.value.includes('不是标题里要填的数字');
     const hasHead = instructionDraft.value.includes('卷首固定顺序');
-    console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜含"逐题标分（位置按真题习惯）"判据=${hasAnchor}｜含"卷首固定顺序"=${hasHead}｜旧"标题不填分"措辞=${staleScore}${tpl.normativeMerged ? '｜规范块（卷首/卷面结构/分值标注）已并入内置现行版' : ''}`);
+    console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜含"每道带号小题都要有自己的分值"判据=${hasAnchor}｜含"卷首固定顺序"=${hasHead}｜旧"标题不填分"措辞=${staleScore}${tpl.normativeMerged ? '｜规范块（卷首/卷面结构/分值标注）已并入内置现行版' : ''}`);
     if (tpl.source === 'user' && (!hasAnchor || staleScore || !hasHead)) {
       console.warn(
         '⚠️ 本次生成用的是「指令库·用户自定义模板」，与内置判据不一致——代码里的修改不会生效。' +

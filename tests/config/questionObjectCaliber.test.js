@@ -42,7 +42,7 @@ describe('编号/不编号：单一判据（一组只做一个动作）', () => 
     expect(NUMBERING_BRANCH_RULE, '动作只一个').toContain('一组只做一个动作');
     expect(NUMBERING_BRANCH_RULE, '唯一开关：只属于它自己的题干话').toContain('只属于它自己的题干话');
     expect(NUMBERING_BRANCH_RULE, '带号支：每道带号小题都要有自己的分值').toContain('每道带号小题都要有自己的分值');
-    expect(NUMBERING_BRANCH_RULE, '带号支：标分位置按真题习惯（不钉死行末）').toContain('按真题习惯写在题号后或题干末尾');
+    expect(NUMBERING_BRANCH_RULE, '带号支：标分位置按真题习惯（不钉死行末）').toContain('该题最后一行末尾');
     expect(NUMBERING_BRANCH_RULE, '不带号支：分值只写在大标题').toContain('**不带号**：**分值只写在大标题**');
     expect(NUMBERING_BRANCH_RULE, '不带号支：题内不标分').toContain('**题内不标分**');
     expect(NUMBERING_BRANCH_RULE, '两半互锁（号与分同生同死）').toContain('不许只有号没有分，也不许没有号却在题内标分');

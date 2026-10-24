@@ -109,6 +109,32 @@ describe('已逐题标分：合成仍归程序（Σ 为真值）', () => {
     expect(hs[1], '答案区镜像同一括注').toBe(hs[0]);
   });
 
+  it('多行题（分写在选项/末行）：不误报缺分，标题照常合成', () => {
+    const html = [
+      '<h1>阶段测评</h1>',
+      '<h3>五、选择（每题2分，共4分）</h3>',
+      '<p>1. 下面各数中，最大的是（　）。</p>',
+      '<p>A. 3　B. 5　C. 8　D. 9（2分）</p>',
+      '<p>2. 下面各数中，最小的是（　）。</p>',
+      '<p>A. 3　B. 5　C. 8　D. 9（2分）</p>',
+    ].join('\n');
+    const r = audit(html);
+    expect(missWarn(r).length, '多行题不得误报缺分').toBe(0);
+    expect(heads(r.html)[0], '标题按逐题分合成').toBe('五、选择（每题2分，共4分）');
+  });
+
+  it('多行题包在 .question 容器里（分写在末行）：同样不误报', () => {
+    const html = [
+      '<h1>阶段测评</h1>',
+      '<h3>六、阅读（每题3分，共6分）</h3>',
+      '<div class="question"><p>1. 短文共有几个自然段？</p><p>答：____</p><p>（3分）</p></div>',
+      '<div class="question"><p>2. 用一句话概括短文内容。</p><p>____</p><p>（3分）</p></div>',
+    ].join('\n');
+    const r = audit(html);
+    expect(missWarn(r).length, '容器内多行题不得误报缺分').toBe(0);
+    expect(heads(r.html)[0], '标题按逐题分合成').toBe('六、阅读（每题3分，共6分）');
+  });
+
   it('真 0 段（标题单价、其下无题号）：不动', () => {
     const html = [
       '<h1>阶段测评</h1>',

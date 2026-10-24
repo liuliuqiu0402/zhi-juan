@@ -20,7 +20,7 @@ describe('① 编号/不编号：单一判据 + 两条边界', () => {
   it('判据只有一个正面锚（一组只做一个动作），两支各自的动作都写死', () => {
     expect(NUMBERING_BRANCH_RULE, '正面锚').toContain('一组只做一个动作');
     expect(NUMBERING_BRANCH_RULE, '写号支：每道带号小题都要有自己的分值').toContain('每道带号小题都要有自己的分值');
-    expect(NUMBERING_BRANCH_RULE, '写号支：位置按真题习惯（题号后或题干末尾）').toContain('按真题习惯写在题号后或题干末尾');
+    expect(NUMBERING_BRANCH_RULE, '写号支：位置＝题号后或该题最后一行末尾').toContain('该题最后一行末尾');
     expect(NUMBERING_BRANCH_RULE, '不写号支：分值只写在大标题、题内不标分').toContain('**分值只写在大标题**、**题内不标分**');
     expect(NUMBERING_BRANCH_RULE, '互锁：只有号／只有分都不成立').toContain('不许只有号没有分，也不许没有号却在题内标分');
     expect(NUMBERING_BRANCH_RULE, '不做内容分类（不按"成句/并列/形态"判支）').not.toMatch(/成句|完整句子|并列算式/);
@@ -196,10 +196,12 @@ describe('③ 逐题标：每道带号题都要有分（A 的活，缺了程序�
   //   2026-10-24 收口（单一开关）：同一义务只在【分值标注】第②步定义一次；题干格式条不再复述（防双源）。
   it('判据单源：分值块写死逐题标分，题干格式条不复述同一义务', () => {
     const t = tpl();
-    expect(t, '带号题必须逐题标分').toContain('每道小题都要有自己的分值');
+    expect(t, '带号题必须逐题标分').toContain('每道带号小题都要有自己的分值');
     expect(t, '漏标一题即不合规').toContain('漏标一题即不合规');
     expect(t, '标题里不再重复小题分值（分只写题内）').toContain('标题里不再重复小题分值');
-    expect(t, '标分位置按真题习惯（不钉死行末）').not.toContain('最后一行末尾');
+    // 🔴 2026-10-24（真机："有些带题号的小题没按真题规范输出"）：上一版"不钉死行末"被模型读成
+    //   "多行题可以不标"，选项后/末行的分读不到。**恢复单一位置**：该题最后一行末尾（多行题以最后一行为准）。
+    expect(t, '标分位置＝该题最后一行末尾（多行题以最后一行为准）').toContain('该题最后一行末尾');
     expect(t, '题干格式条不得再写一遍（单源）').not.toContain('带题号的题，分就写在该题最后一行末尾');
   });
 
@@ -275,7 +277,7 @@ function rows0(html) {
 describe('⑦ 分值自洽：模型侧逐层核（硬性·小题→大题→卷首）', () => {
   it('三层齐备且按"题→大题→卷首"排列', () => {
     const t = tpl();
-    const i1 = t.indexOf('每道小题都要有自己的分值');
+    const i1 = t.indexOf('每道带号小题都要有自己的分值');
     const i2 = t.indexOf('小题分之和＝该大题分');
     const i3 = t.indexOf('各大题分之和＝卷首满分');
     for (const [name, i] of [['①题', i1], ['②大题', i2], ['③卷首', i3]]) {
