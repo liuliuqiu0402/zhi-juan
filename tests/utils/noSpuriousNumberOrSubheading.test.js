@@ -113,9 +113,9 @@ describe('不该有题号／小题标题的题组：一个号都不许冒出来�
     for (const stage of ['primary_low', 'primary_mid', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t, `${stage}：编号判据＝一组只做一个动作`).toContain('一组只做一个动作');
-      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('每题不写小题号');
+      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('只有作答内容本身、没有只属于它的话');
       expect(t, `${stage}：不许只有号没有分，也不许没有号却在题内标分`).toContain('不许只有号没有分，也不许没有号却在题内标分');
-      expect(t, `${stage}：不得为标分新增题号或题干`).toContain('只标本来就有的子题');
+      expect(t, `${stage}：不得为标分新增题号或题干`).toContain('不得为凑总分编题');
     }
     expect(QUESTION_OBJECT_CALIBER, '第二把尺（共用一条作答要求）不得回潮').not.toMatch(/共用一条作答要求/);
   });

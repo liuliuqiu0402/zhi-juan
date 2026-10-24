@@ -6,7 +6,7 @@
 //
 // 使用：promptLibrary.buildStructureText 对 genType=exam 注入本蓝本（大题/分值/时长固定，优先级高于指令库结构大纲）；
 //      卷面格式细则与命题质量底线在指令库模板（EXAM_BASE）中定义，本库不重复。
-// 单一事实源：分值规则唯一在 promptLibrary.buildStructureText 中定义（含大题命题要求 note）；卷面结构以**列式**给"题数 X｜分值 Y分"（命题依据），大题标题形态**由指令库分值条单源给**（全大题为一题时含单价）。
+// 单一事实源：分值规则唯一在 promptLibrary.buildStructureText 中定义（含大题命题要求 note）；卷面结构以**列式**给"序号、名｜参考分值 Y分"（命题依据，**不给题数**），大题标题形态**由指令库分值条单源给**（按编号结果：不带号时单价在标题）。
 import { getRegionConfig } from './examRegionConfig.js';
 import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { normalizeSubjectName } from './expertKnowledge.js'; // 学科×学段归名唯一事实源（别名+跨学段纠正，曾本地双表 SUBJECT_ALIAS/STAGE_SUBJECT_ALIAS 双轨）

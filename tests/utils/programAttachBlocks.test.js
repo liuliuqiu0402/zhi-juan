@@ -34,7 +34,9 @@ describe('programAttachBlocks（注入文本 ↔ 面板分段同源）', () => {
   });
 
   it('指令文本已含【输出格式】时不再追加格式段兜底（A20 段级：只补缺的那段）', () => {
-    const withFmt = buildProgramAttachBlocks({ ...base, instructionText: '……【输出格式】\n1. 书写……' });
+    // 2026-10-24：块存在性只认**行首**块标题（行内引用不算，见 programAttachFloorFallback 用例）；
+    //   故这里按真实模板形态给——块标题独占一行。
+    const withFmt = buildProgramAttachBlocks({ ...base, instructionText: '……\n【输出格式】\n1. 书写……' });
     expect(withFmt.some((b) => b.name.includes('缺【输出格式】'))).toBe(false);
     expect(withFmt.some((b) => b.name.includes('缺【质量底线】'))).toBe(true);   // 缺质量底线 → 按段补
   });

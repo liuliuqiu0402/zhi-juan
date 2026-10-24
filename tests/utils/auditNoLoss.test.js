@@ -22,11 +22,10 @@ const blockTexts = (html) => [...String(html ?? '').matchAll(
 
 const run = (html, opts = {}) => auditExamPaper(html, { genType: 'exam', ...opts });
 
-/** 十支改写正文的分支（来源：examValidator.js 逐一核对） */
+/** 九支改写正文的分支（来源：examValidator.js 逐一核对） */
 const BRANCHES = [
   { id: 'sup-sub', at: 811, what: 'Unicode 上下标归一为 <sup>/<sub>', probe: /上下标已自动归一/ },
   { id: 'label-strip', at: 898, what: '剥离该学段不应使用的题号标签（保留文字）', probe: /已自动剥离/ },
-  { id: 'title-score', at: 944, what: '大题标题补总分', probe: /大题标题已补总分/ },
   { id: 'blank-move', at: 1310, what: '同一大题内作答位位置归并（只搬括号空位）', probe: /作答位位置已自动归并统一/ },
   { id: 'writing-grid', at: 1593, what: '写话/作文题补作文格', probe: /已自动补作文格/ },
   { id: 'writing-line-en', at: 1688, what: '英语书面表达/写作题补横线', probe: /英语书面表达\/写作题已自动补横线/ },
@@ -82,16 +81,6 @@ const SAMPLES = [
     html: [
       '<p class="question">1. 计算：48×3＝</p>',
       '<p class="question">2. 写一写你的发现<span class="zuo-wen-ge"></span></p>',
-    ].join('\n'),
-  },
-  {
-    name: '数学·小学低段｜大题标题缺总分（命中 title-score）',
-    opts: { subject: '数学', stage: 'primary_low' },
-    branch: 'title-score',
-    html: [
-      '<h2>一、填空（24分）</h2>',
-      '<p class="question">1. 8 里面有（　　）个一。</p>',
-      '<p class="question">2. 比 7 多 2 的数是（　　）。</p>',
     ].join('\n'),
   },
   {

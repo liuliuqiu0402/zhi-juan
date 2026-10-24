@@ -49,13 +49,16 @@ describe('指令库三维度匹配', () => {
   it('三维度精确 > 学科×类型 > 类型（用户覆盖优先级）', () => {
     savePromptTemplate('语文|exam', { name: '学科级', template: '学科级模板' });
     savePromptTemplate('primary_low|语文|exam', { name: '三维度', template: '三维度模板' });
-    // 三维度精确命中
-    expect(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template).toBe('三维度模板');
+    // 三维度精确命中（2026-10-24：用户模板正文原样保留，规范块【分值标注】并入内置现行版）
+    const exact = getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' });
+    expect(exact.template).toContain('三维度模板');
+    expect(exact.template).toContain('【分值标注】');
+    expect(exact.normativeMerged).toBe(true);
     // 其他年级命中学科级
-    expect(getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template).toBe('学科级模板');
+    expect(getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template).toContain('学科级模板');
     // 删除三维度后回退学科级
     deletePromptTemplate('primary_low|语文|exam');
-    expect(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template).toBe('学科级模板');
+    expect(getPromptTemplate({ grade: 'primary_low', subject: '语文', genType: 'exam' }).template).toContain('学科级模板');
   });
 
   it('删除用户模板后回退内置', () => {

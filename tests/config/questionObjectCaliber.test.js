@@ -34,16 +34,17 @@ describe('编号/不编号：单一判据（一组只做一个动作）', () => 
     expect(tpl('exam'), '考卷：整条（编号＋标分）').toContain(NUMBERING_BRANCH_RULE);
     for (const g of ['practice', 'special', 'reading', 'review']) {
       expect(tpl(g), `${g}：只带编号半句`).toContain(half);
-      expect(tpl(g), `${g}：不得带标分半句`).not.toContain('每题行末标自己的分');
+      expect(tpl(g), `${g}：不得带标分半句`).not.toContain('每道带号小题都要有自己的分值');
     }
   });
 
-  it('判据本体：一组只做一个动作（写号就逐题标分／不写号就单价进标题）', () => {
-    expect(NUMBERING_BRANCH_RULE, '动作只一个：给不给每个小题写号').toContain('一组只做一个动作：给不给每个小题写号');
-    expect(NUMBERING_BRANCH_RULE, '写号支：每题顶格号').toContain('**写号**：每题顶格号');
-    expect(NUMBERING_BRANCH_RULE, '写号支：每题行末标自己的分').toContain('每题行末标自己的分');
-    expect(NUMBERING_BRANCH_RULE, '不写号支：单价进标题').toContain('**不写号**：**标题给一个单价**');
-    expect(NUMBERING_BRANCH_RULE, '不写号支：题内不标分').toContain('**题内不标分**');
+  it('判据本体：一组只做一个动作（带号就逐题标分／不带号就单价进标题）', () => {
+    expect(NUMBERING_BRANCH_RULE, '动作只一个').toContain('一组只做一个动作');
+    expect(NUMBERING_BRANCH_RULE, '唯一开关：只属于它自己的题干话').toContain('只属于它自己的题干话');
+    expect(NUMBERING_BRANCH_RULE, '带号支：每道带号小题都要有自己的分值').toContain('每道带号小题都要有自己的分值');
+    expect(NUMBERING_BRANCH_RULE, '带号支：标分位置按真题习惯（不钉死行末）').toContain('按真题习惯写在题号后或题干末尾');
+    expect(NUMBERING_BRANCH_RULE, '不带号支：分值只写在大标题').toContain('**不带号**：**分值只写在大标题**');
+    expect(NUMBERING_BRANCH_RULE, '不带号支：题内不标分').toContain('**题内不标分**');
     expect(NUMBERING_BRANCH_RULE, '两半互锁（号与分同生同死）').toContain('不许只有号没有分，也不许没有号却在题内标分');
     // 🔴 判据里不得出现任何题型名（一列就变成诱导）
     expect(NUMBERING_BRANCH_RULE).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
@@ -94,14 +95,15 @@ describe('题号条：只管"不是题的东西别给号"与分问标示', () =>
     const ex = tpl('exam');
     expect(ex, '大题序号：一、二、三…（跨大类/部分接着编）仍在').toContain('跨大类/部分接着编');
     expect(ex, '⚠️「全卷连续」四字不得回潮（会被读成题号层也连续 ⇒ 每个题干都要给号）').not.toContain('全卷连续');
-    expect(ex, '逐层加总判词仍在（题干→大题→大类→试卷）').toContain('大题总分＝其下各子题分之和');
+    expect(ex, '逐层加总判词仍在（小题→大题→卷首）').toContain('小题分之和＝该大题分');
+    expect(ex, '试卷层仍在').toContain('各大题分之和＝卷首满分');
   });
 
   it('零诱导：不点题型名、不指定分问符号', () => {
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/①|②|（1）|\(1\)/);
     const exTpl = tpl('exam');
-    expect(exTpl, '分值只约束写法（每〈单位〉X分，共X分）').toContain('每〈单位〉X分，共X分');
+    expect(exTpl, '分值只约束写法（每〈单位〉X分，共Y分）').toContain('每〈单位〉X分，共Y分');
     expect(exTpl, '枚举不得回潮（会诱导往枚举上凑、并漏掉其它作答对象）').not.toMatch(/汉字／词语|词语／数字|数字／字母|字母／选项/);
   });
 });
@@ -110,7 +112,7 @@ describe('题量口径与卷面层级（不受本次改动影响）', () => {
   it('题量口径：不再有"题量"预载，条数由实际内容决定', () => {
     const ex = tpl('exam');
     expect(ex, '"题量"预载已废（计数统一按计分对象）').not.toContain('题量');
-    expect(ex, '计分条数由实际内容决定的判据须在位').toContain('条数由实际内容决定');
+    expect(ex, '计分条数由实际内容决定的判据须在位').toContain('Y 与该题实际判分处数相符');
     expect(ex, '旧"编号与计分按实际计分对象给出"不得回潮（与计分对象口径相抵）').not.toContain('编号与计分按实际计分对象给出');
     expect(ex, '否定式旧句不得回潮').not.toContain('不得为凑数逐项编号');
   });

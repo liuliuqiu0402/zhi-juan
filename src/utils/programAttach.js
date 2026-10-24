@@ -50,8 +50,14 @@ function buildProgramAttachParts({ subject, stageKey, genType, instructionText =
   //    现遍历单源注册表 floorClauseSections：marker 不在委托正文 → 补该段；已在 → 跳过。
   //    段文本与 buildBuiltinTemplate 注入委托正文的文本逐字同源（注册表单源），不会两处漂移。
   const fallbackTexts = [];
+  // 块存在性只认**行首**块标题：块内行文会行内引用别的块名（如【卷面结构】里写"一律按【分值标注】判"），
+  //   按子串判会把行内引用当成"该段已在"，兜底段静默丢失。
+  const hasBlock = (text, marker) => {
+    const title = String(marker).replace(/^【|】$/g, '');
+    return new RegExp(`^【${title}[^】]*】`, 'm').test(String(text || ''));
+  };
   for (const sec of floorClauseSections({ subject, stage: stageKey, genType })) {
-    if (String(instructionText || '').includes(sec.marker)) continue;
+    if (hasBlock(instructionText, sec.marker)) continue;
     const secText = String(sec.text || '').trim();
     fallbackTexts.push(secText);
     blocks.push({

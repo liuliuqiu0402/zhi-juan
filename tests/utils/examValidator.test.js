@@ -359,7 +359,7 @@ describe('examValidator 排版语义自洽（text-format-fix）', () => {
 
   it('排版语义自洽：加点用 emphasis-dot 标记 → 不触发；用 <u> 下划线（错误做法）→ 触发', () => {
     const okHtml = [
-      '<h2>一、识字与写字（32分）</h2>',
+      '<h2>一、识字与写字（4分）</h2>',
       '<p class="question">2. 圈出加点字正确的读音。（4分）</p>',
       '<p>（1）<span class="emphasis-dot">行</span>（háng xíng）白鹭飞上青天。</p>',
       '<p>（2）小<span class="emphasis-dot">号</span>（hào háo）手吹响了集合号。</p>',
@@ -570,7 +570,7 @@ describe('examValidator 载体×题型正规化（CARRIER_RULES）', () => {
 
   it('语文低段"看拼音写词语"用语境式空格而非田字格 → 不再提示（must 软推断已移除，接受空格形态）', () => {
     const html = [
-      '<h2>一、识字与写字（32分）</h2>',
+      '<h2>一、识字与写字（8分）</h2>',
       '<p>1. 看拼音写词语。（8分）</p>',
       '<p>（1）tiān kōng（　　　　）</p>',
     ].join('\n');
@@ -580,7 +580,7 @@ describe('examValidator 载体×题型正规化（CARRIER_RULES）', () => {
 
   it('题干明确点名"田字格中写"却没格子 → 强要求哨兵提示（2j-4 保留）', () => {
     const html = [
-      '<h2>一、识字与写字（32分）</h2>',
+      '<h2>一、识字与写字（8分）</h2>',
       '<p>1. 照样子，在田字格中把字写规范。（8分）</p>',
       '<p>请写：杨　柏　金　桂</p>',
     ].join('\n');
@@ -590,7 +590,7 @@ describe('examValidator 载体×题型正规化（CARRIER_RULES）', () => {
 
   it('题干明确点名"田字格中写"且已有格子 → 不强要求提示', () => {
     const html = [
-      '<h2>一、识字与写字（32分）</h2>',
+      '<h2>一、识字与写字（8分）</h2>',
       '<p>1. 照样子，在田字格中把字写规范。（8分）</p>',
       '<p>请写：<span class="tian-zi-ge">　</span><span class="tian-zi-ge">　</span></p>',
     ].join('\n');
@@ -600,7 +600,7 @@ describe('examValidator 载体×题型正规化（CARRIER_RULES）', () => {
 
   it('语文低段写字题已用田字格 → 不提示', () => {
     const html = [
-      '<h2>一、识字与写字（32分）</h2>',
+      '<h2>一、识字与写字（8分）</h2>',
       '<p>1. 看拼音写词语：<span class="tian-zi-ge">海</span>。（8分）</p>',
     ].join('\n');
     const { silent } = auditExamPaper(html, { subject: '语文', stage: 'primary_low', genType: 'exam' });

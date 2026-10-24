@@ -101,6 +101,30 @@ describe('卷面固定件：注意事项 + 题号得分表（排版模块统一�
     expect(wrapped).not.toContain('exam-notice');
   });
 
+  it('🔴 整卷无任何标分：大题仍须识别，注意事项/题号得分表照常注入（2026-10-24 真机）', () => {
+    // 病根：parseExamSections 以"自带分值"为前提 → 整卷漏标分时识别为空 → injectExamShell 首行门控直接 return。
+    const noScore = `<h1 class="main-title">二年级数学上册期中测评</h1>
+<p>(考试时间：60分钟　满分：100分)</p>
+<h2>三、填空</h2>
+<p>1. 3+5=____</p>
+<h2>四、判断对错，对的在括号里画"√"，错的画"×"</h2>
+<p>1. 8+8=16（　）</p>`;
+    const sections = parseExamSections(noScore);
+    expect(sections.map((s) => s.num), '无分也要认结构').toEqual(['三', '四']);
+    expect(sections.every((s) => s.score == null)).toBe(true);
+    const wrapped = wrapContentForTheme(noScore, 'sealed_exam');
+    expect(wrapped, '注意事项不得因整卷无分而消失').toContain('class="exam-notice"');
+    expect(wrapped, '题号得分表不得因整卷无分而消失').toContain('class="exam-score-table"');
+    expect(wrapped).toContain('<th>三</th>');
+    expect(wrapped).toContain('<th>四</th>');
+  });
+
+  it('无分且无结构信号的普通短句（汉字序号+、但既不加粗也非标题）不误认大题', () => {
+    const prose = '<p>一、这是正文里的说明句，不是大题标题</p><p>二、同上</p>';
+    expect(parseExamSections(prose)).toEqual([]);
+    expect(injectExamShell(prose)).toBe(prose);
+  });
+
   it('其它主题不注入卷面固定件', () => {
     const wrapped = wrapContentForTheme(CONTENT, 'error_book');
     expect(wrapped).not.toContain('exam-score-table');
@@ -250,6 +274,30 @@ describe('卷面固定件：注意事项 + 题号得分表（排版模块统一�
     expect(pos('<strong>第一部分'), '"第一部分"在第一个大题之前').toBeLessThan(pos('一、汉字拼音小闯关'));
     // 幂等：二次注入不再移动
     expect(injectExamShell(out, 'primary_low')).toBe(out);
+  });
+
+  it('🔴 大题标题不带分值（标题标签／整段加粗）仍认作正文结构行：固定件须在其上方（2026-10-24 真机）', () => {
+    // 报障实证：不带小题号的大题漏标分时，旧判据"大题行必须自带分值"漏认 → 锚点跳到后面某个带分大题，
+    //   固定件被插到第一个大题**之后**，实测"一、口算 → 注意事项 → 得分表 → 二、…"。
+    const byHeading = `<h1 class="main-title">卷名</h1>
+<p>（考试时间：60分钟　满分：100分）</p>
+<h2 class="heading1">一、口算</h2>
+<p>3×5＝____　2×6＝____</p>
+<h2 class="heading1">二、填空（共20分）</h2>
+<p>1. 读拼音写词语。（2分）</p>`;
+    const outH = injectExamShell(byHeading, 'primary_low');
+    expect(outH.indexOf('class="exam-notice"'), '注意事项须在无分大题之前').toBeLessThan(outH.indexOf('一、口算'));
+    expect(outH.indexOf('class="exam-score-table"'), '得分表须在无分大题之前').toBeLessThan(outH.indexOf('一、口算'));
+
+    const byBold = `<h1 class="main-title">卷名</h1>
+<p><strong>一、口算</strong></p>
+<p>3×5＝____　2×6＝____</p>
+<h2 class="heading1">二、填空（共20分）</h2>
+<p>1. 读拼音写词语。（2分）</p>`;
+    const outB = injectExamShell(byBold, 'primary_low');
+    expect(outB.indexOf('class="exam-notice"'), '整段加粗的无分大题同样须在其上方').toBeLessThan(outB.indexOf('一、口算'));
+    // 幂等
+    expect(injectExamShell(outH, 'primary_low')).toBe(outH);
   });
 
   it('无大类行时插入点不变：仍紧贴第一个大题之前（旧行为不回归）', () => {

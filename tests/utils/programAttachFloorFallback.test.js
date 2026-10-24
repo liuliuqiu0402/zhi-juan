@@ -25,6 +25,14 @@ describe('守门条款段级兜底（缺哪段补哪段）', () => {
     expect(names).not.toContain('【输出格式】');
   });
 
+  // 🔴 2026-10-24（行内引用≠块存在）：块内行文会写"见【输出格式】"这类引用；
+  //   按子串判"该段已在"会让兜底静默丢失。判缺只认**行首**块标题。
+  it('委托正文只在行内引用【输出格式】（没有该块）→ 仍补该段', () => {
+    const names = buildProgramAttachBlocks({ ...base, instructionText: '· 答案归属见【输出格式】' })
+      .filter((b) => b.name.includes(FALLBACK)).map((b) => b.name).join('|');
+    expect(names).toContain('【输出格式】');
+  });
+
   it('委托正文含全部守门条款段 → 一段都不补（宁缺勿滥）', () => {
     const all = floorClauseSections({ subject: '数学', stage: 'primary_high', genType: 'practice' })
       .map((s) => s.marker).join('\n');

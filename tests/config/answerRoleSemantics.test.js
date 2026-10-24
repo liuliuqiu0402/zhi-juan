@@ -15,6 +15,8 @@ describe('ANSWER_ROLES 答案页角色措辞（2026-09）', () => {
     expect(role).toContain('不为凑数硬编');
     expect(role).not.toContain('自行判断'); // 旧"语义自决"措辞已被"解析下限"取代（模型把它读成"可以都不写"）
     expect(role).not.toContain('客观题给出正确答案'); // 旧措辞已去除（曾被读成客观题一律免解析）
+    // 🔴 2026-10-24（真机"答案区解析一个都没有"）：旧"纯数值/单一符号不给解析"口子把整卷读成"一律不写"，不得回潮。
+    expect(role).not.toMatch(/纯数值|单一符号|不给解析/);
   });
 
   it('其他分支语义保留：errorbook 归因、summary 类不复述正文、exam 评分标准', () => {
@@ -30,5 +32,6 @@ describe('ANSWER_ROLES 答案页角色措辞（2026-09）', () => {
     expect(role).toContain('必须附');
     expect(role).toContain('点到即止');
     expect(role).toContain('遮住解析只看答案'); // 补 exam 分支此前缺失的下限
+    expect(role).not.toMatch(/纯数值|单一符号|不给解析/); // 2026-10-24：免解析口子不得回潮
   });
 });

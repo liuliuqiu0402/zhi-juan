@@ -88,9 +88,11 @@ describe('标准·结构（D 三项：M4 / S6 / M5）', () => {
   const TYPES9 = [...new Set(FACES486.map((f) => f.genType))];
 
   it('M4 分值只属试卷：exam 恒在场；其余 8 类 432 面**零**分值条款', () => {
-    // ① exam 正向锚（分值说明 + 满分）恒在场——防"删概念以过守卫"
+    // ① exam 正向锚（分值标注块 + 满分）恒在场——防"删概念以过守卫"
+    //    2026-10-24：原锚"分值说明"随单一开关重写改词（"标题里的分按该组实际判分处数算出"）；
+    //    改锚**块标题【分值标注】**（结构锚，比词串更稳：块在＝分值判据在）。
     const exam = FACES486.filter((f) => f.genType === 'exam');
-    const miss = exam.filter((f) => !/分值说明/.test(f.text) || !/满分/.test(f.text)).map((f) => f.key);
+    const miss = exam.filter((f) => !/【分值标注】/.test(f.text) || !/满分/.test(f.text)).map((f) => f.key);
     expect(miss.slice(0, 5), `exam 面缺分值条款（共 ${miss.length}）`).toEqual([]);
     // ② 非 exam 432 面：零分值条款（满分／分值说明／（…N分…））——这才是 M4 的全面面口径
     const RE = /满分|分值说明|[（(][^）)\n]{0,8}\d+\s*分\s*[）)]/;

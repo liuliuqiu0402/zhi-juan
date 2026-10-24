@@ -59,13 +59,15 @@ describe('A→B 契约：逐题标注进，真题标题出', () => {
     expect(r.html, '不得写成"每篇15分"').not.toContain('每篇15分');
   });
 
-  it('⑤ 旧式裸（15分）→（共15分）形态兜底仍在（1.6 保留；需其下有带号题）', () => {
+  it('⑤ 标题裸（15分）不再被 B 改写形态（A 写什么就是什么；程序不另立口径）', () => {
     const html = [
       '<h1>阶段测评</h1>',
       '<h3>五、写话（15分）</h3>',
       '<p>1. 写几句话。（15分）</p>',
     ].join('\n');
-    expect(titles(run(html).html)).toContain('五、写话（共15分）');
+    const out = titles(run(html).html);
+    expect(out).toContain('五、写话（15分）');
+    expect(out.join('\n'), '旧"裸（X分）→（共X分）"归一不得回潮').not.toContain('五、写话（共15分）');
   });
 
   it('⑥ 作答空间按**该题总数**算，不按单价：共6分应多于2分', () => {

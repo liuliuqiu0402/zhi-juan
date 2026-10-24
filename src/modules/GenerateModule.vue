@@ -1324,7 +1324,7 @@
             </label>
           </div>
           <div style="margin-top:4px;font-size:11px;color:var(--text-tertiary);line-height:1.5;">
-            只决定小题号的起编方式；其下没有各自成题的行的组不编号。
+            只决定小题号的起编方式。
           </div>
         </div>
         <div class="modal-actions">
@@ -6475,7 +6475,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     genType,                        // 卷别→学业质量水平（高中·按学科分型，非全科统一）：正式卷按卷别映射、教辅锚毕业合格要求（单源 config/levelMapping）
     scopeType: scopeType.value || '', // 升学卷别（gaokao=高考）→ 高考水平；其余正式卷→合格考水平
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
-    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '全卷连续；其下没有各自成题的行的组不编号' : '每大题从1起；其下没有各自成题的行的组不编号',
+    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '全卷连续' : '每大题从1起',
   });
   // 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
   const tplBodyText = instructionDraft.value;
@@ -6483,10 +6483,12 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   //   getPromptTemplate 是"用户自定义优先"：指令库里只要存过一份（哪怕是旧版），代码里的内置判据
   //   **永远进不来**。此处把来源与关键判据的在位性打到日志里，一眼就能看出这次生成用的是哪一份。
   {
-    const ANCHOR_SCORE_ON_STEM = '带题号的题，分就写在题干行末';
+    const ANCHOR_SCORE_ON_STEM = '按真题习惯写在题号后或题干末尾';
     const hasAnchor = instructionDraft.value.includes(ANCHOR_SCORE_ON_STEM);
-    console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜含"题干行末标分"判据=${hasAnchor}`);
-    if (tpl.source === 'user' && !hasAnchor) {
+    const staleScore = instructionDraft.value.includes('不是标题里要填的数字');
+    const hasHead = instructionDraft.value.includes('卷首固定顺序');
+    console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜含"逐题标分（位置按真题习惯）"判据=${hasAnchor}｜含"卷首固定顺序"=${hasHead}｜旧"标题不填分"措辞=${staleScore}${tpl.normativeMerged ? '｜规范块（卷首/卷面结构/分值标注）已并入内置现行版' : ''}`);
+    if (tpl.source === 'user' && (!hasAnchor || staleScore || !hasHead)) {
       console.warn(
         '⚠️ 本次生成用的是「指令库·用户自定义模板」，与内置判据不一致——代码里的修改不会生效。' +
         '处理：到指令库把该条「恢复默认」（或删除自定义模板）后重新生成。',
@@ -6608,7 +6610,7 @@ const restoreDefaultInstruction = async () => {
     genType,                        // 卷别→学业质量水平（高中）：与 loadInstructionFromLibrary 同源
     scopeType: scopeType.value || '',
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
-    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '全卷连续；其下没有各自成题的行的组不编号' : '每大题从1起；其下没有各自成题的行的组不编号',
+    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '全卷连续' : '每大题从1起',
   });
   // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构（委托正文栏目骨架）
   if (genType !== 'exam') {

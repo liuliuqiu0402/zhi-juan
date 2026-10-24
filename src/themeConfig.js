@@ -2353,8 +2353,8 @@ export const normalizeSealStructure = (html) => {
 
 
 /**
- * 大题标题分值提取：现口径「（每题X分，共Y分）」或「（共X分）」；兼容**历史式**"（共X题，每题X分，共X分）"与旧式"（X分）"
- * （🔴 2026-10-10：全大题为一题时标题**含单价**；合写式与只写总分式**都解析**——见下三种正则）
+ * 大题标题分值提取：现行三态都解析——「（每〈单位〉X分，共Y分）」（不带号）／「（每题X分，共Y分）」（程序合成）／「（X分）」（不带号单判分处）；
+ * 另兼容**历史式**"（共X题，每题X分，共X分）"。标题形态由【分值标注】单源给，本函数只读不判合规。
  */
 const parseSectionScore = (text) => {
   // ① 历史式（兼容解析）："（共6题，每题2分，共12分）" —— 共X题…共Y分
@@ -2368,9 +2368,19 @@ const parseSectionScore = (text) => {
   return last ? parseInt(last[1], 10) : null;
 };
 
+/** 整段即加粗（裸 <strong>/<b>，或仅含一个加粗子元素且其文本即整段）——结构信号，与分值无关 */
+const isBoldAloneEl = (el) => {
+  if (el.tagName === 'STRONG' || el.tagName === 'B') return true;
+  const fc = el.firstElementChild;
+  return !!fc && el.children.length === 1 && (fc.tagName === 'STRONG' || fc.tagName === 'B')
+    && (fc.textContent || '').trim() === (el.textContent || '').trim();
+};
+
 /**
- * 解析正文大题标题（一、二、三…）→ [{ num:'一', name:'…', score:N }]
- * 仅识别"汉字序号＋、"开头且带分值标注的行；跳过答案区（answer-section）内的标题
+ * 解析正文大题标题（一、二、三…）→ [{ num:'一', name:'…', score:N|null }]
+ * 结构识别**不以自带分值为前提**：汉字序号＋、且（有分值 ∨ 整段加粗 ∨ 标题标签）即认作大题；
+ * 否则整卷漏标分时识别为空 ⇒ 注意事项/题号得分表整体不注入（2026-10-24 真机）。
+ * 跳过答案区（answer-section）内的标题
  */
 export const parseExamSections = (html) => {
   if (!html || typeof html !== 'string') return [];
@@ -2383,7 +2393,7 @@ export const parseExamSections = (html) => {
     const numMatch = text.match(/^([一二三四五六七八九十]+)、/);
     if (!numMatch) continue;
     const score = parseSectionScore(text);
-    if (score == null) continue; // 无分值标注不视为大题（如答案页标题/正文短句）
+    if (score == null && !isBoldAloneEl(el) && !/^H[1-4]$/.test(el.tagName)) continue;
     sections.push({ num: numMatch[1], name: text.replace(/[（(].*?分[)）]$/, '').trim(), score });
   }
   return sections;
@@ -2457,12 +2467,7 @@ export const injectExamShell = (html, stage) => {
   //      旧判据只认分值 → 漏认 → 固定件落到大类行之后（实测"第一部分 → 注意事项 → 得分表 → 一、"）。
   //      判据只认"整段即加粗"（裸 <strong>/<b>，或仅含一个加粗子元素且其文本即整段），
   //      普通叙述段（如"第一部分 是本次资料说明"）不加粗、不误认。
-  const isBoldAlone = (el) => {
-    if (el.tagName === 'STRONG' || el.tagName === 'B') return true;
-    const fc = el.firstElementChild;
-    return !!fc && el.children.length === 1 && (fc.tagName === 'STRONG' || fc.tagName === 'B')
-      && (fc.textContent || '').trim() === (el.textContent || '').trim();
-  };
+  const isBoldAlone = isBoldAloneEl;
   let anchor = null;
   let bigCat = null;
   for (const el of Array.from(tpl.content.querySelectorAll('p, div, h1, h2, h3, h4, strong, b'))) {
@@ -2474,7 +2479,12 @@ export const injectExamShell = (html, stage) => {
     //   "导语 → 第一部分 → 注意事项 → 得分表 → 一、"）。标题标签（h1–h4）是结构件、不会与正文句混淆 → 纳入。
     if (!bigCat && PART_RE.test(text) && isBigCatLeaf(el) && (scored || isBoldAlone(el) || /^H[1-4]$/.test(el.tagName))) bigCat = el;
     // 去重边界仍只认大题行（p/标题，不取 div 容器/裸加粗）：保持旧有保守语义
-    if (el.tagName !== 'DIV' && el.tagName !== 'STRONG' && el.tagName !== 'B' && /^[一二三四五六七八九十]+、/.test(text) && scored) {
+    // 🔴 2026-10-24（真机："没有小题号的题被排在注意事项上方"）：**大题行的识别不得以"自带分值"为前提**——
+    //   不带号的大题一旦漏标分，锚点就跳到后面某个带分的大题行，固定件被插到该大题之后
+    //   （实测"一、口算 → 注意事项 → 得分表 → 二、…"）。结构归结构、分值归分值：
+    //   汉字序号＋、且（自带分值 ∨ 整段加粗 ∨ 标题标签）即认作大题行；普通叙述段无结构信号，不误认。
+    if (el.tagName !== 'DIV' && el.tagName !== 'STRONG' && el.tagName !== 'B' && /^[一二三四五六七八九十]+、/.test(text)
+      && (scored || isBoldAlone(el) || /^H[1-4]$/.test(el.tagName))) {
       anchor = el;
       break;
     }
