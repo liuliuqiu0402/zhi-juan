@@ -195,7 +195,7 @@ describe('④ 双括注折叠、答案区多形态镜像、非均分许可', () 
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t, stage + '：形态唯一（每〈单位〉X分，共Y分）').toContain('（每〈单位〉X分，共Y分）');
       expect(t, stage + '：Y＝X×N').toContain('Y＝X×N');
-      expect(t, stage + '：单价来自档').toContain('{scoreUnitLadder}');
+      expect(t, stage + '：单价不枚举档值').not.toContain('{scoreUnitLadder}');
       expect(t, stage + '：不得一刀切（全卷统一写法）').not.toContain('同一份卷内写法一致');
       expect(t, stage + '：不得以裸分替代全式').not.toContain('直接写该题总分');
     }

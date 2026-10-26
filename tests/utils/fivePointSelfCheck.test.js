@@ -31,7 +31,7 @@ describe('① 编号/不编号：结构事实判定 + 两支各自的动作', ()
     expect(scoreBlock, '多题干：各题干后标全式').toContain('各题干后标');
     expect(scoreBlock, '多题干：标题写中间态').toContain('（共Z分）');
     expect(scoreBlock, '位置：材料与作答载体之后').toContain('全部材料与作答载体之后');
-    expect(scoreBlock, '单价来自档（不枚举学段）').toContain('{scoreUnitLadder}');
+    expect(scoreBlock, '单价不枚举档值').not.toContain('{scoreUnitLadder}');
     // 🔴 2026-10-24（属主："不要提均分/不同分，模型会选择一个最简单的方式均分来标"）：
     //   分值块里不得出现任何"均分/同分"字样——一出现就会被读成"把各题拉平"的许可。
     expect(scoreBlock, '分值块不得出现均分/同分口径').not.toMatch(/均分|同分|不同分/);

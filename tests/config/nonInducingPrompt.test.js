@@ -313,7 +313,9 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     // 钱怎么来：先定单价、再乘个数
     expect(src, 'Y＝X×N').toContain('Y＝X×N');
     expect(src, '禁止倒推').toContain('不得先定总分再倒推单价');
-    expect(src, '单价来自档（不枚举学段）').toContain('X 从 {scoreUnitLadder} 中选');
+    // 2026-10-26（属主："不用档值的具体数字，这个算诱导"）：档值枚举整支删除，防回潮。
+    expect(src, '单价不枚举档值').not.toContain('X 从 {scoreUnitLadder} 中选');
+    expect(src, '档值注入位不得回潮').not.toContain('{scoreUnitLadder}');
     // 逐层自验
     expect(src, '多题干账目').toContain('Z＝ΣY');
     expect(src, '试卷层账目').toContain('各大题分之和＝给定满分');

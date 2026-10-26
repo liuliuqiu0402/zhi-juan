@@ -71,7 +71,7 @@ describe('编号判据单源（2026-10-26 结构事实）', () => {
       const t = tpl('语文', 'primary_low', g);
       expect(t, `${g}：不得加载【分值标注】`).not.toContain('【分值标注】');
       expect(t, `${g}：不得出现"（共Z分）"`).not.toContain('（共Z分）');
-      expect(t, `${g}：不得出现单价档注入位`).not.toContain('{scoreUnitLadder}');
+      expect(t, `${g}：不得出现单价档注入位（档值枚举已整支删除）`).not.toContain('{scoreUnitLadder}');
     }
   });
 });

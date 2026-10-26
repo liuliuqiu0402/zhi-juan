@@ -114,7 +114,7 @@ describe('题号×标题×A×B 组合矩阵', () => {
       expect(t, '多题干：标题写中间态').toContain('（共Z分）');
       expect(t, '单价先定、再乘个数').toContain('Y＝X×N');
       expect(t, '禁止倒推').toContain('不得先定总分再倒推单价');
-      expect(t, '单价来自档（不枚举学段）').toContain('{scoreUnitLadder}');
+      expect(t, '单价不枚举档值').not.toContain('{scoreUnitLadder}');
       expect(t, '合计自洽').toContain('Z＝ΣY');
       expect(t, '试卷层账目').toContain('各大题分之和＝给定满分');
       expect(t, '满分不可改').toContain('不得改动满分');

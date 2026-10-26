@@ -513,7 +513,7 @@ const bigTitleRule = (stage = '') => (isMidHighStage(stage)
     ].join('\n'));
 /** 大类层序号口径：小学段自带序号；中学段不设大类层（**大题标题命名见 bigTitleRule 单源**，此处不复述） */
 const bigCatSeqRule = (stage = '') => (isMidHighStage(stage)
-  ? '**中学段（初中/高中）不设大类层**（真题通行，如"一、〈大题名〉（30分）"）；以下凡属"大类层"的表述均**不适用**（分值条照常执行）'
+  ? '**中学段（初中/高中）不设大类层**（真题通行，如"一、〈大题名〉（共Z分）"——"（共Z分）"是中间态，由系统按各题分合成）；以下凡属"大类层"的表述均**不适用**（分值条照常执行）'
   : '**小学段大类（部分）层自带序号**（序号样式须与其下大题「一、」**相区分**；**名称本身带"部分"字样的层名按本名呈现、不强加序号**）');
 /** 大类名与大题标题的关系（**大题标题命名单源见 bigTitleRule**）：小学段大类名不得顶替大题标题 */
 const bigCatTitleRule = (stage = '') => (isMidHighStage(stage)
@@ -569,7 +569,7 @@ export const ANSWER_STEM_CALIBER = '**一个大题下，每个独立成 <p class
 const EXAM_BASE = (extra = '', ctx = {}) => `你是资深命题专家。请为{grade}{subject}命制一份{unit}正式试卷。
 
 【卷面结构（依{curriculum}）】
-· 本块给出本次范围的**板块参考**（考什么、**参考分值**）——**板块构成、所标分值、行内每条要求注写到的呈现形态都只是参考、可增可减可换**（范围不含的板块**不设**，需要时**可增设或另立更贴切的板块**）；**所标分值只是份量参考**——**不当作标题或各题要写的分**（标题的总分、各题的分值，一律按【分值标注】依实际判分处数判）；**本卷给不出或不宜用某形态时按等效形态落实、标题随实际形态写——不得为贴合结构硬凑题**
+· 本块给出本次范围的**板块参考**（考什么、**参考分值**）——**板块构成、所标分值、行内每条要求注写到的呈现形态都只是参考、可增可减可换**（范围不含的板块**不设**，需要时**可增设或另立更贴切的板块**）；**所标分值只是份量参考**——**不当作标题或各题要写的分**（标题的总分、各题的分值，一律按【分值标注】依实际作答对象个数判）；**本卷给不出或不宜用某形态时按等效形态落实、标题随实际形态写——不得为贴合结构硬凑题**
 {structure}
 
 【大题标题命名】
@@ -590,7 +590,7 @@ ${bigTitleRule(ctx.stage)}${isMidHighStage(ctx.stage) ? '' : '\n· ' + bigCatTit
 【卷首】
 · 卷首只留一个占位 <h1>（主标题由系统替换）；正文**不得改动、覆盖或另拟**主标题，也不附加资料类型词
 · **卷首固定顺序**：**占位标题 <h1> → "(考试时间：{duration}　满分：{fullScore}分)"一行 → 密封线（左侧竖排"密封线内不要答题"，含学校/班级/姓名/学号填写栏） → ［卷首导语——仅"采用统一情境"时］ → 第一大题**；各件在卷首**各出现一次**。
-· **{duration}、{fullScore} 按给定值原样写入**；{fullScore} 是给定满分，**不自行计算、不修改、不保留占位**；**各大题分值之和须等于该给定满分**，不等时调题目内容或按档换单价，**不得改动满分**。
+· **{duration}、{fullScore} 按给定值原样写入**；{fullScore} 是给定满分，**不自行计算、不修改、不保留占位**；**各大题分值之和须等于该给定满分**，不等时调题目内容或换一个单价，**不得改动满分**。
 · **卷首导语**：本卷是否采用统一情境，**以随本委托注入的组织风格为准**——采用时，卷首导语即本卷的**统一情境**（密封线之后、第一大题之前给一至两句点明本卷情境与本卷任务）
 · 未采用统一情境时**不写卷首导语**
 
@@ -605,10 +605,10 @@ ${bigTitleRule(ctx.stage)}${isMidHighStage(ctx.stage) ? '' : '\n· ' + bigCatTit
 · **结构判定**：${ANSWER_STEM_CALIBER}。
 · **单题干大题**：只在该题干后标"（每〈单位〉X分，共Y分）"，**大题标题不写分值**。
 · **多题干大题**：各作答题干前按【层级与组织】给号；**各题干后标"（每〈单位〉X分，共Y分）"**；**大题标题末尾标"（共Z分）"**，Z＝各题干 Y 之和——**这是中间态，不自行改写为"每题X分"或分组式**。
-· **先定单价、后乘个数**：每个作答题干**先定单价 X**，再按该题干内**真实作答对象个数 N** 乘，**Y＝X×N**；**不得先定总分再倒推单价**；整片书写区按 1 处计；**X 从 {scoreUnitLadder} 中选**。
+· **先定单价、后乘个数**：每个作答题干**先定单价 X**，再按该题干内**真实作答对象个数 N** 乘，**Y＝X×N**；**不得先定总分再倒推单价**；整片书写区按 1 处计。
 · **位置**：分值括注写在**全部材料与作答载体之后**；题内有选项列表的写在**选项列表之后**；不得写在标题行、材料中间、作答载体之前，不得脱离题干另起一行。
 · **分问**：分问内部编号形式不受约束。
-· **逐层自验，满分以给定值为准、不可改动**：每题 Y＝X×N；多题干大题 Z＝ΣY；有大类层时大类总分＝其下各大题分之和（**无大类层跳过此层**）；各大题分之和＝给定满分（有大类层时各大类之和＝给定满分）。**不等时调题目内容或按档换单价，使等式成立；不得改动满分，不得只调数字凑总分。大类总分只用于自验，不写在卷面。**
+· **逐层自验，满分以给定值为准、不可改动**：每题 Y＝X×N；多题干大题 Z＝ΣY；有大类层时大类总分＝其下各大题分之和（**无大类层跳过此层**）；各大题分之和＝给定满分（有大类层时各大类之和＝给定满分）。**不等时调题目内容或换一个单价，使等式成立；不得改动满分，不得只调数字凑总分。**
 
 【卷面自洽】
 · 自洽（层级与内容）：**大类名与大题标题都须与其下各题实际考查的内容、作答方式相符**（标题与其下内容不一致即调整为一致；课标领域名／栏目名／部分名这一族名称沿用给定名、不另拟）；**判法：遮住该名称、只看其下各题——能否据此反推出该名称？不能即不符**）；大类名与大题标题**不得互相重复、也不得互相顶替**
@@ -1609,24 +1609,13 @@ export function listPromptTemplates() {
  * @param {Object} opts { template, grade, subject, unit, genTypeLabel, structure, fullScore, duration, extra }
  * @returns {string} 完整注入指令（注入框展示内容）
  */
-/** 每处单价档（白名单·2026-10-26 方案）：模型只能从中选 X；按学段给档，不按题型枚举。 */
-export const SCORE_UNIT_LADDERS = {
-  primary_low: [1, 2, 3],
-  primary_mid: [1, 2, 3, 4],
-  primary_high: [1, 2, 3, 4, 5],
-  middle: [0.5, 1, 2, 3, 4, 5, 6],
-  high: [0.5, 1, 2, 3, 4, 5, 6],
-};
-export const scoreUnitLadderText = (stage = '') =>
-  (SCORE_UNIT_LADDERS[stage] || SCORE_UNIT_LADDERS.primary_mid).join('、');
-
 export function buildInjectionInstruction(opts = {}) {
   const {
     template = '', grade = '', subject = '', unit = '', genTypeLabel = '',
     structure = '', fullScore = '', duration = '', extra = '', label = '', semester = '', academic = '',
     stage = '', materialChannel = '',
     genType = '', scopeType = '', paperKind = '',
-    subQuestionNumbering = '', scoreUnitLadder = '',
+    subQuestionNumbering = '',
   } = opts;
   // 1) 任务定位行（系统生成，固定最前——模型第一眼知道要干什么）
   const taskLine = `【任务】生成${genTypeLabel || '资料'}：${subject}${grade}${unit ? `·${unit}` : ''}${fullScore ? `（满分${fullScore}分${duration ? `，时长${duration}` : ''}）` : ''}`;
@@ -1638,7 +1627,6 @@ export function buildInjectionInstruction(opts = {}) {
     '{structure}': structure || '（按教材内容合理设计大题）',
     '{fullScore}': fullScore, '{duration}': duration,
     '{subQuestionNumbering}': subQuestionNumbering || '每大题从1起',
-    '{scoreUnitLadder}': scoreUnitLadder || scoreUnitLadderText(stage),
     // 🔧 课标版本兜底：内置模板已按学段替换（buildBuiltinTemplate），此处覆盖用户自定义模板中的 {curriculum}，
     //   未传学段键时保持通用表述（与历史行为一致）
     '{curriculum}': CURRICULUM_BY_STAGE[stage] || '本学段最新课程标准',

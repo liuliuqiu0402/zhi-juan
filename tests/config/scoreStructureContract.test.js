@@ -10,7 +10,7 @@
 //   ⑥ practice：不输出任何分值，且不加载【分值标注】
 // ============================================================
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate, SCORE_UNIT_LADDERS } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate } from '../../src/config/promptLibrary.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
 
 const tpl = (g = 'exam', s = '数学', st = 'primary_mid') =>
@@ -27,7 +27,7 @@ describe('分值结构契约：单题干 / 多题干', () => {
     expect(t, '单题干').toContain('单题干大题');
     expect(t, '多题干').toContain('多题干大题');
     expect(t, '中间态').toContain('（共Z分）');
-    expect(t, '单价来自档').toContain('{scoreUnitLadder}');
+    expect(t, '先定单价后乘个数').toContain('Y＝X×N');
     // 旧架构的两支判据整类清除
     expect(t, '旧"号是点名用的"不得回潮').not.toContain('号是点名用的');
     expect(t, '旧"带小题号/不带小题号"不得回潮').not.toContain('带小题号');
@@ -64,12 +64,17 @@ describe('分值结构契约：单题干 / 多题干', () => {
     expect(head(r.html), '单题干标题原样').toBe('三、填空');
   });
 
-  it('⑤ 单价档：中学含 0.5，文本不出现学段枚举', () => {
-    expect(SCORE_UNIT_LADDERS.middle, '中学档含 0.5').toContain(0.5);
+  it('⑤ 单价不枚举档值：不出现档值清单、不出现学段枚举', () => {
     const t = tpl('exam', '数学', 'middle');
-    expect(t, '单价来自档').toContain('{scoreUnitLadder}');
-    expect(t, '不写"小学整数"').not.toContain('小学整数');
-    expect(t, '不写"中学0.5"').not.toContain('中学0.5');
+    // 2026-10-26（属主："不用档值的具体数字，这个算诱导"）：档值枚举会诱导模型按档挑数、而不是先看内容定单价，
+    //   且与本项目既有裁定「删通行分值档——给出通行档，模型就默认 1分/2分、题题同分」相抵 ⇒ 整支删除，防回潮。
+    expect(t, '档值注入位不得回潮').not.toContain('{scoreUnitLadder}');
+    expect(t, '档字不得回潮（"按档换单价"）').not.toContain('按档');
+    expect(t, '不写学段枚举').not.toContain('小学整数');
+    expect(t, '不写学段枚举').not.toContain('中学0.5');
+    // 判据仍在：先定单价、后乘个数，靠自验兜（不靠档值）
+    expect(t, '先定单价后乘个数').toContain('Y＝X×N');
+    expect(t, '禁止倒推').toContain('不得先定总分再倒推单价');
   });
 
   it('⑥ practice：不输出任何分值，且不加载【分值标注】', () => {
