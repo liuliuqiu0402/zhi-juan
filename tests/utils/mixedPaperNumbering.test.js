@@ -212,14 +212,14 @@ describe('③ 跨学段×学科混合扫描（基准：先数作答题干 → �
         // 块切片必须**锚行首**（块内行文会行内引用【分值标注】，按子串取首个命中会切到引用处）
         const scoreBlock = (t.match(/^【分值标注】[\s\S]*?(?=\n\n【)/m) || [''])[0];
         if (!t.includes('看其中一项有没有成句的文字')) bad.push(tag + '：缺"作答题干口径"');
-        if (!t.includes('单题干大题')) bad.push(tag + '：缺"单题干"');
-        if (!t.includes('多题干大题')) bad.push(tag + '：缺"多题干"');
-        if (!t.includes('分值只写在大题标题')) bad.push(tag + '：缺"单题干标分落点"');
-        if (!t.includes('分值只写在大题标题')) bad.push(tag + '：缺"单题干标题不写分"');
-        if (!t.includes('各题干后标')) bad.push(tag + '：缺"多题干逐题标分"');
-        if (!t.includes('（共Z分）')) bad.push(tag + '：缺"多题干标题中间态"');
+        if (!t.includes('（单题干）')) bad.push(tag + '：缺"单题干"');
+        if (!t.includes('（多题干）')) bad.push(tag + '：缺"多题干"');
+        if (!t.includes('大题标题一律写')) bad.push(tag + '：缺"单题干标分落点"');
+        if (!t.includes('大题标题一律写')) bad.push(tag + '：缺"单题干标题不写分"');
+        if (!t.includes('每题题干后必须再标一次')) bad.push(tag + '：缺"多题干逐题标分"');
+        if (!t.includes('大题标题一律写')) bad.push(tag + '：缺"多题干标题中间态"');
         if (!t.includes('Y＝X×N')) bad.push(tag + '：缺"Y＝X×N"');
-        if (!t.includes('Z＝ΣY')) bad.push(tag + '：缺"大题账目"');
+        if (!t.includes('该栏标题所标')) bad.push(tag + '：缺"大题账目"');
         if (!t.includes('各大题分之和＝给定满分')) bad.push(tag + '：缺"试卷账目"');
         // 旧语义判据不得回潮
         if (t.includes('号是点名用的')) bad.push(tag + '：旧"号是点名用的"回潮');
@@ -232,7 +232,7 @@ describe('③ 跨学段×学科混合扫描（基准：先数作答题干 → �
         }
         // 顺序：结构判定先于两支后果
         const i1 = t.indexOf('看其中一项有没有成句的文字');
-        const i2 = t.indexOf('单题干大题');
+        const i2 = t.indexOf('（单题干）');
         if (!(i1 > -1 && i2 > i1)) bad.push(tag + '：结构判定须先于两支后果（不成序）');
       }
     }

@@ -20,16 +20,16 @@ describe('① 编号/不编号：结构事实判定 + 两支各自的动作', ()
   //   这一大题下有几个独立成 `<p class="question">` 的题干。本用例锁"结构判定在位 + 两支各自动作写死"。
   it('判据：数作答题干分单/多题干，两支各写后果', () => {
     expect(ANSWER_STEM_CALIBER, '结构判定').toContain('看其中一项有没有成句的文字');
-    expect(ANSWER_STEM_CALIBER, '每项各自成题、自带要求或陈述').toContain('每项各自成题、自带要求或陈述');
-    expect(ANSWER_STEM_CALIBER, '二分').toContain('单题干大题');
-    expect(ANSWER_STEM_CALIBER, '二分').toContain('多题干大题');
+    expect(ANSWER_STEM_CALIBER, '题前加小号序号').toContain('题前加小号序号');
+    expect(ANSWER_STEM_CALIBER, '二分').toContain('（单题干）');
+    expect(ANSWER_STEM_CALIBER, '二分').toContain('（多题干）');
     const t = tpl();
     expect(t, '判据就地内联（写分值处能读到）').toContain(ANSWER_STEM_CALIBER);
     // 块切片锚行首：【卷面结构】里行内引用"按【分值标注】判"不算块起点。
     const scoreBlock = (t.match(/^【分值标注】([\s\S]*?)(?=\n\n【)/m) || [, ''])[1];
-    expect(scoreBlock, '单题干：分值只写在大题标题、标题不写分').toContain('分值只写在大题标题');
-    expect(scoreBlock, '多题干：各题干后标全式').toContain('各题干后标');
-    expect(scoreBlock, '多题干：标题写中间态').toContain('（共Z分）');
+    expect(scoreBlock, '单题干：大题标题一律写、标题不写分').toContain('大题标题一律写');
+    expect(scoreBlock, '多题干：每题题干后必须再标一次全式').toContain('每题题干后必须再标一次');
+    expect(scoreBlock, '多题干：标题写中间态').toContain('大题标题一律写');
     expect(scoreBlock, '位置：材料与作答载体之后').toContain('全部材料与作答载体之后');
     expect(scoreBlock, '单价不枚举档值').not.toContain('{scoreUnitLadder}');
     // 🔴 2026-10-24（属主："不要提均分/不同分，模型会选择一个最简单的方式均分来标"）：
@@ -171,8 +171,8 @@ describe('②-b 个数要数：Y 须与该题干实际作答对象个数相符',
     //   单价按档选，不设整数限制、不强制全大题一个价（程序按**题**合成，不按单价合成）。
     expect(t, '不得强制同一大题一个价').not.toContain('同一大题一个价');
     expect(t, '不得强制整数分').not.toContain('取整数分');
-    // 单题干大题的价落在题干后，标题不写分（旧"分值只写在大标题"已废）。
-    expect(t, '单题干：标题不写分值').toContain('分值只写在大题标题');
+    // （单题干）的价落在题干后，标题不写分（旧"分值只写在大标题"已废）。
+    expect(t, '单题干：标题不写分值').toContain('大题标题一律写');
   });
 
   it('行为：三空只写（2分）⇒ 报"处数没数"（只报不改）', () => {
@@ -219,9 +219,9 @@ describe('③ 逐题标：每道作答题干都要有分（A 的活，缺了程�
   //   题干格式条不再复述同一义务（防双源）。
   it('判据单源：分值块写死两支各自标分，题干格式条不复述同一义务', () => {
     const t = tpl();
-    expect(t, '多题干：各题干后标全式').toContain('各题干后标');
-    expect(t, '单题干：分值只写在大题标题').toContain('分值只写在大题标题');
-    expect(t, '位置：材料与作答载体之后').toContain('括注写在**全部材料与作答载体之后**');
+    expect(t, '多题干：每题题干后必须再标一次全式').toContain('每题题干后必须再标一次');
+    expect(t, '单题干：大题标题一律写').toContain('大题标题一律写');
+    expect(t, '位置：材料与作答载体之后').toContain('分值括注写在**全部材料与作答载体之后**');
     expect(t, '题干格式条不得再写一遍（单源）').not.toContain('带题号的题，分就写在');
   });
 
@@ -294,11 +294,11 @@ function rows0(html) {
 
 // 🔴 2026-10-23（属主："分值自洽是模型侧的硬性要求，一层层验"）：
 //   2026-10-24 收口：账目只保留可执行的两层——小题 → 大题 → 卷首；大类层不设时由大标题承担。
-describe('⑦ 分值自洽：模型侧逐层核（硬性·每题→多题干大题→卷首）', () => {
+describe('⑦ 分值自洽：模型侧逐层核（硬性·每题→（多题干）→卷首）', () => {
   it('三层齐备且按"每题→大题→卷首"排列', () => {
     const t = tpl();
     const i1 = t.indexOf('真实作答对象个数 N');
-    const i2 = t.indexOf('Z＝ΣY');
+    const i2 = t.indexOf('该栏标题所标');
     const i3 = t.indexOf('各大题分之和＝给定满分');
     for (const [name, i] of [['①每题', i1], ['②大题', i2], ['③卷首', i3]]) {
       expect(i, `${name} 层必须在位`).toBeGreaterThan(-1);
@@ -310,7 +310,7 @@ describe('⑦ 分值自洽：模型侧逐层核（硬性·每题→多题干大�
   it('中学：与小学同一套账目（不另设第二套）', () => {
     const mid = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' }).template;
     expect(mid, '每题账目同在').toContain('Y＝X×N');
-    expect(mid, '大题账目同在').toContain('Z＝ΣY');
+    expect(mid, '大题账目同在').toContain('该栏标题所标');
     expect(mid, '试卷账目同在').toContain('各大题分之和＝给定满分');
     expect(mid, '旧"中学不设大类层"分叉不得回潮').not.toContain('中学不设大类层');
   });

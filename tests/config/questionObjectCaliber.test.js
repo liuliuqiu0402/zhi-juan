@@ -53,7 +53,7 @@ describe('卷面层级与分值自验（本次换代不得顺带削掉）', () =
     const ex = tpl('exam');
     expect(ex, '大题序号：一、二、三…（跨大类/部分接着编）仍在').toContain('跨大类/部分接着编');
     expect(ex, '⚠️「全卷连续」四字不得回潮（会被读成题号层也连续 ⇒ 每个题干都要给号）').not.toContain('全卷连续');
-    expect(ex, '逐层自验：多题干大题 Z＝ΣY').toContain('Z＝ΣY');
+    expect(ex, '逐层自验：（多题干） 该栏标题所标').toContain('该栏标题所标');
     expect(ex, '试卷层：各大题分之和＝给定满分').toContain('各大题分之和＝给定满分');
     expect(ex, '满分是给定值、不可改').toContain('不得改动满分');
   });
@@ -81,7 +81,7 @@ describe('卷面层级与分值自验（本次换代不得顺带削掉）', () =
   it('〔346〕不可自判的旧锚不得回潮；由结构事实接管', () => {
     expect(QUESTION_OBJECT_CALIBER, '不可自判的旧锚不得回潮').not.toContain('全大题仅一个小题时');
     expect(tpl('exam'), '卷面自洽条旧锚须一并改准').not.toContain('全大题仅一个小题时');
-    expect(ANSWER_STEM_CALIBER, '并列算式行由结构事实自然判为单题干').toContain('每项各自成题、自带要求或陈述');
+    expect(ANSWER_STEM_CALIBER, '并列算式行由结构事实自然判为单题干').toContain('题前加小号序号');
   });
 
   it('M5 自测：教辅"组标题自拟"与"只写作答方式"**同份在场**——来源 vs 写法两维，非同源冲突', () => {

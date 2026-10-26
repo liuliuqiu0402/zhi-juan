@@ -113,9 +113,9 @@ describe('不该有题号／小题标题的题组：一个号都不许冒出来�
     for (const stage of ['primary_low', 'primary_mid', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t, `${stage}：结构判定＝数独立题干`).toContain('看其中一项有没有成句的文字');
-      expect(t, `${stage}：同一题干内并列小项不另算`).toContain('每项各自成题、自带要求或陈述');
+      expect(t, `${stage}：同一题干内并列小项不另算`).toContain('题前加小号序号');
       expect(t, `${stage}：单题干 ⇒ 不加小号序号`).toContain('单作答题干大题不加小号序号');
-      expect(t, `${stage}：单题干 ⇒ 分值只在该题干后`).toContain('分值只写在大题标题');
+      expect(t, `${stage}：单题干 ⇒ 分值只在该题干后`).toContain('大题标题一律写');
       // 🔴 2026-10-24（属主："不要人为干预模型的能力"）："不得为凑总分编题"已删，防回潮。
       expect(t, `${stage}："不得为凑总分编题"不得回潮`).not.toContain('不得为凑总分编题');
     }
