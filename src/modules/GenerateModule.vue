@@ -6505,7 +6505,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     // 2026-10-25：取证锚随判据同步——旧锚（"每道带号小题都要有自己的分值"／"标题括注按上条判出的结果写"／
     //   "不带小题号（整组都不带）"）在 §九.79–§九.80 的改写中已不存在，留着只会把"已送达"误报成"没送到"。
     const ANCHOR_SCORE_ON_STEM = '每道带号小题都要在整道题设问的最后一句之后写出自己的分值';
-    const ANCHOR_TITLE_ONLY_TOTAL = '题内逐题标分时，标题只写名称与作答方式';
+    const ANCHOR_TITLE_ONLY_TOTAL = '分值由各小题承载时，大题标题只写名称与作答方式';
     const ANCHOR_UNNUMBERED_SCOPE = '整组不带号';
     const hasAnchor = instructionDraft.value.includes(ANCHOR_SCORE_ON_STEM);
     const staleScore = instructionDraft.value.includes('不是标题里要填的数字');
