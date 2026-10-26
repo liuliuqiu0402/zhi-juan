@@ -63,7 +63,7 @@ describe('卷面层级与分值自验（本次换代不得顺带削掉）', () =
     expect(ex, '正面出口：可只有大题标题一层（不为连续性补号）').toContain('可以只有大题标题一层');
     expect(ex, '旧跨块指向不得回潮（模型不再需要跨块拼装）').not.toContain('哪些题该编号，见【题号与分值】');
     expect(ex, '每个独立题干都用 question 包裹（给不给号都包裹）').toContain('每道要作答的题用 <p class="question"> 包裹');
-    expect(ex, '大题标题给出本组作答方式（正向概念）').toContain('大题标题给出本组作答方式');
+    expect(ex, '大题标题就是这一组的作答要求（正向概念）').toContain('大题标题就是这一组的作答要求');
     expect(ex, '渲染侧：标题与作答要求不包成 question').toContain('标题与作答要求都不包成 question');
     expect(ex, '旧反向概念"大题标题也不是题干"不得回潮').not.toContain('大题标题也不是题干');
     expect(ex, '大题序号不推到题号').toContain('只关汉字大题号，不推到题号');
@@ -81,7 +81,7 @@ describe('卷面层级与分值自验（本次换代不得顺带削掉）', () =
   it('〔346〕不可自判的旧锚不得回潮；由结构事实接管', () => {
     expect(QUESTION_OBJECT_CALIBER, '不可自判的旧锚不得回潮').not.toContain('全大题仅一个小题时');
     expect(tpl('exam'), '卷面自洽条旧锚须一并改准').not.toContain('全大题仅一个小题时');
-    expect(ANSWER_STEM_CALIBER, '并列算式行由结构事实自然判为单题干').toContain('不另算作答题干');
+    expect(ANSWER_STEM_CALIBER, '并列算式行由结构事实自然判为单题干').toContain('同一题干内的分问、并列小项、多空不另算');
   });
 
   it('M5 自测：教辅"组标题自拟"与"只写作答方式"**同份在场**——来源 vs 写法两维，非同源冲突', () => {

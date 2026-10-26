@@ -105,7 +105,7 @@ describe('单源守卫：卷首导语 / 严肃卷面 / 统一情境 / 大题标�
 const LAYER2_SINGLE_SOURCE = [
   // 2026-10-26（结构事实换代）：原特征字面「号是点名用的」随旧语义判据删除 ⇒ 改锚到现行的作答题干口径
   //   （`ANSWER_STEM_CALIBER` 是**唯一事实源**，只许在 promptLibrary.js 出现一次）。
-  { item: '分值账目算式', owner: 'src/config/promptLibrary.js', phrase: '每个独立成 <p class="question"> 的题干算一个作答题干' },
+  { item: '分值账目算式', owner: 'src/config/promptLibrary.js', phrase: '遮住大题标题、单看其中一项' },
   // 强调口径｜🔴 2026-10-13（第 3 批核证·Z10·**锁字面同步**）：原特征字面为「加粗只用于层级标题与讲解示范引出」。
   //   因 `review` 不属内容型、其「核心知识梳理」栏要求"重点难点突出"却**无标注手段**（加粗被锁、下划线属作答载体）
   //   ⇒ 已**放宽**题类版口径为「…与**知识性正文的重点**」。**本条防回潮意图不变**（强调口径仍**只**在 promptLibrary.js 单源）。

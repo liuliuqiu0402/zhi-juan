@@ -23,7 +23,7 @@ const q = (n, body) => `<p class="question">${n}. ${body}</p>`;
 describe('分值结构契约：单题干 / 多题干', () => {
   it('① 模型文本：结构判定一处，旧两支判据不得回潮', () => {
     const t = tpl();
-    expect(t, '结构判定').toContain('每个独立成 <p class="question"> 的题干算一个作答题干');
+    expect(t, '结构判定').toContain('遮住大题标题、单看其中一项');
     expect(t, '单题干').toContain('单题干大题');
     expect(t, '多题干').toContain('多题干大题');
     expect(t, '中间态').toContain('（共Z分）');

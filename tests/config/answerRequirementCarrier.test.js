@@ -54,10 +54,10 @@ describe('作答要求载体：单源（标题一处）· 全 486 面', () => {
     expect(hits, hits.slice(0, 5).join('\n')).toEqual([]);
   });
 
-  it('exam 54 面：标题即作答要求（含"其下不再另起说明行"＋"大题标题给出本组作答方式"）', () => {
+  it('exam 54 面：标题即作答要求（含"其下不再另起说明行"＋"大题标题就是这一组的作答要求"）', () => {
     const bad = ALL.filter((f) => f.genType === 'exam' && !(
       f.text.includes('其下不再另起说明行')
-      && f.text.includes('大题标题给出本组作答方式')));
+      && f.text.includes('大题标题就是这一组的作答要求')));
     expect(bad.map((f) => `${f.subject}|${f.stage}`)).toEqual([]);
   });
 

@@ -147,15 +147,15 @@ describe('判据可判定性：并列算式＝单题干；带号小题＝多题�
   const score = (t.match(/^【分值标注】([\s\S]*?)(?=\n\n【)/m) || [, ''])[1];
 
   it('结构判定：同一题干内的并列小项不另算；1 个＝单题干、≥2 个＝多题干', () => {
-    expect(score, '作答题干定义').toContain('每个独立成 <p class="question"> 的题干算一个作答题干');
-    expect(score, '并列小项不另算').toContain('不另算作答题干');
+    expect(score, '作答题干定义').toContain('遮住大题标题、单看其中一项');
+    expect(score, '并列小项不另算').toContain('同一题干内的分问、并列小项、多空不另算');
     expect(score, '单题干').toContain('单题干大题');
     expect(score, '多题干').toContain('多题干大题');
   });
 
   it('并列算式（单题干）⇒ 分只在该题干后、标题不写分值', () => {
-    expect(score, '单题干：只在该题干后标').toContain('只在该题干后标');
-    expect(score, '单题干：标题不写分值').toContain('大题标题不写分值');
+    expect(score, '单题干：分值只写在大题标题').toContain('分值只写在大题标题');
+    expect(score, '单题干：标题不写分值').toContain('分值只写在大题标题');
     // 🔴 2026-10-24（属主："不要人为干预模型的能力"）："不得为凑总分编题"已删，防回潮。
     expect(score, '"不得为凑总分编题"不得回潮').not.toContain('不得为凑总分编题');
   });
@@ -175,7 +175,7 @@ describe('判据可判定性：并列算式＝单题干；带号小题＝多题�
   it('中学：与小学同一套判据（不另设"标题只作范围标识"的第二套）', () => {
     const mid = getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template;
     expect(mid, '中学仍是同一结构判定').toContain('多题干大题');
-    expect(mid, '中学仍走同一支后果').toContain('大题标题不写分值');
+    expect(mid, '中学仍走同一支后果').toContain('分值只写在大题标题');
     expect(mid, '旧"标题只作范围标识"分叉不得回潮').not.toContain('标题只作范围标识');
   });
 });

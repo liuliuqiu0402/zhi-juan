@@ -106,9 +106,9 @@ describe('题号×标题×A×B 组合矩阵', () => {
   it('A 侧：单/多题干两支各写后果（两学段）', () => {
     for (const stage of ['primary_low', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, '结构判定：数独立题干').toContain('每个独立成 <p class="question"> 的题干算一个作答题干');
-      expect(t, '单题干：只在该题干后标').toContain('只在该题干后标');
-      expect(t, '单题干：标题不写分值').toContain('大题标题不写分值');
+      expect(t, '结构判定：数独立题干').toContain('遮住大题标题、单看其中一项');
+      expect(t, '单题干：分值只写在大题标题').toContain('分值只写在大题标题');
+      expect(t, '单题干：标题不写分值').toContain('分值只写在大题标题');
       expect(t, '单题干：不加小号序号').toContain('单作答题干大题不加小号序号');
       expect(t, '多题干：各题干后标全式').toContain('各题干后标');
       expect(t, '多题干：标题写中间态').toContain('（共Z分）');

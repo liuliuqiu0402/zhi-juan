@@ -19,15 +19,15 @@ describe('① 编号/不编号：结构事实判定 + 两支各自的动作', ()
   //   题干话／一组只做一个动作"）——模型对同一行可给出相反解释（真机实证：整卷不标分）。现只数一件事：
   //   这一大题下有几个独立成 `<p class="question">` 的题干。本用例锁"结构判定在位 + 两支各自动作写死"。
   it('判据：数作答题干分单/多题干，两支各写后果', () => {
-    expect(ANSWER_STEM_CALIBER, '结构判定').toContain('每个独立成 <p class="question"> 的题干算一个作答题干');
-    expect(ANSWER_STEM_CALIBER, '同一题内的并列小项不另算').toContain('不另算作答题干');
+    expect(ANSWER_STEM_CALIBER, '结构判定').toContain('遮住大题标题、单看其中一项');
+    expect(ANSWER_STEM_CALIBER, '同一题干内的分问、并列小项、多空不另算').toContain('同一题干内的分问、并列小项、多空不另算');
     expect(ANSWER_STEM_CALIBER, '二分').toContain('单题干大题');
     expect(ANSWER_STEM_CALIBER, '二分').toContain('多题干大题');
     const t = tpl();
     expect(t, '判据就地内联（写分值处能读到）').toContain(ANSWER_STEM_CALIBER);
     // 块切片锚行首：【卷面结构】里行内引用"按【分值标注】判"不算块起点。
     const scoreBlock = (t.match(/^【分值标注】([\s\S]*?)(?=\n\n【)/m) || [, ''])[1];
-    expect(scoreBlock, '单题干：只在该题干后标、标题不写分').toContain('只在该题干后标');
+    expect(scoreBlock, '单题干：分值只写在大题标题、标题不写分').toContain('分值只写在大题标题');
     expect(scoreBlock, '多题干：各题干后标全式').toContain('各题干后标');
     expect(scoreBlock, '多题干：标题写中间态').toContain('（共Z分）');
     expect(scoreBlock, '位置：材料与作答载体之后').toContain('全部材料与作答载体之后');
@@ -172,7 +172,7 @@ describe('②-b 个数要数：Y 须与该题干实际作答对象个数相符',
     expect(t, '不得强制同一大题一个价').not.toContain('同一大题一个价');
     expect(t, '不得强制整数分').not.toContain('取整数分');
     // 单题干大题的价落在题干后，标题不写分（旧"分值只写在大标题"已废）。
-    expect(t, '单题干：标题不写分值').toContain('大题标题不写分值');
+    expect(t, '单题干：标题不写分值').toContain('分值只写在大题标题');
   });
 
   it('行为：三空只写（2分）⇒ 报"处数没数"（只报不改）', () => {
@@ -220,8 +220,8 @@ describe('③ 逐题标：每道作答题干都要有分（A 的活，缺了程�
   it('判据单源：分值块写死两支各自标分，题干格式条不复述同一义务', () => {
     const t = tpl();
     expect(t, '多题干：各题干后标全式').toContain('各题干后标');
-    expect(t, '单题干：只在该题干后标').toContain('只在该题干后标');
-    expect(t, '位置：材料与作答载体之后').toContain('分值括注写在**全部材料与作答载体之后**');
+    expect(t, '单题干：分值只写在大题标题').toContain('分值只写在大题标题');
+    expect(t, '位置：材料与作答载体之后').toContain('括注写在**全部材料与作答载体之后**');
     expect(t, '题干格式条不得再写一遍（单源）').not.toContain('带题号的题，分就写在');
   });
 

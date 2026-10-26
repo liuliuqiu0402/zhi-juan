@@ -47,7 +47,7 @@ describe('② 大题标题已写全时，其下不得再出现带号说明行（
   //   它正是 ③ 号事故的根。现在判据只剩一件可数的事：这一大题下有几个独立成 <p class="question"> 的题干。
   //   判断题 10 小题**各自独立成题干** ⇒ 多题干大题 ⇒ 各自给号、各自标分。
   it('A 侧：判据＝数独立题干——每项各自成题干的，即使作答动作相同也各给号', () => {
-    expect(ANSWER_STEM_CALIBER, '结构判定').toContain('每个独立成 <p class="question"> 的题干算一个作答题干');
+    expect(ANSWER_STEM_CALIBER, '结构判定').toContain('遮住大题标题、单看其中一项');
     expect(ANSWER_STEM_CALIBER, '≥2 个 ⇒ 多题干').toContain('多题干大题');
     expect(QUESTION_OBJECT_CALIBER, '第二把尺（共用一条作答要求）不得回潮').not.toMatch(/共用一条作答要求|各自有独立题干/);
     // 零题型名（防定形诱导）
@@ -58,7 +58,7 @@ describe('② 大题标题已写全时，其下不得再出现带号说明行（
     for (const st of ['primary_low', 'middle']) {
       const t = tpl(st, '数学');
       expect(t, `${st}：要求不得写成带号题干`).toContain('不得把这条要求写成带题号的题干');
-      expect(t, `${st}：大题标题给出本组作答方式（不得再造一条组内题干）`).toContain('大题标题给出本组作答方式');
+      expect(t, `${st}：大题标题就是这一组的作答要求（不得再造一条组内题干）`).toContain('大题标题就是这一组的作答要求');
     }
   });
 
