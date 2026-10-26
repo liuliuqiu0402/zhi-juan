@@ -45,7 +45,7 @@ describe('编号/不编号：单一判据（一组只做一个动作）', () => 
     // 2026-10-24（§九.68 去重）：标分位置只在【分值标注】写一次，判据常量不再复述——断言随之改查模板。
     expect(tpl('exam'), '带号支：标分位置按真题习惯（不钉死行末）').toContain('该题最后一行末尾');
     expect(NUMBERING_BRANCH_RULE, '不带号支：分值只写在大标题').toContain('**不带号**：**分值只写在大标题**');
-    expect(NUMBERING_BRANCH_RULE, '不带号支：题内不标分').toContain('**题内不标分**');
+    expect(NUMBERING_BRANCH_RULE, '旧"题内不标分"不得回潮（防跨支取用）').not.toContain('题内不标分');
     expect(NUMBERING_BRANCH_RULE, '两半互锁（号与分同生同死）').toContain('不许只有号没有分，也不许没有号却在题内标分');
     // 🔴 判据里不得出现任何题型名（一列就变成诱导）
     expect(NUMBERING_BRANCH_RULE).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);

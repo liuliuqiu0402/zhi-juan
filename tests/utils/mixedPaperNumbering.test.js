@@ -217,7 +217,7 @@ describe('③ 跨学段×学科混合扫描（基准：先编号/不编号 → �
         if (!t.includes('只有作答内容本身、没有只属于它的话')) bad.push(`${tag}：缺“不编号支判据”`);
         if (!t.includes('一组只做一个动作')) bad.push(`${tag}：缺“判据（一个动作）”`);
         if (!t.includes('分值只写在大标题')) bad.push(`${tag}：缺“不编号 ⇒ 分值只写在大标题”`);
-        if (!t.includes('题内不标分')) bad.push(`${tag}：缺“不编号 ⇒ 题内不标分”`);
+        if (t.includes('题内不标分')) bad.push(`${tag}：旧“题内不标分”不得回潮（会跨支取用）`);
         if (!t.includes('该题最后一行末尾')) bad.push(`${tag}：缺“编号 ⇒ 逐题标分（位置按真题习惯）”`);
         // 块切片必须**锚行首**（块内行文会行内引用【分值标注】，按子串取首个命中会切到引用处）
         const scoreBlock = (t.match(/^【分值标注】[\s\S]*?(?=\n\n【)/m) || [''])[0];
