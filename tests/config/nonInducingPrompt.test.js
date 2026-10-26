@@ -303,7 +303,7 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(src, '分值括注举例不得回潮').not.toMatch(/题型名后可带分值括注/);
     expect(src, '全库不得出现具体题型名的分值示例').not.toMatch(/（如"填空题|（如"选择题|（如"判断题/);
     // 结构判定（单一事实源）与两支后果
-    expect(src, '结构判定（判据首句）').toContain('遮住大题标题、单看其中一项');
+    expect(src, '结构判定（判据首句）').toContain('看其中一项有没有成句的文字');
     expect(src, '单题干：分值只写在大题标题').toContain('分值只写在大题标题');
     expect(src, '单题干：标题不写分值').toContain('分值只写在大题标题');
     expect(src, '多题干：各题干后标').toContain('各题干后标');

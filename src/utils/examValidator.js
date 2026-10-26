@@ -1074,7 +1074,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //   等于把 A 的缺陷埋掉（真机"三空2分"正是这么补出来的）。Σ 不完整时标题也不合成（不拿残账当总数）。
         const blindP = needP.filter((x) => countBlanks(x.el.innerHTML) === 0).length;
         silentCount('title-unit-misplaced',
-          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}——逐题标分只能由你按该题的实际内容给出：写在整道题设问的最后一句之后（多行题、有选项的以最后一行为准）写"（每${unitName}X分，共Y分）"，只有一处判分写"（X分）"，不得整组只在标题或组首标一次；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）`, 'warn');
+          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}——按【分值标注】标：在各作答题干后标"（每${unitName}X分，共Y分）"（该题只有一处作答也写这个全式），大题标题末尾写"（共Z分）"；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）`, 'warn');
         return;
       });
       out = tplP.innerHTML;

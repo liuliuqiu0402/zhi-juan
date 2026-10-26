@@ -147,8 +147,8 @@ describe('判据可判定性：并列算式＝单题干；带号小题＝多题�
   const score = (t.match(/^【分值标注】([\s\S]*?)(?=\n\n【)/m) || [, ''])[1];
 
   it('结构判定：同一题干内的并列小项不另算；1 个＝单题干、≥2 个＝多题干', () => {
-    expect(score, '作答题干定义').toContain('遮住大题标题、单看其中一项');
-    expect(score, '并列小项不另算').toContain('同一题干内的分问、并列小项、多空不另算');
+    expect(score, '作答题干定义').toContain('看其中一项有没有成句的文字');
+    expect(score, '并列小项不另算').toContain('每项各自成题、自带要求或陈述');
     expect(score, '单题干').toContain('单题干大题');
     expect(score, '多题干').toContain('多题干大题');
   });

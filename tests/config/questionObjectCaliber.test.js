@@ -81,7 +81,7 @@ describe('卷面层级与分值自验（本次换代不得顺带削掉）', () =
   it('〔346〕不可自判的旧锚不得回潮；由结构事实接管', () => {
     expect(QUESTION_OBJECT_CALIBER, '不可自判的旧锚不得回潮').not.toContain('全大题仅一个小题时');
     expect(tpl('exam'), '卷面自洽条旧锚须一并改准').not.toContain('全大题仅一个小题时');
-    expect(ANSWER_STEM_CALIBER, '并列算式行由结构事实自然判为单题干').toContain('同一题干内的分问、并列小项、多空不另算');
+    expect(ANSWER_STEM_CALIBER, '并列算式行由结构事实自然判为单题干').toContain('每项各自成题、自带要求或陈述');
   });
 
   it('M5 自测：教辅"组标题自拟"与"只写作答方式"**同份在场**——来源 vs 写法两维，非同源冲突', () => {
