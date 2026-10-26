@@ -23,7 +23,7 @@ const q = (n, body) => `<p class="question">${n}. ${body}</p>`;
 describe('分值结构契约：单题干 / 多题干', () => {
   it('① 模型文本：结构判定一处，旧两支判据不得回潮', () => {
     const t = tpl();
-    expect(t, '结构判定').toContain('看其中一项有没有成句的文字');
+    expect(t, '结构判定').toContain('遮住大题标题、只看其中一项');
     expect(t, '单题干').toContain('（单题干）');
     expect(t, '多题干').toContain('（多题干）');
     expect(t, '中间态').toContain('大题标题也要写');

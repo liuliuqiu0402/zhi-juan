@@ -211,7 +211,7 @@ describe('③ 跨学段×学科混合扫描（基准：先数作答题干 → �
         const tag = stage + '|' + subject;
         // 块切片必须**锚行首**（块内行文会行内引用【分值标注】，按子串取首个命中会切到引用处）
         const scoreBlock = (t.match(/^【分值标注】[\s\S]*?(?=\n\n【)/m) || [''])[0];
-        if (!t.includes('看其中一项有没有成句的文字')) bad.push(tag + '：缺"作答题干口径"');
+        if (!t.includes('遮住大题标题、只看其中一项')) bad.push(tag + '：缺"作答题干口径"');
         if (!t.includes('（单题干）')) bad.push(tag + '：缺"单题干"');
         if (!t.includes('（多题干）')) bad.push(tag + '：缺"多题干"');
         if (!t.includes('大题标题也要写')) bad.push(tag + '：缺"单题干标分落点"');
@@ -231,7 +231,7 @@ describe('③ 跨学段×学科混合扫描（基准：先数作答题干 → �
           bad.push(tag + '：分值标注块出现题型名（枚举/诱导）');
         }
         // 顺序：结构判定先于两支后果
-        const i1 = t.indexOf('看其中一项有没有成句的文字');
+        const i1 = t.indexOf('遮住大题标题、只看其中一项');
         const i2 = t.indexOf('（单题干）');
         if (!(i1 > -1 && i2 > i1)) bad.push(tag + '：结构判定须先于两支后果（不成序）');
       }

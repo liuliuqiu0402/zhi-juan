@@ -19,7 +19,7 @@ describe('① 编号/不编号：结构事实判定 + 两支各自的动作', ()
   //   题干话／一组只做一个动作"）——模型对同一行可给出相反解释（真机实证：整卷不标分）。现只数一件事：
   //   这一大题下有几个独立成 `<p class="question">` 的题干。本用例锁"结构判定在位 + 两支各自动作写死"。
   it('判据：数作答题干分单/多题干，两支各写后果', () => {
-    expect(ANSWER_STEM_CALIBER, '结构判定').toContain('看其中一项有没有成句的文字');
+    expect(ANSWER_STEM_CALIBER, '结构判定').toContain('遮住大题标题、只看其中一项');
     expect(ANSWER_STEM_CALIBER, '题前加小号序号').toContain('题前加小号序号');
     expect(ANSWER_STEM_CALIBER, '二分').toContain('（单题干）');
     expect(ANSWER_STEM_CALIBER, '二分').toContain('（多题干）');
