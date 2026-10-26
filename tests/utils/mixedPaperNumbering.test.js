@@ -190,53 +190,50 @@ describe('④ 双括注折叠、答案区多形态镜像、非均分许可', () 
     expect(r.html, '答案区以“三.”分隔、无分值括注，仍须镜像').toContain('三. 填空（每题2分，共4分）');
   });
 
-  it('提示词允许非均分：直接写该题总分、同分或不同分', () => {
+  it('提示词口径：形态唯一（全式）、Y 由单价×个数、单价来自档', () => {
     for (const stage of ['primary_low', 'primary_mid']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, `${stage}：一处简写／多处全式`).toContain('一律写全式');
-      expect(t, `${stage}：Y＝单价×处数`).toContain('Y＝单价×处数');
-      // 属主 2026-10-22："这意思是都不标单位了吗？我说的是小题，一刀切了吗？"——
-      //   故锁住：不得出现"全卷统一写法"（一刀切）、不得以裸分替代全式。
-      expect(t, `${stage}：不得一刀切（全卷统一写法）`).not.toContain('同一份卷内写法一致');
-      expect(t, `${stage}：不得以裸分替代全式`).not.toContain('直接写该题总分');
+      expect(t, stage + '：形态唯一（每〈单位〉X分，共Y分）').toContain('（每〈单位〉X分，共Y分）');
+      expect(t, stage + '：Y＝X×N').toContain('Y＝X×N');
+      expect(t, stage + '：单价来自档').toContain('{scoreUnitLadder}');
+      expect(t, stage + '：不得一刀切（全卷统一写法）').not.toContain('同一份卷内写法一致');
+      expect(t, stage + '：不得以裸分替代全式').not.toContain('直接写该题总分');
     }
   });
 });
 
-describe('③ 跨学段×学科混合扫描（基准：先编号/不编号 → 再定标分）', () => {
-  it('每面都要有：判定只做一次（编号/不编号）、不编号不写题号、编号逐题标分', () => {
+describe('③ 跨学段×学科混合扫描（基准：先数作答题干 → 再定标分）', () => {
+  it('每面都要有：结构判定一处、两支后果齐备、旧语义判据零出现', () => {
     const bad = [];
     for (const stage of ['primary_low', 'primary_mid', 'middle', 'high']) {
       for (const subject of ['语文', '数学', '英语']) {
         const t = getPromptTemplate({ grade: stage, subject, genType: 'exam' }).template;
-        const tag = `${stage}|${subject}`;
-        // 🔴 2026-10-24（单一开关）：第一步只判"这一组各项有没有只属于它自己的题干话"，
-        //   一支只做一个动作；旧"成题区／直答区"两把尺、旧"写号支／不写号支"措辞全部清除。
-        if (!t.includes('号是点名用的')) bad.push(`${tag}：缺“第一步（先判编号）”`);
-        if (!t.includes('各项有只属于它自己的题干话')) bad.push(`${tag}：缺“唯一判据（有没有题干话）”`);
-        if (!t.includes('只有作答内容本身、没有只属于它的话')) bad.push(`${tag}：缺“不编号支判据”`);
-        if (!t.includes('一组只做一个动作')) bad.push(`${tag}：缺“判据（一个动作）”`);
-        if (!t.includes('分值只写在大标题')) bad.push(`${tag}：缺“不编号 ⇒ 分值只写在大标题”`);
-        if (t.includes('题内不标分')) bad.push(`${tag}：旧“题内不标分”不得回潮（会跨支取用）`);
-        if (!t.includes('整道题设问的最后一句之后')) bad.push(`${tag}：缺“编号 ⇒ 逐题标分（位置按真题习惯）”`);
+        const tag = stage + '|' + subject;
         // 块切片必须**锚行首**（块内行文会行内引用【分值标注】，按子串取首个命中会切到引用处）
         const scoreBlock = (t.match(/^【分值标注】[\s\S]*?(?=\n\n【)/m) || [''])[0];
-        if (!t.includes('漏标一题即不合规')) bad.push(`${tag}：缺“编号 ⇒ 标题不重复小题分值”`);
-        // 🔴 2026-10-24（真机"带号题全没标分"）：A 侧不得再提"标题分由程序合成"——
-        //   模型会把它当成"省掉逐题标分"的理由；程序合成只属 B 侧实现，不进模型判据。
-        if (t.includes('标题分由程序按各题分合成')) bad.push(`${tag}：A 侧不得提“程序合成标题分”`);
-        if (!t.includes('漏标一题即不合规')) bad.push(`${tag}：缺“漏标一题即不合规”`);
-        if (!t.includes('不许只有号没有分，也不许没有号却在题内标分')) bad.push(`${tag}：缺“号与分互锁”`);
+        if (!t.includes('每个独立成 <p class="question"> 的题干算一个作答题干')) bad.push(tag + '：缺"作答题干口径"');
+        if (!t.includes('单题干大题')) bad.push(tag + '：缺"单题干"');
+        if (!t.includes('多题干大题')) bad.push(tag + '：缺"多题干"');
+        if (!t.includes('只在该题干后标')) bad.push(tag + '：缺"单题干标分落点"');
+        if (!t.includes('大题标题不写分值')) bad.push(tag + '：缺"单题干标题不写分"');
+        if (!t.includes('各题干后标')) bad.push(tag + '：缺"多题干逐题标分"');
+        if (!t.includes('（共Z分）')) bad.push(tag + '：缺"多题干标题中间态"');
+        if (!t.includes('Y＝X×N')) bad.push(tag + '：缺"Y＝X×N"');
+        if (!t.includes('Z＝ΣY')) bad.push(tag + '：缺"大题账目"');
+        if (!t.includes('各大题分之和＝给定满分')) bad.push(tag + '：缺"试卷账目"');
+        // 旧语义判据不得回潮
+        if (t.includes('号是点名用的')) bad.push(tag + '：旧"号是点名用的"回潮');
+        if (t.includes('带小题号')) bad.push(tag + '：旧"带小题号"回潮');
+        if (t.includes('一组只做一个动作')) bad.push(tag + '：旧"一组只做一个动作"回潮');
+        if (t.includes('整道题设问的最后一句之后')) bad.push(tag + '：旧"最后一句之后"回潮');
+        if (/成题区|直答区/.test(t)) bad.push(tag + '：旧两区名回潮（第二把尺）');
         if (/口算|竖式|脱式|判断题|选择题/.test(scoreBlock)) {
-          bad.push(`${tag}：分值标注块出现题型名（枚举/诱导）`);
+          bad.push(tag + '：分值标注块出现题型名（枚举/诱导）');
         }
-        if (/成题区|直答区/.test(t)) bad.push(`${tag}：旧两区名回潮（第二把尺）`);
-        if (!t.includes('题干内的分条（条件、要求、提示、步骤、评分要点等）**不是题目**')) bad.push(`${tag}：缺“题内分条不算小题号”`);
-        if (!t.includes('每道带号小题都要有自己的分值')) bad.push(`${tag}：缺“编号题逐题标分”`);
-        if (t.includes('两支的判法')) bad.push(`${tag}：旧“两支”写法回潮`);
-        const i1 = t.indexOf('号是点名用的');
-        const i2 = t.indexOf('**带小题号**：');
-        if (!(i1 > -1 && i2 > i1)) bad.push(`${tag}：先判编号、再写两支后果（不成序）`);
+        // 顺序：结构判定先于两支后果
+        const i1 = t.indexOf('每个独立成 <p class="question"> 的题干算一个作答题干');
+        const i2 = t.indexOf('单题干大题');
+        if (!(i1 > -1 && i2 > i1)) bad.push(tag + '：结构判定须先于两支后果（不成序）');
       }
     }
     expect(bad, '486 面混合扫描').toEqual([]);

@@ -5,7 +5,7 @@
 //   ② A 侧：分值条两支只用"这一组是多件／是一件"判，**不再写"每道题各自编号"**（防二次推力"每题都要有号"）；
 //   ③ B 侧：题干内条件分条（（1）（2）（3）／"要求："后 1. 2. 3.）不被当成题，不在分条之间插作答载体。
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate, QUESTION_OBJECT_CALIBER, NUMBERING_BRANCH_RULE } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, QUESTION_OBJECT_CALIBER, ANSWER_STEM_CALIBER } from '../../src/config/promptLibrary.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
 
 const tpl = (g = 'exam', sj = '语文', st = 'primary_low') => getPromptTemplate({ grade: st, subject: sj, genType: g }).template;
@@ -24,24 +24,24 @@ describe('① A 侧：分条序号与题号分开（不是每一种序号都是�
   });
 });
 
-describe('② A 侧：分值条只按"这一组是多件/是一件"判，不再强调"每道题各自编号"', () => {
-  it('口算/竖式：一行两式也仍是一组——算式不成句，不得各自编号', () => {
+// ② A 侧：分条序号不是题号——判据从"语义"换成"结构事实"（2026-10-26）
+describe('② A 侧：并列算式行不是多个作答题干', () => {
+  it('口算/竖式：一行两式也仍是一组——同一题干内的并列小项，不另算作答题干', () => {
     // 2026-10-19 属主实证：`二、列竖式` 下 `1. 5×6＝　　2. 4×6＝`（同一行两个号）。
-    // 🔴 2026-10-23（属主基准）：判据已统一为一组只做一个动作：给不给每个小题写号——算式行没有"一组只做一个动作"⇒ 不编号；
-    //   原"各自有独立题干／文字表述"是第二把尺，已删。
-    expect(NUMBERING_BRANCH_RULE).toContain('一组只做一个动作');
-    expect(NUMBERING_BRANCH_RULE, '并列算式行 → 不编号').toContain('不许只有号没有分，也不许没有号却在题内标分');
+    // 🔴 2026-10-26：判据不再是"号是点名用的"，而是**数独立成 <p class="question"> 的题干**——
+    //   同一段里的并列算式/待填位都在同一个题干内 ⇒ 单题干大题 ⇒ 不加小号序号。
+    expect(ANSWER_STEM_CALIBER, '同一题干内的并列小项不另算').toContain('不另算作答题干');
     expect(QUESTION_OBJECT_CALIBER, '第二把尺（各自有独立题干）不得回潮').not.toMatch(/各自有独立题干|只属于它的陈述或问题/);
     const t = tpl('exam', '数学', 'primary_mid');
-    expect(t, '分值条：算式行没有只属于它的话 ⇒ 不编号、单价只在大标题').toContain('不带小题号');
-    expect(t, '不编号 ⇒ 题内不标分').toContain('分值只写在大标题');
+    expect(t, '单题干：不加小号序号').toContain('单作答题干大题不加小号序号');
+    expect(t, '单题干：分值只在该题干后标').toContain('只在该题干后标');
   });
 
   it('两支名在位；旧"每道题各自编号"不得回潮（防"每题都要有号"的二次推力）', () => {
     for (const st of ['primary_low', 'middle']) {
       const t = tpl('exam', '数学', st);
-      expect(t, `${st}：不编号 → 分值随标题`).toContain('分值只写在大标题');
-      expect(t, `${st}：编号 → 逐题标分（位置按真题习惯）`).toContain('整道题设问的最后一句之后');
+      expect(t, `${st}：单题干 → 标题不写分值`).toContain('大题标题不写分值');
+      expect(t, `${st}：多题干 → 各题干后标全式`).toContain('各题干后标');
       expect(t, `${st}：不得再写"每道题各自编号"`).not.toContain('每道题各自编号');
       expect(t, `${st}：旧两支不得回潮`).not.toContain('这一组是多件');
       expect(t, `${st}：旧补救句不得回潮`).not.toContain('标题若已写成单价');

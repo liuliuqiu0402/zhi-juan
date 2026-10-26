@@ -6483,16 +6483,19 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   //   getPromptTemplate 是"用户自定义优先"：指令库里只要存过一份（哪怕是旧版），代码里的内置判据
   //   **永远进不来**。此处把来源与关键判据的在位性打到日志里，一眼就能看出这次生成用的是哪一份。
   {
-    const ANCHOR_SCORE_ON_STEM = '每道带号小题都要有自己的分值';
-    const ANCHOR_TITLE_ONLY_TOTAL = '标题只写该大题总分、不写单价';
-    const ANCHOR_UNNUMBERED_SCOPE = '不带小题号（整组都不带）';
+    // 2026-10-26（结构事实换代）：取证锚随之改准——旧锚（"每道带号小题都要有自己的分值"／"不带小题号（整组都不带）"）
+    //   已随 `NUMBERING_BRANCH_RULE` 整类删除，继续用它取证会永远 false ⇒ 排障时误判"判据没送达"。
+    const ANCHOR_SCORE_ON_STEM = '各题干后标';
+    const ANCHOR_TITLE_ONLY_TOTAL = '（共Z分）';
+    const ANCHOR_UNNUMBERED_SCOPE = '单作答题干大题不加小号序号';
     const hasAnchor = instructionDraft.value.includes(ANCHOR_SCORE_ON_STEM);
     const staleScore = instructionDraft.value.includes('不是标题里要填的数字');
+    const staleJudge = instructionDraft.value.includes('号是点名用的');
     const hasHead = instructionDraft.value.includes('卷首固定顺序');
     const hasTitleRule = instructionDraft.value.includes(ANCHOR_TITLE_ONLY_TOTAL);
     const hasScopeRule = instructionDraft.value.includes(ANCHOR_UNNUMBERED_SCOPE);
-    console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜含"每道带号小题都要有自己的分值"判据=${hasAnchor}｜含"卷首固定顺序"=${hasHead}｜旧"标题不填分"措辞=${staleScore}${tpl.normativeMerged ? '｜规范块（卷首/卷面结构/分值标注）已并入内置现行版' : ''}`);
-    console.log(`🧾 分值标注送达取证: 带号支"标题只写该大题总分、不写单价"=${hasTitleRule}｜不带号支"（整组都不带）"=${hasScopeRule}`);
+    console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜含"各题干后标"判据=${hasAnchor}｜含"卷首固定顺序"=${hasHead}｜旧"标题不填分"措辞=${staleScore}｜旧语义判据"号是点名用的"=${staleJudge}${tpl.normativeMerged ? '｜规范块（卷首/卷面结构/分值标注）已并入内置现行版' : ''}`);
+    console.log(`🧾 分值标注送达取证: 多题干"（共Z分）"标题中间态=${hasTitleRule}｜单题干"不加小号序号"=${hasScopeRule}`);
     {
       const m = instructionDraft.value.match(/【分值标注】([\s\S]*?)(?=\n\n【|$)/);
       if (m) console.log(`🧾 本次实发【分值标注】原文：\n${m[1].trim()}`);

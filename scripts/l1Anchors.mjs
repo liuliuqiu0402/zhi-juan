@@ -31,8 +31,8 @@ export const anchorsFor = ({ genType, subject, stage, hasStructure }) => ([
   { name: 'T02·小题号编法（应 0）', re: /小题号[^。；]{0,24}连续|按栏目[^。；]{0,8}起编|不得跳号|同号同序/g, expect: 0 },
   { name: 'T02·大题序号顺序编（保留，应 ≥1）', re: /大题序号[^。；]{0,10}跨大类\/部分接着编/g, expect: genType === 'exam' ? 1 : 0 },
   { name: 'T02·清零（旧表述：术语映射元句／观察者口吻／否定式／内联复述）', re: /凡条款中出现|看得出成组的层次|不得重新从「一、」开始|同型并列只作一题/g, expect: 0 },
-  // T18 考查方式（决定句：技能训练型重在准确熟练／理解运用型重在推理、说理与迁移）
-  { name: 'T18·正句（设问分型）', re: /技能训练型/g, expect: genType === 'dictation' ? 0 : 1 },
+  // T18 考查方式（决定句：基础练习重准确熟练／理解运用重推理、说理与迁移）
+  { name: 'T18·正句（设问分型）', re: /设问深浅与考查目的相称/g, expect: genType === 'dictation' ? 0 : 1 },
   { name: 'T18·清零（旧表述）', re: /不靠记忆|逐题各有考查侧重|展示理解/g, expect: 0 },
   // T06 内容型↔题类边界（串味）
   { name: 'T06·中性例证（通用句不含题类专属"待选项"）', re: /待选项/g, expect: 0 },
@@ -42,7 +42,7 @@ export const anchorsFor = ({ genType, subject, stage, hasStructure }) => ([
   { name: 'T07·正句（不得照搬教材原题）', re: /不得照搬教材原题/g, expect: FULL_REF.has(genType) ? 0 : genType === 'reading' ? 2 : 1 },
   { name: 'T07·清零（三域"不限所选教材"／G79 三项）', re: /不限所选教材|情节、篇目结构与人物设定/g, expect: 0 },
   // T03 计分单位·单价·账目（2026-10-24：单一开关重写后，逐层核分收敛为"合计自洽"一条）
-   { name: 'T03·合计自洽（小题＝大题）', re: /小题分之和＝该大题分/g, expect: genType === 'exam' ? 1 : 0 },
+   { name: 'T03·合计自洽（每题＝多题干大题＝卷首）', re: /Z＝ΣY/g, expect: genType === 'exam' ? 1 : 0 },
   { name: 'T03·清零（载体块内 exam 专属计分句／旧"通称"／同义并置）', re: /（正式考卷）\*\*书写类题按单位|不写承载它的线条／括号等形态名|分值标注（大题级与小题级）一律由正文分值条单源承载/g, expect: 0 },
   // T08 答案区·答案角色
   { name: 'T08·正句（例题示范：解答随题即时展示）', re: /其解答与解析随例题即时展示/g, expect: DEMO.has(genType) ? 1 : 0 },

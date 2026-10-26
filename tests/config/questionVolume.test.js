@@ -69,9 +69,10 @@ describe('题量充足（语义口径 · 2026-09-15 定版）', () => {
     //   教辅侧根本不注入。断言随之改准：两侧各锁"不外溢"与"不得回潮旧写法"。
     // 🔴 2026-10-23（两区分支改名）：判据本体（`NUMBERING_BRANCH_RULE`）**本就全题类注入**（教辅也有编号问题），
     //   故"不外溢"的锚不能取判据里的词，只能取**exam 专属的分值标注块**才有的句子。
-    expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：分值写法在位').toContain('Y＝单价×处数');
-    expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：分值按题目本身给').toContain('分值按题目本身给');
-    expect(tpl('语文', 'primary_low', 'practice'), '教辅侧：不得外溢').not.toContain('Y＝单价×处数');
+    expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：分值写法在位').toContain('Y＝X×N');
+    expect(tpl('语文', 'primary_low', 'exam'), '考卷侧：单价来自档').toContain('{scoreUnitLadder}');
+    expect(tpl('语文', 'primary_low', 'practice'), '教辅侧：不得外溢').not.toContain('Y＝X×N');
+    expect(tpl('语文', 'primary_low', 'practice'), '教辅侧：不得输出分值').toContain('本资料不输出任何分值');
     expect(tpl('语文', 'primary_low', 'practice'), '旧字符串前件写法不得回潮').not.toContain('（正式考卷）**书写类题按单位');
   });
 

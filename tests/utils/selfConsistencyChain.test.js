@@ -7,7 +7,7 @@
 //   ③ "共用一条作答要求⇒不编号" ⇒ 判断题10小题不编号，模型改把**大题本身**编成一个号（9.）去承载单价。
 // 处置一律改**判据式**（按内容判），并把结构/要求注降为**参考**；本文件锁住这三条与 B 侧边界。
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate, QUESTION_OBJECT_CALIBER, NUMBERING_BRANCH_RULE, buildStructureText } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, QUESTION_OBJECT_CALIBER, ANSWER_STEM_CALIBER, buildStructureText } from '../../src/config/promptLibrary.js';
 import { buildCarrierInstruction } from '../../src/config/layoutSpec.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
 
@@ -43,23 +43,22 @@ describe('① 标题声称的提示形态必须与题内一致——结构/要�
 });
 
 describe('② 大题标题已写全时，其下不得再出现带号说明行（判断题组各自编号）', () => {
-  // 🔴 2026-10-23（属主基准·撤第二把尺）：本用例原本锁"共用一条作答要求 ⇒ 不编号"这条第二判据，
-  //   它正是 ③ 号事故的根：判断题 10 小题**各有成句**（真卷形态 `…。（　）`）却被判成"共用一条要求"⇒ 不编号。
-  //   现编号只判一次、只看一组只做一个动作；判断题的不许只有号没有分 ⇒ 仍是"各自成句"⇒ **编号**。
-  it('A 侧：编号判据＝一组只做一个动作——每项自带一句陈述/问题的，即使作答动作相同也各自编号', () => {
-    expect(NUMBERING_BRANCH_RULE, '正向判据（治"整组编成一个号"）').toMatch(/一组只做一个动作/);
-    expect(NUMBERING_BRANCH_RULE, '句末作答位不算另起一句（判断题真卷形态）').toContain('不许只有号没有分');
-    expect(NUMBERING_BRANCH_RULE, '并列算式/待填位（无成句）→ 不编号').toContain('不许只有号没有分，也不许没有号却在题内标分');
+  // 🔴 2026-10-26（属主定稿·**换结构事实**）：本条原锁"共用一条作答要求 ⇒ 不编号"（语义判定），
+  //   它正是 ③ 号事故的根。现在判据只剩一件可数的事：这一大题下有几个独立成 <p class="question"> 的题干。
+  //   判断题 10 小题**各自独立成题干** ⇒ 多题干大题 ⇒ 各自给号、各自标分。
+  it('A 侧：判据＝数独立题干——每项各自成题干的，即使作答动作相同也各给号', () => {
+    expect(ANSWER_STEM_CALIBER, '结构判定').toContain('每个独立成 <p class="question"> 的题干算一个作答题干');
+    expect(ANSWER_STEM_CALIBER, '≥2 个 ⇒ 多题干').toContain('多题干大题');
     expect(QUESTION_OBJECT_CALIBER, '第二把尺（共用一条作答要求）不得回潮').not.toMatch(/共用一条作答要求|各自有独立题干/);
     // 零题型名（防定形诱导）
-    expect(NUMBERING_BRANCH_RULE).not.toMatch(/判断|选择|填空|口算|竖式|连线/);
+    expect(ANSWER_STEM_CALIBER).not.toMatch(/判断|选择|填空|口算|竖式|连线/);
   });
 
   it('A 侧（两学段）：标题条仍禁"把作答要求写成带号题干"，防止再长出一条小标题', () => {
     for (const st of ['primary_low', 'middle']) {
       const t = tpl(st, '数学');
       expect(t, `${st}：要求不得写成带号题干`).toContain('不得把这条要求写成带题号的题干');
-      expect(t, `${st}：大题标题就是这一组的作答要求（不得再造一条组内题干）`).toContain('大题标题就是这一组的作答要求');
+      expect(t, `${st}：大题标题给出本组作答方式（不得再造一条组内题干）`).toContain('大题标题给出本组作答方式');
     }
   });
 

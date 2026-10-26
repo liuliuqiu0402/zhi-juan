@@ -1,4 +1,4 @@
-// 规范块不可覆盖（2026-10-24 真机"全卷不标任何分"根因锁）
+﻿// 规范块不可覆盖（2026-10-24 真机"全卷不标任何分"根因锁）
 // ============================================================
 // 病根：用户指令库里存过旧版模板（或整份自定义模板里没有【分值标注】）时，
 //   getPromptTemplate 原样返回该模板 ⇒ 内置的编号/标分判据被整份挤掉 ⇒ 模型收不到任何标分要求。
@@ -7,7 +7,7 @@
 // ============================================================
 import { describe, it, expect, afterEach } from 'vitest';
 import {
-  getPromptTemplate, savePromptTemplate, deletePromptTemplate, NUMBERING_BRANCH_RULE,
+  getPromptTemplate, savePromptTemplate, deletePromptTemplate, ANSWER_STEM_CALIBER,
 } from '../../src/config/promptLibrary.js';
 
 const KEY = '语文|exam';
@@ -23,7 +23,7 @@ describe('规范块（【分值标注】）不可被用户模板覆盖', () => {
     const tpl = getPromptTemplate({ grade: 'primary_mid', subject: '语文', genType: 'exam' });
     expect(tpl.source).toBe('builtin');
     expect(tpl.template).toContain('【分值标注】');
-    expect(tpl.template).toContain(NUMBERING_BRANCH_RULE);
+    expect(tpl.template).toContain(ANSWER_STEM_CALIBER);
   });
 
   it('旧自定义模板的【编号与分值】→ 原地换成内置【分值标注】，其余自定义原样保留', () => {
@@ -42,7 +42,7 @@ describe('规范块（【分值标注】）不可被用户模板覆盖', () => {
     expect(tpl.source).toBe('user');
     expect(tpl.normativeMerged).toBe(true);
     expect(tpl.template).toContain('【分值标注】');
-    expect(tpl.template).toContain(NUMBERING_BRANCH_RULE);
+    expect(tpl.template).toContain(ANSWER_STEM_CALIBER);
     expect(tpl.template, '旧块名不得残留').not.toContain('【编号与分值】');
     expect(tpl.template, '用户其余自定义保留').toContain('【我的自定义段】');
     expect(tpl.template, '用户其余自定义保留').toContain('【输出格式】');
@@ -73,7 +73,7 @@ describe('规范块（【分值标注】）不可被用户模板覆盖', () => {
     });
     const tpl = getPromptTemplate({ grade: 'primary_mid', subject: '语文', genType: 'exam' });
     expect(tpl.normativeMerged).toBe(true);
-    expect(tpl.template).toContain(NUMBERING_BRANCH_RULE);
+    expect(tpl.template).toContain(ANSWER_STEM_CALIBER);
     expect(tpl.template, '旧判据不得残留').not.toContain('成题区');
   });
 
@@ -112,7 +112,7 @@ describe('规范块（【分值标注】）不可被用户模板覆盖', () => {
       ].join('\n'),
     });
     const tpl = getPromptTemplate({ grade: 'primary_mid', subject: '语文', genType: 'exam' });
-    expect(tpl.template).toContain(NUMBERING_BRANCH_RULE);
+    expect(tpl.template).toContain(ANSWER_STEM_CALIBER);
     expect(tpl.template, '旧块名不得残留').not.toContain('【编号与分值】');
     expect(tpl.template, '旧判据不得残留').not.toContain('更旧的判据');
   });
@@ -182,3 +182,4 @@ describe('规范块（【分值标注】）不可被用户模板覆盖', () => {
     expect(tpl.template, '旧卷面结构措辞被换掉').not.toContain('不是标题里要填的数字');
   });
 });
+

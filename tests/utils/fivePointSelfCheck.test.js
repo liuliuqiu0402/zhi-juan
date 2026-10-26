@@ -3,7 +3,7 @@
 //   ④ 合成能否精准区分单档/多档；⑤ 取分口径是否清晰可执行；⑥ 是否按小题分合成、可替换原标题。
 // 每条都同时检验**判据在位**（实发文本）与**行为成立**（真跑校验器），避免"文本写了但程序不照做"。
 import { describe, it, expect } from 'vitest';
-import { getPromptTemplate, NUMBERING_BRANCH_RULE } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, ANSWER_STEM_CALIBER } from '../../src/config/promptLibrary.js';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
 
 const tpl = () => getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'exam' }).template;
@@ -14,37 +14,31 @@ const numbered = (h) => pTexts(h).filter((t) => /^\d{1,2}\s*[.、．]/.test(t));
 const head = (h) => [...h.matchAll(/<h[2-4]>([\s\S]*?)<\/h[2-4]>/g)].map((m) => m[1])[0] || '';
 const page = (title, rows) => ['<h1>单元测评</h1>', `<h3>${title}</h3>`, ...rows].join('\n');
 
-describe('① 编号/不编号：单一判据 + 两条边界', () => {
-  // 🔴 2026-10-23（属主："其余→不编号这个对于模型来说，它不认的，其余的也是题"）：
-  //   判据不再做内容分类，只留**一个动作**；两支各写自己的后果，末尾用互锁句封住"半条腿"。
-  it('判据只有一个正面锚（一组只做一个动作），两支各自的动作都写死', () => {
-    expect(NUMBERING_BRANCH_RULE, '正面锚').toContain('一组只做一个动作');
-    expect(NUMBERING_BRANCH_RULE, '写号支：每道带号小题都要有自己的分值').toContain('每道带号小题都要有自己的分值');
-    // 2026-10-24（属主："不要人为干预模型的能力"→回补"大标题必带总分"）：标分位置只在【分值标注】写一次，
-    //   判据常量里不再复述（防双源）；断言随之改查模板。
-    expect(tpl(), '写号支：位置＝整道题设问的最后一句之后').toContain('整道题设问的最后一句之后');
-    expect(NUMBERING_BRANCH_RULE, '不写号支：分值只写在大标题').toContain('**不带号**：**分值只写在大标题**');
-    // 🔴 2026-10-25（属主："题内不写分会被跨支取用"）：否定句整句删除——"分值只写在大标题"已把后果说尽。
-    expect(NUMBERING_BRANCH_RULE, '旧"题内不标分"不得回潮').not.toContain('题内不标分');
-    // 🔴 2026-10-24（属主真卷：口算/竖式被编号、大标题无分、全卷差 26 分）：
-    //   不写号支补一个**可自判的现场动作**——遮住大题标题单独看该项，只有算式/作答内容就不知道要做什么 ⇒ 不编号。
-    expect(NUMBERING_BRANCH_RULE, '不写号支：可自判的现场动作').toContain('遮住大题标题就不知道要做什么');
-    expect(NUMBERING_BRANCH_RULE, '互锁：只有号／只有分都不成立').toContain('不许只有号没有分，也不许没有号却在题内标分');
-    expect(NUMBERING_BRANCH_RULE, '不做内容分类（不按"成句/并列/形态"判支）').not.toMatch(/成句|完整句子|并列算式/);
-    expect(tpl(), '判据就地内联（写分值处能读到）').toContain('号是点名用的');
-    expect(tpl().indexOf('号是点名用的'), '按写作顺序：先判编号、再写两支后果')
-      .toBeLessThan(tpl().indexOf('**带小题号**：'));
+describe('① 编号/不编号：结构事实判定 + 两支各自的动作', () => {
+  // 🔴 2026-10-26（属主定稿·**换结构事实**）：原判据是语义判定（"号是点名用的／各项有没有只属于它自己的
+  //   题干话／一组只做一个动作"）——模型对同一行可给出相反解释（真机实证：整卷不标分）。现只数一件事：
+  //   这一大题下有几个独立成 `<p class="question">` 的题干。本用例锁"结构判定在位 + 两支各自动作写死"。
+  it('判据：数作答题干分单/多题干，两支各写后果', () => {
+    expect(ANSWER_STEM_CALIBER, '结构判定').toContain('每个独立成 <p class="question"> 的题干算一个作答题干');
+    expect(ANSWER_STEM_CALIBER, '同一题内的并列小项不另算').toContain('不另算作答题干');
+    expect(ANSWER_STEM_CALIBER, '二分').toContain('单题干大题');
+    expect(ANSWER_STEM_CALIBER, '二分').toContain('多题干大题');
+    const t = tpl();
+    expect(t, '判据就地内联（写分值处能读到）').toContain(ANSWER_STEM_CALIBER);
+    // 块切片锚行首：【卷面结构】里行内引用"按【分值标注】判"不算块起点。
+    const scoreBlock = (t.match(/^【分值标注】([\s\S]*?)(?=\n\n【)/m) || [, ''])[1];
+    expect(scoreBlock, '单题干：只在该题干后标、标题不写分').toContain('只在该题干后标');
+    expect(scoreBlock, '多题干：各题干后标全式').toContain('各题干后标');
+    expect(scoreBlock, '多题干：标题写中间态').toContain('（共Z分）');
+    expect(scoreBlock, '位置：材料与作答载体之后').toContain('全部材料与作答载体之后');
+    expect(scoreBlock, '单价来自档（不枚举学段）').toContain('{scoreUnitLadder}');
     // 🔴 2026-10-24（属主："不要提均分/不同分，模型会选择一个最简单的方式均分来标"）：
     //   分值块里不得出现任何"均分/同分"字样——一出现就会被读成"把各题拉平"的许可。
-    //   （B 侧合成标题时按各题分分组是另一回事，不在实发文本里。）
-    // 块切片锚行首：【卷面结构】里行内引用"按【分值标注】判"不算块起点（否则切到引用处、判据被稀释）。
-    const scoreBlock = (tpl().match(/^【分值标注】([\s\S]*?)(?=\n\n【)/m) || [, ''])[1];
     expect(scoreBlock, '分值块不得出现均分/同分口径').not.toMatch(/均分|同分|不同分/);
-    // 🔴 2026-10-24（真机："有些带题号的小题没按真题规范输出"）：多行题（有选项、多问）把"题干末尾"
-    //   读成"选项之前"⇒ 索性不标；或整组只在标题/组首标一次。两句必须同时在内，缺一即回潮。
-    expect(scoreBlock, '多行题落点＝整道题设问的最后一句之后').toContain('整道题设问的最后一句之后');
-    expect(scoreBlock, '写一题、标一题（替代"整组只标一次"的禁令）').toContain('写一题、标一题');
-    expect(scoreBlock, '漏标一题即不合规').toContain('漏标一题即不合规');
+    // 旧语义判据整类清除（不得回潮）
+    expect(t, '旧"号是点名用的"不得回潮').not.toContain('号是点名用的');
+    expect(t, '旧"带小题号/不带小题号"不得回潮').not.toContain('带小题号');
+    expect(t, '旧"最后一行末尾"不得回潮').not.toContain('最后一行末尾');
   });
 
   // 🔴 2026-10-23（属主："我们不要程序侧补小题标分…这个得严格执行，不能有任何折扣"）：
@@ -99,19 +93,14 @@ describe('① 编号/不编号：单一判据 + 两条边界', () => {
   });
 });
 
-// 🔴 2026-10-23（属主真卷 `1. 5×3＝　2. 6×2＝…` 被编号，并追问"是不是模型不知道什么叫不该编号的？"）：
-//   症结＝判据只说"两支各怎么做"，**没说凭什么选这一支**——对模型来说它们全是题，只能按习惯编号。
-//   故补**正面事实**：号是点名用的（有自己一句话才要号；只有算式/符号、同一动作换数就不要），
-//   并补一条 A 侧排版约束"写了号就一题一段"（否则 B 只能按段取分，出现"每题7分"这种按行数算出的价）。
-describe('①-b 凭什么这一组不写号：唯一开关（不是"其余"兜底）', () => {
-  it('判据给的是可自判的事实，不是题型名、不留兜底', () => {
-    expect(NUMBERING_BRANCH_RULE, '号有用途才写').toContain('号是点名用的');
-    expect(NUMBERING_BRANCH_RULE, '唯一开关：有没有只属于它自己的题干话').toContain('各项有只属于它自己的题干话');
-    expect(NUMBERING_BRANCH_RULE, '不编号支判据（只有作答内容本身）').toContain('只有作答内容本身、没有只属于它的话');
-    expect(NUMBERING_BRANCH_RULE, '一组只定一个结果（不许一半一半）').toContain('一组只做一个动作');
-    expect(NUMBERING_BRANCH_RULE, '不按题型名枚举').not.toMatch(/口算|竖式|脱式|判断|选择|填空/);
-    expect(NUMBERING_BRANCH_RULE, '不留"其余"兜底').not.toContain('其余');
-    expect(NUMBERING_BRANCH_RULE, '旧两区名不得回潮（第二把尺）').not.toMatch(/成题区|直答区/);
+// 🔴 2026-10-26（换结构事实后重写）：原来问的是"凭什么这一组不写号"——那是语义判定，模型判不齐。
+//   现在只剩一件事可数：这一大题下有几个独立成 `<p class="question">` 的题干。
+describe('①-b 凭什么这么分：数独立题干，不按题型名、不留兜底', () => {
+  it('判据给的是可数的结构事实，不是题型名', () => {
+    expect(ANSWER_STEM_CALIBER, '只数独立题干').toContain('<p class="question">');
+    expect(ANSWER_STEM_CALIBER, '不按题型名枚举').not.toMatch(/口算|竖式|脱式|判断|选择|填空/);
+    expect(ANSWER_STEM_CALIBER, '不留"其余"兜底').not.toContain('其余');
+    expect(ANSWER_STEM_CALIBER, '旧两区名不得回潮').not.toMatch(/成题区|直答区/);
   });
 
   it('行为：纯算式连排、标题给单价 ⇒ 一个号都不加、一分不加、不挑刺', () => {
@@ -135,13 +124,14 @@ describe('①-b 凭什么这一组不写号：唯一开关（不是"其余"兜�
   });
 });
 
-describe('② 标分：带不带单位可精准区分', () => {
-  it('判据：一处判分写裸分；多处写全式（带单位）', () => {
+describe('② 标分：形态唯一（全式），Y 由单价×个数', () => {
+  it('判据：形态只有一种，钱从单价×个数来', () => {
     const t = tpl();
-    expect(t).toContain('一律写全式');
-    expect(t).toContain('一律写全式');
     expect(t).toContain('（每〈单位〉X分，共Y分）');
-    expect(t, 'Y 须与该题实际判分处数相符').toContain('Y＝单价×处数');
+    expect(t, 'Y 须与该题干实际作答对象个数相符').toContain('Y＝X×N');
+    expect(t, '禁止先定总分倒推单价').toContain('不得先定总分再倒推单价');
+    expect(t, '整片书写区按 1 处计').toContain('整片书写区按 1 处计');
+    expect(t, '旧"一处裸分/多处全式"二选一不得回潮').not.toContain('一处判分写裸分');
   });
 
   // 形态判据不变；但写法归 A——程序只校验"写的对不对、缺了报不报"，不再代写。
@@ -170,19 +160,19 @@ describe('② 标分：带不带单位可精准区分', () => {
 // 🔴 2026-10-23（属主："有一题多载体的，出现了三空2分的情形，并没有标单价"——"这里一题多载体的，我说的是小题"）：
 //   病根＝**把"一道题"记成一处分**（处数没数）⇒ 三空题与一空题同分、单价从题内消失；
 //   连带"每题均分"也不是巧合：单价一落到"题"上，每题的处数就恒等于 1。处置＝处数逐个数 + 禁均摊。
-describe('②-b 处数要数：Y 须与该题实际判分处数相符', () => {
-  it('判据：分值按题目本身给（不设人为禁令）', () => {
+describe('②-b 个数要数：Y 须与该题干实际作答对象个数相符', () => {
+  it('判据：个数逐个数，不设人为禁令', () => {
     const t = tpl();
-    expect(t, 'Y 与处数相符').toContain('Y＝单价×处数');
+    expect(t, 'Y 与个数相符').toContain('Y＝X×N');
+    expect(t, '个数按题干内真实作答对象算').toContain('真实作答对象个数');
     // 🔴 2026-10-24（属主："不要人为干预模型的能力"）：两句禁令已删（详见 titleNumberScoreMatrix 同条注释）。
     expect(t, '"不得整组一律"不得回潮').not.toContain('不得整组一律');
-    expect(t, '分值按题目本身给').toContain('分值按题目本身给');
     // 🔴 2026-10-24（属主："单价不一定要取整数分吧？也可以是 0.5 分…不要人为指定单价一样"）：
-    //   单价按该处内容定，不设整数限制、不强制全大题一个价（程序按**题**合成，不按单价合成）。
+    //   单价按档选，不设整数限制、不强制全大题一个价（程序按**题**合成，不按单价合成）。
     expect(t, '不得强制同一大题一个价').not.toContain('同一大题一个价');
     expect(t, '不得强制整数分').not.toContain('取整数分');
-    // 不编号支的价必须由标题承载，一个标题一个价（题内不标分）。
-    expect(t, '不编号支：分值只写在大标题').toContain('分值只写在大标题');
+    // 单题干大题的价落在题干后，标题不写分（旧"分值只写在大标题"已废）。
+    expect(t, '单题干：标题不写分值').toContain('大题标题不写分值');
   });
 
   it('行为：三空只写（2分）⇒ 报"处数没数"（只报不改）', () => {
@@ -224,19 +214,15 @@ describe('②-b 处数要数：Y 须与该题实际判分处数相符', () => {
   });
 });
 
-describe('③ 逐题标：每道带号题都要有分（A 的活，缺了程序只报）', () => {
-  // 🔴 2026-10-24（属主："带题号的小题标分不就是在题干上标吗？"）：判据原来只在【分值标注】块里，
-  //   离"写题"两百行 ⇒ 模型逐题生成时看不到。现把义务写进**题干格式条**（写 <p class="question"> 那一刻）。
-  //   2026-10-24 收口（单一开关）：同一义务只在【分值标注】第②步定义一次；题干格式条不再复述（防双源）。
-  it('判据单源：分值块写死逐题标分，题干格式条不复述同一义务', () => {
+describe('③ 逐题标：每道作答题干都要有分（A 的活，缺了程序只报）', () => {
+  // 🔴 2026-10-26（结构事实）：义务由两支各自写死——单题干标在该题干后，多题干标在各题干后；
+  //   题干格式条不再复述同一义务（防双源）。
+  it('判据单源：分值块写死两支各自标分，题干格式条不复述同一义务', () => {
     const t = tpl();
-    expect(t, '带号题必须逐题标分').toContain('每道带号小题都要有自己的分值');
-    expect(t, '漏标一题即不合规').toContain('漏标一题即不合规');
-    expect(t, '漏标一题即不合规（分只写题内）').toContain('漏标一题即不合规');
-    // 🔴 2026-10-24（真机："有些带题号的小题没按真题规范输出"）：上一版"不钉死行末"被模型读成
-    //   "多行题可以不标"，选项后/末行的分读不到。**恢复单一位置**：整道题设问的最后一句之后（多行题以最后一行为准）。
-    expect(t, '标分位置＝整道题设问的最后一句之后（多行题以最后一行为准）').toContain('整道题设问的最后一句之后');
-    expect(t, '题干格式条不得再写一遍（单源）').not.toContain('带题号的题，分就写在整道题设问的最后一句之后');
+    expect(t, '多题干：各题干后标全式').toContain('各题干后标');
+    expect(t, '单题干：只在该题干后标').toContain('只在该题干后标');
+    expect(t, '位置：材料与作答载体之后').toContain('分值括注写在**全部材料与作答载体之后**');
+    expect(t, '题干格式条不得再写一遍（单源）').not.toContain('带题号的题，分就写在');
   });
 
   it('行为：5 道带号题全无分 ⇒ 报 5 道、一道不补', () => {
@@ -308,23 +294,24 @@ function rows0(html) {
 
 // 🔴 2026-10-23（属主："分值自洽是模型侧的硬性要求，一层层验"）：
 //   2026-10-24 收口：账目只保留可执行的两层——小题 → 大题 → 卷首；大类层不设时由大标题承担。
-describe('⑦ 分值自洽：模型侧逐层核（硬性·小题→大题→卷首）', () => {
-  it('三层齐备且按"题→大题→卷首"排列', () => {
+describe('⑦ 分值自洽：模型侧逐层核（硬性·每题→多题干大题→卷首）', () => {
+  it('三层齐备且按"每题→大题→卷首"排列', () => {
     const t = tpl();
-    const i1 = t.indexOf('每道带号小题都要有自己的分值');
-    const i2 = t.indexOf('小题分之和＝该大题分');
-    const i3 = t.indexOf('各大题分之和＝卷首满分');
-    for (const [name, i] of [['①题', i1], ['②大题', i2], ['③卷首', i3]]) {
+    const i1 = t.indexOf('真实作答对象个数 N');
+    const i2 = t.indexOf('Z＝ΣY');
+    const i3 = t.indexOf('各大题分之和＝给定满分');
+    for (const [name, i] of [['①每题', i1], ['②大题', i2], ['③卷首', i3]]) {
       expect(i, `${name} 层必须在位`).toBeGreaterThan(-1);
     }
     expect(i1 < i2 && i2 < i3, '三层必须按顺序验（一层都不得跳）').toBe(true);
-    expect(t, '差额只在层内调（不跨大题）').toContain('不跨大题挪');
+    expect(t, '满分是给定值、不可改').toContain('不得改动满分');
   });
 
-  it('中学：与小学同一套账目（不另设"中学不设大类层"的第二套）', () => {
+  it('中学：与小学同一套账目（不另设第二套）', () => {
     const mid = getPromptTemplate({ grade: 'middle', subject: '数学', genType: 'exam' }).template;
-    expect(mid, '小题→大题账目同在').toContain('小题分之和＝该大题分');
-    expect(mid, '大题→卷首账目同在').toContain('各大题分之和＝卷首满分');
+    expect(mid, '每题账目同在').toContain('Y＝X×N');
+    expect(mid, '大题账目同在').toContain('Z＝ΣY');
+    expect(mid, '试卷账目同在').toContain('各大题分之和＝给定满分');
     expect(mid, '旧"中学不设大类层"分叉不得回潮').not.toContain('中学不设大类层');
   });
 });
