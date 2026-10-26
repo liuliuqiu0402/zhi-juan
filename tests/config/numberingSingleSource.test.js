@@ -15,7 +15,7 @@ describe('编号判据单源（2026-10-24 收口）', () => {
   const practice = tpl('数学', 'primary_low', 'practice');
 
   it('试卷：编号判据在实发里**只出现一次**', () => {
-    expect(count(exam, '号是点名用的')).toBe(1);
+    expect(count(exam, '先看整组')).toBe(1);
   });
 
   it('试卷：其余三处"同一决定"的旧说法零出现（防再散回去）', () => {
@@ -25,13 +25,13 @@ describe('编号判据单源（2026-10-24 收口）', () => {
   });
 
   it('试卷：单一开关、动作唯一、互锁，三件齐全', () => {
-    expect(exam).toContain('只属于它自己的题干话');
-    expect(exam).toContain('一组只做一个动作');
+    expect(exam).toContain('还有没有自己的话');
+    expect(exam).toContain('整组只按一种情况写');
     expect(exam).toContain('不许只有号没有分，也不许没有号却在题内标分');
   });
 
   it('教辅：只有编号那半，不含标分半句（练习册不判分）', () => {
-    expect(practice).toContain('号是点名用的');
+    expect(practice).toContain('先看整组');
     expect(practice).not.toContain('每个带号小题在最后一行末尾标自己的分');
     expect(practice).not.toContain('单价只在大标题');
   });

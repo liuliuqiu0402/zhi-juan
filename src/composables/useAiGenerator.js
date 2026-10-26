@@ -4662,7 +4662,7 @@ ${cardAnalysisText.substring(0, 1000)}
         //    "要求就是正文要是全的、完整的"；正文若过长触及模型上下文上限，宁可失败重试不给半截。
         const paperPlain = htmlToPlainText(content);
         // 🔧 格式根治：答案页注入与正文一致的 HTML 输出规范（此前无格式要求 → 模型直接输出 Markdown 源码）
-        const ansFormat = buildAnswerFormatSpec(subject);
+        const ansFormat = buildAnswerFormatSpec(subject, genType);
         // 2026-10-02（③啰嗦·一份实发内"判据只准一处正句"）：原 `selfContainedAnsNote`（【自包含教辅答案原则】）
         //   与**同一次调用**的 `ansRole`（ANSWER_ROLES.other 的 summary/review/preview/dictation 分支）**同义**——
         //   后者的"仅针对本资料正文中实际出现的练习/自测/变式逐题作答（典型例题的解答与解析已在正文讲解展示，

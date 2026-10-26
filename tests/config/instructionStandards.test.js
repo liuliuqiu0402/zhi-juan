@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getPromptTemplate, DECLARATION_TRUTH_CLAUSE, QUESTION_OBJECT_CALIBER } from '../../src/config/promptLibrary.js';
+import { getPromptTemplate, DECLARATION_TRUTH_CLAUSE, QUESTION_OBJECT_CALIBER, NUMBERING_ONLY_RULE, buildAnswerFormatSpec, PAPER_OUTPUT_CONVENTIONS } from '../../src/config/promptLibrary.js';
 import { faceTexts } from '../../scripts/instructionText.mjs'; // 486 面装配（单源，与 L1 锚门/清单守卫同一份）
 
 const ROOT = path.resolve(__dirname, '../..');
@@ -101,6 +101,22 @@ describe('标准·结构（D 三项：M4 / S6 / M5）', () => {
     // ③ 原窄代理保留（分值账目条款）
     const bad2 = TYPES9.filter((g) => g !== 'exam' && /小题数×每题分|账目闭合/.test(tpl(g)));
     expect(bad2, '分值只在试卷（exam）出现；教辅不带分').toEqual([]);
+    // ④ 答案页独立调用（split 后的答案页）同样"分值只属试卷"——正文面之外的第二类实发
+    //    2026-10-25（属主提醒）：原答案格式规范对教辅也写"教辅不标分值"与"解析的…分值…同一口径"，
+    //    仍是在给教辅讲分值 ⇒ 按类型门控，教辅侧只保留"不写分值"这类否定守卫（与"不标注分值"同口径）。
+    const ansRE = /分值|X\s*分|[（(][^）)\n]{0,8}\d+\s*分\s*[）)]/;
+    const NEG = /不写分值|不标注分值|不标分值/g;
+    const ansBad = FACES486.filter((f) => f.genType !== 'exam'
+      && ansRE.test((buildAnswerFormatSpec(f.subject, f.genType) + PAPER_OUTPUT_CONVENTIONS.once(f.subject, false, f.genType)).replace(NEG, '')))
+      .map((f) => f.key);
+    expect(ansBad.slice(0, 5), `非 exam 答案页注入分值条款（共 ${ansBad.length}）：${ansBad.join(',')}`).toEqual([]);
+    // exam 正向锚：门控不得把试卷的标分口径一起删掉
+    expect(buildAnswerFormatSpec('语文', 'exam'), 'exam 答案页须保留标分口径').toContain('每题答案首标（X分）');
+    expect(PAPER_OUTPUT_CONVENTIONS.once('语文', false, 'exam'), 'exam 一次成型须保留标分口径').toContain('须逐题注明该题分值');
+    // ⑤ 教辅编号判据（从单一开关按切点派生）必须是完整句、且不含分值（切点错会留下半句残句）
+    expect(NUMBERING_ONLY_RULE, '教辅编号判据不得含分值').not.toMatch(/分值|（共X分|（每〈单位〉/);
+    expect(NUMBERING_ONLY_RULE).not.toContain('整组只按一种情况写');
+    expect(NUMBERING_ONLY_RULE.trim().endsWith('。'), '教辅编号判据须是完整句').toBe(true);
   });
 
   it('S6 数量型判据：486 面**除白名单外零命中**（至少/不少于/不低于/不多于/不超过/最多）', () => {

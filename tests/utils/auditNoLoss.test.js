@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { auditExamPaper } from '../../src/utils/examValidator.js';
+import { extractBodyQuestionSequence } from '../../src/utils/contentCleaner.js';
 
 /**
  * 质检"不丢题"不变量 ＋ 改写分支覆盖登记（测试期；零运行期代码、零噪音）
@@ -37,6 +38,19 @@ const BRANCHES = [
 
 /** 暂未配到可靠样本的分支：只减不增（新增分支不配样本即红） */
 const PENDING = {};
+
+/** 真机 2026-10-25 形态：汉字标题锚点的写作大题，其下多道小题带空位（补格时不得把小题当载体删掉） */
+const WRITING_TAIL_HTML = [
+  '<h2>一、基础题（共10分）</h2>',
+  '<p class="question">1. 看拼音写词语。（2分）</p>',
+  '<p class="question">2. 选词填空<span class="blank-2">&emsp;</span>。（2分）</p>',
+  '<h2>六、习作（共30分）</h2>',
+  '<p class="question">1. 观察图片，完成下面的题目。（10分）</p>',
+  '<p class="question">2. 写出你的感受<span class="blank-2">&emsp;</span>。（5分）</p>',
+  '<p class="question">3. 补充结尾<span class="blank-2">&emsp;</span>。（5分）</p>',
+  '<p class="question">4. 写下题目<span class="blank-2">&emsp;</span>。（10分）</p>',
+  '<p class="blank-line"><span class="blank-line">&emsp;</span></p>',
+].join('\n');
 
 const SAMPLES = [
   {
@@ -143,6 +157,12 @@ const SAMPLES = [
     ].join('\n'),
   },
   {
+    name: '语文·小学高段｜写作大题（汉字标题）后带多道带空位小题（补格不得吞题）',
+    opts: { subject: '语文', stage: 'primary_high' },
+    branch: 'writing-grid',
+    html: WRITING_TAIL_HTML,
+  },
+  {
     name: '教辅｜同一不变量对非试卷类型同样成立',
     opts: { genType: 'teaching', subject: '数学', stage: 'primary_low' },
     html: [
@@ -175,6 +195,11 @@ describe('质检不丢题：分支定向样本 ＋ 覆盖可证明', () => {
       }
     });
   }
+
+  it('写作题补格只清纯载体段，不得删题（真机 2026-10-25：题号 [1,2,1,2,3,4] → [1,2,1]）', () => {
+    const res = run(WRITING_TAIL_HTML, { subject: '语文', stage: 'primary_high' });
+    expect(extractBodyQuestionSequence(res.html)).toEqual(extractBodyQuestionSequence(WRITING_TAIL_HTML));
+  });
 
   it('覆盖登记：未配样本的分支只减不增（新增改写分支不配样本即红）', () => {
     const covered = new Set(SAMPLES.map((s) => s.branch).filter(Boolean));

@@ -1,12 +1,12 @@
 // 🔢 题号口径守卫
 // ============================================================
 // 🔴 2026-10-23（属主基准·**撤第二把尺**）：
-//   编号/不编号**只判一次**，唯一判据＝【层级与组织】的一组只做一个动作：给不给每个小题写号（`NUMBERING_BRANCH_RULE`）。
+//   编号/不编号**只判一次**，唯一判据＝【层级与组织】的整组只按一种情况写：给不给每个小题写号（`NUMBERING_BRANCH_RULE`）。
 //   原 `QUESTION_OBJECT_CALIBER` 里的两套判据（"只有各自给出独立作答要求的才各自编号"／"整组共用一条
-//   作答要求（标题）的…其下不编号"）与一组只做一个动作是**同一决定的两把尺**，且对同一行能给相反答案
+//   作答要求（标题）的…其下不编号"）与整组只按一种情况写是**同一决定的两把尺**，且对同一行能给相反答案
 //   （竖式：算式不同 ⇒ 前半句判编号；作答动作相同 ⇒ 后半句判不编号）⇒ 整支删除。
 //   本文件锁三件事：
-//     ① 判据单源（一组只做一个动作只在【层级与组织】出现一次，分值标注只引用）；
+//     ① 判据单源（整组只按一种情况写只在【层级与组织】出现一次，分值标注只引用）；
 //     ② 第二把尺不得回潮（"独立作答要求／共用一条作答要求／哪怕并列多少项"）；
 //     ③ 题号条仍只管"不是题的东西别给号"与分问标示——不越界去判"哪些题该编号"。
 // ============================================================
@@ -14,38 +14,41 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  getPromptTemplate, NUMBERING_BRANCH_RULE, QUESTION_OBJECT_CALIBER,
+  getPromptTemplate, NUMBERING_BRANCH_RULE, NUMBERING_JUDGE_RULE, NUMBERING_ACTION_RULE, QUESTION_OBJECT_CALIBER,
 } from '../../src/config/promptLibrary.js';
 
 const ROOT = path.resolve(__dirname, '../..');
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8');
 const tpl = (g, s = '语文', st = 'primary_low') => getPromptTemplate({ grade: st, subject: s, genType: g }).template;
 
-describe('编号/不编号：单一判据（一组只做一个动作）', () => {
+describe('编号/不编号：单一判据（整组只按一种情况写）', () => {
   it('考卷与教辅两条通道都携带该条（单源一次定义、两处引用）', () => {
     const lib = read('src/config/promptLibrary.js');
-    expect((lib.match(/export const NUMBERING_BRANCH_RULE/g) || []).length, '只允许一处定义').toBe(1);
+    expect((lib.match(/export const NUMBERING_JUDGE_RULE/g) || []).length, '判定只允许一处定义').toBe(1);
+    expect((lib.match(/export const NUMBERING_ACTION_RULE/g) || []).length, '后果只允许一处定义').toBe(1);
     // 只数"代码行"的引用（注释里提到常量名不算消费）——否则每次留痕都会把计数抬高。
     const codeLines = lib.split('\n').filter((l) => !/^\s*(\*|\/\*|\/\/)/.test(l)).join('\n');
-    expect((codeLines.match(/NUMBERING_BRANCH_RULE/g) || []).length, '定义 1 + 消费 2（考卷内联在分值标注／教辅那条按切点派生）').toBe(3);
-    // 🔴 2026-10-24（属主"收"）：编号判据两处引用——**考卷要整条**（含标分半句）；**教辅只要前一半**
+    expect((codeLines.match(/NUMBERING_JUDGE_RULE/g) || []).length, '判定：定义 1 + 消费 3（整条内联／考卷模板／教辅派生）').toBe(4);
+    expect((codeLines.match(/NUMBERING_ACTION_RULE/g) || []).length, '后果：定义 1 + 消费 2（整条内联／考卷模板）').toBe(3);
+    // 🔴 2026-10-24（属主"收"）：编号判据两处引用——**考卷要整条**（含标分半句）；**教辅只要判定半句**
     //   （练习册不判分）。两处读的是同一份文本，不是两份判据。
-    const half = NUMBERING_BRANCH_RULE.split('**一组只做一个动作')[0];
-    expect(tpl('exam'), '考卷：整条（编号＋标分）').toContain(NUMBERING_BRANCH_RULE);
+    const half = NUMBERING_JUDGE_RULE;
+    expect(tpl('exam'), '考卷：整条（判定＋后果）').toContain(NUMBERING_JUDGE_RULE);
+    expect(tpl('exam'), '考卷：后果半句').toContain(NUMBERING_ACTION_RULE);
     for (const g of ['practice', 'special', 'reading', 'review']) {
       expect(tpl(g), `${g}：只带编号半句`).toContain(half);
-      expect(tpl(g), `${g}：不得带标分半句`).not.toContain('每道带号小题都要有自己的分值');
+      expect(tpl(g), `${g}：不得带标分半句`).not.toContain(NUMBERING_ACTION_RULE);
     }
   });
 
-  it('判据本体：一组只做一个动作（带号就逐题标分／不带号就单价进标题）', () => {
-    expect(NUMBERING_BRANCH_RULE, '动作只一个').toContain('一组只做一个动作');
-    expect(NUMBERING_BRANCH_RULE, '唯一开关：只属于它自己的题干话').toContain('只属于它自己的题干话');
-    expect(NUMBERING_BRANCH_RULE, '带号支：每道带号小题都要有自己的分值').toContain('每道带号小题都要有自己的分值');
+  it('判据本体：整组只按一种情况写（带号就逐题标分／不带号就单价进标题）', () => {
+    expect(NUMBERING_BRANCH_RULE, '动作只一个').toContain('整组只按一种情况写');
+    expect(NUMBERING_BRANCH_RULE, '唯一开关：还有没有自己的话').toContain('还有没有自己的话');
+    expect(NUMBERING_BRANCH_RULE, '带号支：每道带号小题都要有自己的分值').toContain('每道带号小题都要在整道题设问的最后一句之后写出自己的分值');
     // 2026-10-24（§九.68 去重）：标分位置只在【分值标注】写一次，判据常量不再复述——断言随之改查模板。
-    expect(tpl('exam'), '带号支：标分位置按真题习惯（不钉死行末）').toContain('该题最后一行末尾');
-    expect(NUMBERING_BRANCH_RULE, '不带号支：分值只写在大标题').toContain('**不带号**：**分值只写在大标题**');
-    expect(NUMBERING_BRANCH_RULE, '不带号支：题内不标分').toContain('**题内不标分**');
+    expect(tpl('exam'), '带号支：标分位置按真题习惯（不钉死行末）').toContain('整道题设问的最后一句之后');
+    expect(NUMBERING_BRANCH_RULE, '不带号支：分值只写在大标题').toContain('**整组不带号**：**分值只写在大标题**');
+    expect(NUMBERING_BRANCH_RULE, '不带号支：题内不标分').toContain('**该组题内一律不标分**');
     expect(NUMBERING_BRANCH_RULE, '两半互锁（号与分同生同死）').toContain('不许只有号没有分，也不许没有号却在题内标分');
     // 🔴 判据里不得出现任何题型名（一列就变成诱导）
     expect(NUMBERING_BRANCH_RULE).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
@@ -100,6 +103,17 @@ describe('题号条：只管"不是题的东西别给号"与分问标示', () =>
     expect(ex, '试卷层仍在').toContain('各大题分之和＝卷首满分');
   });
 
+  // 🔴 2026-10-25（真机："每个小题都标分了，但编号回归成全卷连续；不该编号的也编了"）：
+  //   原尾句"小题号：{subQuestionNumbering}、各大题各自重编（不接上一大题往下续）"自相矛盾——
+  //   注入"全卷连续"时，同一句里同时写着"全卷连续"和"各自重编"；且"连续"被读成全局约束，
+  //   模型为了让号连续，把口算/竖式这类不编号的项也补上号。
+  it('小题号只在带号组内：不带号的组无号、不占号（防"为连续而补号"）', () => {
+    expect(QUESTION_OBJECT_CALIBER, '只在带号组内编写').toContain('只在判为带号的组内编写');
+    expect(QUESTION_OBJECT_CALIBER, '不带号组无号、不占号').toContain('不带号的组一律无号、也不占号');
+    expect(QUESTION_OBJECT_CALIBER, '不得为连续补号').toContain('不得为让号连续而补号');
+    expect(QUESTION_OBJECT_CALIBER, '旧"各大题各自重编"与起编方式同句的矛盾不得回潮').not.toContain('各大题各自重编');
+  });
+
   it('零诱导：不点题型名、不指定分问符号', () => {
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/看拼音|组词|连一连|口算|竖式|选择|判断|填空|选字|选词/);
     expect(QUESTION_OBJECT_CALIBER).not.toMatch(/①|②|（1）|\(1\)/);
@@ -113,7 +127,7 @@ describe('题量口径与卷面层级（不受本次改动影响）', () => {
   it('题量口径：不再有"题量"预载，条数由实际内容决定', () => {
     const ex = tpl('exam');
     expect(ex, '"题量"预载已废（计数统一按计分对象）').not.toContain('题量');
-    expect(ex, '计分条数由实际内容决定的判据须在位').toContain('Y 与该题实际判分处数相符');
+    expect(ex, '计分条数由实际内容决定的判据须在位').toContain('Y＝X×处数');
     expect(ex, '旧"编号与计分按实际计分对象给出"不得回潮（与计分对象口径相抵）').not.toContain('编号与计分按实际计分对象给出');
     expect(ex, '否定式旧句不得回潮').not.toContain('不得为凑数逐项编号');
   });
@@ -131,11 +145,11 @@ describe('题量口径与卷面层级（不受本次改动影响）', () => {
   });
 
   // 🔴 2026-10-10（〔346〕产物实证·编号冲动根因）：原判据不可自判（"并列的算式算不算多个小题"）。
-  //   2026-10-23 起由一组只做一个动作接管：并列算式行没有"以句号/问号收尾的完整句子" ⇒ 一组只做一个动作不成立 ⇒ 不编号。
-  it('〔346〕不可自判的旧锚不得回潮；由一组只做一个动作接管', () => {
+  //   2026-10-23 起由整组只按一种情况写接管：并列算式行没有"以句号/问号收尾的完整句子" ⇒ 整组只按一种情况写不成立 ⇒ 不编号。
+  it('〔346〕不可自判的旧锚不得回潮；由整组只按一种情况写接管', () => {
     expect(QUESTION_OBJECT_CALIBER, '不可自判的旧锚不得回潮').not.toContain('全大题仅一个小题时');
     expect(tpl('exam'), '卷面自洽条旧锚须一并改准').not.toContain('全大题仅一个小题时');
-    expect(NUMBERING_BRANCH_RULE, '并列算式行由"一组只做一个动作"自然判为不编号').toContain('一组只做一个动作');
+    expect(NUMBERING_BRANCH_RULE, '并列算式行由"整组只按一种情况写"自然判为不编号').toContain('整组只按一种情况写');
   });
 
   it('M5 自测：教辅"组标题自拟"与"只写作答方式"**同份在场**——来源 vs 写法两维，非同源冲突', () => {

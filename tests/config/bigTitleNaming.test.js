@@ -117,7 +117,7 @@ describe('大题标题命名：全库唯一一处规定（学段口径防回潮�
   it('大题要求不得写成带题号的题干（编号不在此块另立判据）', () => {
     for (const stage of ['primary_low', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '语文', genType: 'exam' }).template;
-      expect(t, `${stage}：要求行不得带题号`).toContain('不得把这条要求写成带题号的题干');
+      expect(t, `${stage}：要求行不得带题号`).toContain('不写成带题号的题干');
       expect(t, `${stage}：编号判据不得在此块再写一份`).not.toContain('题号只给要单独点名的题');
     }
   });

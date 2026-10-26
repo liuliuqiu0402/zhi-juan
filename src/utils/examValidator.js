@@ -26,9 +26,10 @@ import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHe
  *  2026-10-23（按属主定的基准）：编号/不编号判定在 A，B 这边只做"认出编号行"。 */
 const NUMBERED_LINE_RE = /^\s*(?:[（(][\s　]*[）)]\s*)?(\d{1,2})\s*[.、．]/;
 
-/** 该题分值括注（**任意位置**，真题习惯：题号后或该题最后一行末尾；多行题以末行为准）→ number|null。
+/** 该题分值括注（**解析侧兼容任意位置**：题号后或整道题设问的最后一句之后；多行题以末行为准）→ number|null。
  *  2026-10-24（属主："标分位置遵循真题习惯，不要人为去定"）：原只认**行末**，
- *  写在题号后的"1.（2分）…"会被误报"没标分"。取分优先括注里的"共Y分"，其次该括注内的"X分"。 */
+ *  写在题号后的"1.（2分）…"会被误报"没标分"。取分优先括注里的"共Y分"，其次该括注内的"X分"。
+ *  2026-10-25：**解析宽容、指令单点**——模型侧只写"整道题设问的最后一句之后"（§九.73），程序仍两处都认，免得误报。 */
 const SCORE_PAREN_RE = /[（(]([^（）()]{0,30}?)[）)]/g;
 const readItemScore = (text) => {
   let total = null;
@@ -1006,8 +1007,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // 2026-10-24（属主·单一开关）：**不做标题形态归一**。A 已按编号结果给出标题形态——不带号且
-  //   只有一处判分时就是"（X分）"；程序再改成"（共X分）"＝改写 A 的规定形态、另立第二套口径。
+  // 2026-10-24（属主·单一开关）：**不做标题形态归一**。A 已按编号结果给出标题形态——带号大题标题不带分、
+  //   不带号大题标题带全式单价；程序再改写标题＝另立第二套口径。
+  //   2026-10-25：带号题题内一律全式（"（每〈单位〉X分，共Y分）"，一处时单位写"题"），标题末括注由 1.6b 按 Σ 覆盖。
   //   本侧只做 B 的合成（1.6b）与只报不改，不重写、不重算、不改数。
 
   // ── 1.6b-pre. 带号题没标分：**只报不改**（逐题标分是 A 的活，程序不代劳）──
@@ -1022,6 +1024,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   //     正是这么补出来的）。故本块只剩两件事：**数出哪几道没分 → 报**；**Σ 不完整 → 不合成标题**。
   //   本块的界（**不改数、不猜、不删正文、不改标题、不补分**）。
   //   标题本身仍由 1.6b 按逐题总分合成（本块不碰标题，避免两处改同一处）。
+  //   🔴 2026-10-25：缺分是**上游原因**，卷首 Σ 不符只是它的下游结果——用本标志把"卷首不符"让位给"缺分"，
+  //     同一次缺陷只报一条（真机两条同报＝噪音，且会把注意力引到算术上）。
+  let scoreIncomplete = false;
   if (has('title-detail-fix')) {
     try {
       const tplP = document.createElement('template');
@@ -1067,14 +1072,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //   现改为**逐行补**：只有全段都带分才跳过；否则只给"没分的那几行"补，已带分的不动。
         const needP = linesP.filter((x) => !x.hasOwn);
         if (needP.length === 0) return;                // 全段已逐题标分 → 归 1.6b 合成
+        // 🔴 2026-10-25（属主定稿：「带号一律逐题标分」）：上一版"单处组免逐题标分"整块删除——
+        //   带号组不论每题几处判分，都要逐题标分；缺分一律报（只报不改）。
+        //   标题形态由 1.6b 按逐题分合成并覆盖，A 写"（共X分）"即可，故这里不再核"单价×题数"。
+        //   本块的界（**不改数、不猜、不删正文、不改标题、不补分**）。
         // 🔴 2026-10-23（属主："我们不要程序侧补小题标分，小题标分必须是模型侧根据题的实际内容标出。
         //   而且按照模型的写题顺序，是能做到分值自洽的。所以这个得严格执行才行，不能有任何折扣"）：
         //   本块**只报不改**——原"按标题单价补标"（含"能算的先补、补不了再报"的半修补）**整段删除**。
         //   理由：程序只读得到标题上的单价，读不到这道题实际有几处判分、每处该值多少；替 A 补一个数，
         //   等于把 A 的缺陷埋掉（真机"三空2分"正是这么补出来的）。Σ 不完整时标题也不合成（不拿残账当总数）。
+        //   组内有题两处及以上判分 ⇒ 逐题标分不可省，缺分只报不改。
         const blindP = needP.filter((x) => countBlanks(x.el.innerHTML) === 0).length;
+        scoreIncomplete = true;
         silentCount('title-unit-misplaced',
-          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}——逐题标分只能由你按该题的实际内容给出：写在题号后或该题最后一行末尾（多行题、有选项的以最后一行为准）写"（每${unitName}X分，共Y分）"，只有一处判分写"（X分）"，不得整组只在标题或组首标一次；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）`, 'warn');
+          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}——逐题标分只能由你按该题的实际内容给出：写在整道题设问的最后一句之后，一律全式"（每〈单位〉X分，共Y分）"（〈单位〉取该处让学生作答的对象名；Y＝单价×该题判分处数），不得整组只在标题或组首标一次——**标题里的分不作数**，程序只认题内各题分、按 Σ 合成标题；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）`, 'warn');
         return;
       });
       out = tplP.innerHTML;
@@ -1093,7 +1104,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
   //         总分多档 → 按**每题总分**分组。
   //   🔴 不改数、不做除法、不删正文：Σ 取题内各小题标分之和；标题原总数只作核对，不参与合成。题内标注**保留不动**（逐题对账的落点）。
   //   🔴 归不了类（有题没标总分／无编号）→ 不动，标题保持"（共X分）"。
-  //   2026-10-19 扩展：A 对"单判分处"的题只写"（2分）"（无"每"），B 同样能读——该题总分即该题分值。
+  //   2026-10-19 扩展（2026-10-25 口径更新）：现行 A 侧判据是**一律全式**（单处时单位写"题"）；
+  //   历史/外部稿件仍可能写裸"（2分）"，解析侧**继续容忍**（取该括注即该题总分），不合规由 1.6f 报形态。
+  //   B 只读分、不判形态。
   // 🔴 2026-10-21（属主定稿）：B 按结构开，不按学段开关——小学"第一部分"没有直接小题，自然跳过；
   //   中学域型名作大题标题、其下直接是小题，照常合成。0 段判定看题内有没有带号带标分的小题。
   if (has('title-detail-fix')) {
@@ -1155,7 +1168,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const tt = (el.textContent || '').trim();
             const nm = tt.match(NUMBERED_LINE_RE);
             if (!nm) continue;
-            // 只取该题的分值括注（题号后或该题最后一行末尾均可，真题习惯；多行题以末行为准）；题干内部各分条的标分不计入合成。
+            // 只取该题的分值括注（解析侧任意位置都认：设问结束处／有选项的在选项之前；程序按整题扫描）；题干内部各分条的标分不计入合成。
             const itemTotal = readItemScore(itemBlockText(el));
             itemsB.push({ num: nm[1], total: itemTotal });
             seenB.add(el);
@@ -1173,9 +1186,10 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //   故此处只对非单价标题报，避免同一句报两遍。
         const missingB = itemsB.filter((x) => x.total == null);
         if (missingB.length) {
+          scoreIncomplete = true;
           if (!/[（(]\s*每/.test(t)) {
             silentCount('title-unit-misplaced',
-              `大题「${t}」其下有 ${missingB.length} 道带题号的题没标分——请按【分值标注】在每道带号题后逐题标分；程序不改数、不动结构`, 'warn');
+              `大题「${t}」其下有 ${missingB.length} 道带题号的题没标分——逐题标分只能由你按该题的实际内容给出：写在整道题设问的最后一句之后，一律全式"（每〈单位〉X分，共Y分）"（〈单位〉取该处让学生作答的对象名；Y＝单价×该题判分处数），不得整组只在标题或组首标一次；程序不补分、不改数、不动结构`, 'warn');
           }
           return;
         }
@@ -1388,36 +1402,69 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           silentCount('multi-question-line',
             `大题「${title}」有 ${crammed.length} 段把多道题连写在同一段里（首段含 ${n} 个题号、末尾却给整段标分）——写了号就一题一段，一段只放一道题；程序不改结构`, 'warn');
         }
-        // ── 处数没数（🔴 2026-10-23 属主："有一题多载体的，出现了三空2分的情形，并没有标单价"）──
-        //   判据：一处判分 ⇒ "（X分）"（不带单位）、两处及以上 ⇒ "（每〈单位〉X分，共Y分）"（带单位）。
-        //   一道题有 ≥2 个作答位却只写裸分（或只给单价、不给共Y分）⇒ 处数被按"一道题＝一处"记了：
-        //   三空题与一空题同分、单价消失。只报不改（改分会动账）。
-        //   🔴 2026-10-24（属主："多处判分，没有按这个写"）：原来只数**该行内**的作答位——多行题的
-        //   空位散在题干行/选项行、分值落在末行时数不足 2 个，直接漏检。现按**整题**数（itemBlockText，
-        //   与取分同一口径）。选项行不计空白串（选项间空格是排版，不是作答位）。
-        const blanksInText = (s) => {
-          // 括注空位先数、再从句子里剥掉——否则括注内的全角空格会被下面的连续空白再数一遍（一处记两次）。
-          const parenSeg = /[（(]\s*[　\u3000 \u00A0]{1,12}\s*[)）]/g;
-          const paren = (s.match(parenSeg) || []).length;
-          const rest = s.replace(parenSeg, '');
-          const under = (rest.match(/_{2,}|＿{2,}/g) || []).length;
-          const zw = (rest.match(/[\u200B\u200C\u200D\uFEFF]/g) || []).length;
-          const runs = /[A-D][.、．]/.test(rest) ? 0 : (rest.match(/[ \u00A0\u3000]{4,}/g) || []).length;
-          return paren + under + zw + runs;
+        // ── 标分形态（🔴 2026-10-25 属主定稿："分不清一处还是多处，就都标单价"）──
+        //   判据（模型侧单源＝【分值标注】）：带号题**一律全式**"（每〈单位〉X分，共Y分）"。
+        //   🔴 2026-10-25（属主："最后一行末尾是哪里？"）：落点改为**整道题设问的最后一句之后**（有选项的写在选项之前）
+        //     ⇒ 程序不能再"只看行末"，改为取**整题最后一个带"分"的括注**（多行题、题内说明都不影响）。
+        //   只报不改（改形会动账）。
+        //   只认"像小题分"的括注：全式（每…共…）、半式（每…）、裸分（X分）；
+        //   **"（共32分）""（满分20分）"这类是大题/卷面总量，不是某道小题的分**——不认，否则复述行会被误判。
+        const isItemScore = (s) => /^每[^，,]{1,10}\d+(?:\.\d+)?\s*分\s*[，,]\s*共\s*\d+(?:\.\d+)?\s*分$/.test(s)
+          || /^每[^，,]{1,10}\d+(?:\.\d+)?\s*分$/.test(s)
+          || /^\d+(?:\.\d+)?\s*分$/.test(s);
+        const scoreParen = (text) => {
+          const all = [...String(text || '').matchAll(/[（(]\s*([^（）()]{0,40}?)\s*[)）]/g)]
+            .map((m) => m[1].trim())
+            .filter((s) => /\d+(?:\.\d+)?\s*分/.test(s) && isItemScore(s));
+          return all.length ? all[all.length - 1] : null;
         };
-        const bareScored = rows.filter((r) => {
-          const m = r.match(/[（(]\s*([^（）()]{0,24}?)\s*[)）]\s*$/);
-          if (!m) return false;
-          const inner = m[1].trim();
-          const bare = /^\d+(?:\.\d+)?\s*分$/.test(inner);
-          const halfForm = /^每[^，,]{0,8}\d+(?:\.\d+)?\s*分$/.test(inner);
-          if (!bare && !halfForm) return false;
+        const badForm = numRows.filter((r) => {
           const el = rowEls.get(r);
-          return blanksInText(el ? itemBlockAround(el) : r) >= 2;
+          const inner = scoreParen(el ? itemBlockAround(el) : r);
+          if (inner == null) return false;                          // 没有分值括注 → 交缺分报点
+          return !/^每[^，,]{1,10}\d+(?:\.\d+)?\s*分\s*[，,]\s*共\s*\d+(?:\.\d+)?\s*分$/.test(inner);
         });
-        if (bareScored.length) {
+        if (badForm.length) {
           silentCount('blank-count-ignored',
-            `大题「${title}」有 ${bareScored.length} 道题的作答位在两处及以上，却只写了裸分或只给了单价（如"…${bareScored[0].slice(-12)}"）——处数没数：一处写"（X分）"，两处及以上写"（每〈单位〉X分，共Y分）"；否则三空题与一空题同分、单价消失（程序不改数）`, 'warn');
+            `大题「${title}」有 ${badForm.length} 道带题号的题题内分值没写全式（标分形态不合规，如"…${badForm[0].slice(-14)}"）——带号题一律写"（每〈单位〉X分，共Y分）"，〈单位〉取该处让学生作答的对象名；Y＝单价×该题判分处数。只写裸分或只给单价会让单价消失、三空题与一空题同分（程序不改数）`, 'warn');
+        }
+        // ── 全式但账不齐：共Y分 ≠ 单价×处数（🔴 2026-10-25 属主："让判分处来承担"）──
+        //   形态对了不代表账对：三空题写成"（每空1分，共2分）"仍是"三空2分"，而形态检查只看形。
+        //   判据：Y 必须＝X×处数；〈单位〉为"题"时处数即 1，无需核。
+        //   处数按**整题**数（含多行题的后续行，与取分同一口径）；数不出（0）不判，宁可少报。
+        //   只报不改：改 Y 会动账，改处数会动内容，两者都只能是模型侧的动作。
+        const blockHtml = (el) => {
+          let s = el.outerHTML || '';
+          let sib = el.nextElementSibling;
+          while (sib) {
+            const tt = (sib.textContent || '').trim();
+            if (NUMBERED_LINE_RE.test(tt)) break;
+            if (/^H[1-6]$/.test(sib.tagName)) break;
+            s += sib.outerHTML || '';
+            sib = sib.nextElementSibling;
+          }
+          return s;
+        };
+        const FULL_FORM_RE = /^每([^，,]{1,10}?)\s*(\d+(?:\.\d+)?)\s*分\s*[，,]\s*共\s*(\d+(?:\.\d+)?)\s*分$/;
+        const unclosed = numRows.filter((r) => {
+          const el = rowEls.get(r);
+          if (!el) return false;
+          const f = (scoreParen(itemBlockAround(el)) || '').match(FULL_FORM_RE);
+          if (!f) return false;
+          if (f[1].trim() === '题') return false;         // 单位＝题 ⇒ 处数即 1，恒成立
+          const x = parseFloat(f[2]);
+          const y = parseFloat(f[3]);
+          const htmlU = blockHtml(el);
+          // 2026-10-25：含表格/图块的题，程序数空位与"学生真实落笔处"口径可能不一致（表格空格、图内作答）
+          //   ⇒ 这条只报不改的核对宁可少报，不在这些题上判（防误报盖过真问题）。
+          if (/<table|<img|\[IMAGE\]|\[GRAPH\]/i.test(htmlU)) return false;
+          const n = countBlanks(htmlU);
+          if (!(n >= 1) || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+          return Math.abs(y - x * n) > 1e-9;
+        });
+        if (unclosed.length) {
+          silentCount('score-unit-mismatch',
+            `大题「${title}」有 ${unclosed.length} 道题的"共Y分"与"单价×处数"不符（如"…${itemBlockAround(rowEls.get(unclosed[0])).slice(-18)}"）——该题分必须＝单价×该题判分处数：处数多了就调共Y分，或给多出来的那一处单独定单价；不得只改共Y分去凑（那会冒出没有单价的分；程序不改数）`, 'warn');
         }
       });
     } catch (e) { console.warn('⚠️ 分值承载互斥核对失败（不影响其它修复）:', e.message); }
@@ -1446,7 +1493,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       if (mfS && rowsS.length >= 2 && tagsS.size === 1) {
         const sumS = rowsS.reduce((a, r) => a + r.v, 0);
         const fullS = parseFloat(mfS[1]);
-        if (Math.abs(sumS - fullS) > 1e-6) {
+        // 2026-10-25：上游有缺分时，卷首 Σ 必然短一截——那是缺分的下游结果，不重复报（只报根因）。
+        if (Math.abs(sumS - fullS) > 1e-6 && !scoreIncomplete) {
           silentCount('score-sum-mismatch', `各大题标题分值合计 ${fmtScore(sumS)} 分，与卷首满分 ${fmtScore(fullS)} 分不符（差 ${fmtScore(fullS - sumS)} 分）——按【分值标注】第④层须逐层核到卷首（若为选做/附加题请忽略本提示）；程序不改数、不动结构`, 'warn');
         }
       }
@@ -2098,11 +2146,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             }
             if (hasGridCarrier || hasOtherCarrier) continue;
             if (hasWrongFormCarrier) {
+              // 判据：可移除的只有**纯载体节点**（整段除空位/标点外没有实义文字）；带实义文字的节点是正文
+              //   （含题号、题干、分值括注），一律不删。2026-10-25 真机：汉字标题锚点的大题区域覆盖到本节末，
+              //   其下 2/3/4 小题因含 `blank-N` 被当载体整段移除 → 题号 [1,2,1,2,3,4] 变 [1,2,1]、少 171 字。
+              const hasSubstantiveText = (el) => /[\u4e00-\u9fa5A-Za-z0-9]/.test(el.textContent || '');
               let rp = p.nextSibling;
               while (rp && rp !== endP) {
                 const next = rp.nextSibling;
                 const rh = rp.outerHTML || '';
-                const isWrong = /blank-line|blank-\d/.test(rh) && !/blank-area/.test(rh) && !GRID_CARRIER_RE.test(rh);
+                const isWrong = /blank-line|blank-\d/.test(rh) && !/blank-area/.test(rh) && !GRID_CARRIER_RE.test(rh)
+                  && !hasSubstantiveText(rp);
                 // 注：只移除**横线/短答空位**这一档错形态；`blank-area`（无线留白行）属"空行/留白"清理域
                 //    （1c-3 与 2k 补差管），不在此越权移除——但它同样**不阻止**写话类补格（见上方分流）。
                 if (isWrong) rp.remove();

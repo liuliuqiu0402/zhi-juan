@@ -6,10 +6,14 @@
  *   此前只测了"文本在位 / 条数相等"，没按条文推演**产物应长什么样**。
  *
  * 做法：把现行【分值标注】条文当**决策过程**，喂 8 种典型卷面结构，逐条推标法：
- *   A1 有独立题干（＝其下各题带题号）→ 标题（共X分）＋每个带号题后（每〈单位〉X分，共Y分），
- *      条数相等；A2 无独立题干 → 单价随标题（每〈单位〉X分，共X分）；
- *      口径：〈单位〉＝该处让学生作答的对象名；Y＝单价×该题判分处数。
+ *   带号组 → 其下**每道带号题**都在整道题设问的最后一句之后写出自己的分值，**一律全式**
+ *            "（每〈单位〉X分，共Y分）"（〈单位〉取该处让学生作答的对象名）；标题由 B 侧按 Σ 合成。
+ *   不带号组 → 分值**只写在大标题**，全式、单价不可省；该组题内一律不标分。
+ *   口径：〈单位〉＝该处让学生作答的对象名；Y＝单价×该题判分处数。
  * 输出：每种结构的推导结果 ＋ 账目自洽（Σ 各题分＝标题总数）。
+ *
+ * 🔴 2026-10-25（属主定稿："分不清一处还是多处，就都标单价"）：旧口径"单处写（X分）、
+ *   多处写全式"已废——两选一是模型"选哪种写法"的决策点，实测退化成整组不标。本件同步改准。
  *
  * ⚠️ 边界：本件验的是**条文是否可判定、是否自洽**，不是模型是否照做（后者只能真机）。
  * 用法：`node scripts/auditScoreRuleWalkthrough.mjs`
@@ -29,23 +33,39 @@ let bad = 0;
 for (const c of CASES) {
   if (!c.numbered) {
     const total = c.price * c.count;
-    // 🔴 2026-10-19 属主裁定：整大题只有一个判分处时，标题只写（共X分），不写"每篇15分，共15分"
-    const label = c.count === 1 ? `（共${total}分）` : `（每${c.unit}${c.price}分，共${total}分）`;
+    // 2026-10-25：不带号支＝**标题全式单价、单价不可省**（单处也写"每篇15分，共15分"）。
+    const label = `（每${c.unit}${c.price}分，共${total}分）`;
     console.log(`${c.name}\n  → 标题${label}；题内不标（${c.count} 个${c.unit}）`);
-    if (c.count === 1 && /每/.test(label)) { bad += 1; console.log('  ✗ 单判分处不得写单价'); }
+    if (!/每/.test(label)) { bad += 1; console.log('  ✗ 不带号标题必须带单价'); }
   } else {
     const itemTotals = c.items.map((n) => n * c.price);
     const total = itemTotals.reduce((a, b) => a + b, 0);
-    // 🔴 2026-10-19 属主裁定：该题只有一个判分处时写（X分），不写"每题2分，共2分"
-    const per = c.items.map((n, i) => (n === 1
-      ? `${i + 1}.题后（${c.price * n}分）`
-      : `${i + 1}.题后（每${c.unit}${c.price}分，共${n * c.price}分）`));
-    console.log(`${c.name}\n  → 标题（共${total}分）；${per.join('；')}；标注数 ${per.length}＝题号数 ${c.items.length}`);
-    // A1 的完整性：条数相等；账目：Σ 各题 Y＝标题总数
+    // 2026-10-25：带号支一律全式；落点＝整道题设问的最后一句之后；〈单位〉取该处让学生作答的对象名（不预设"题"）。
+    const per = c.items.map((n, i) => {
+      const unit = n === 1 ? '题' : c.unit;
+      return `${i + 1}.设问最后一句之后（每${unit}${c.price}分，共${n * c.price}分）`;
+    });
+    // 标题由 B 侧按逐题分合成：1 题→（共X分）；同档→（每题X分，共Y分）；多档→分组式。
+    const uniq = [...new Set(itemTotals)];
+    let label;
+    if (c.items.length === 1) label = `（共${total}分）`;
+    else if (uniq.length === 1) label = `（每题${uniq[0]}分，共${total}分）`;
+    else {
+      const groups = [];
+      itemTotals.forEach((t, i) => {
+        const g = groups.find((x) => x.total === t) || (groups.push({ total: t, nums: [] }), groups[groups.length - 1]);
+        g.nums.push(i + 1);
+      });
+      label = `（${groups.map((g) => (g.nums.length >= 2
+        ? `第${g.nums.join('、')}小题各${g.total}分`
+        : `第${g.nums[0]}小题${g.total}分`)).join('，')}，共${total}分）`;
+    }
+    console.log(`${c.name}\n  → 标题${label}；${per.join('；')}；标注数 ${per.length}＝题号数 ${c.items.length}`);
+    // 完整性：条数相等；账目：Σ 各题 Y＝标题总数。
     if (per.length !== c.items.length) { bad += 1; console.log('  ✗ 标注数 ≠ 题号数'); }
     if (itemTotals.reduce((a, b) => a + b, 0) !== total) { bad += 1; console.log('  ✗ 账目不闭合'); }
-    c.items.forEach((n, i) => {
-      if (n === 1 && /共\d+分/.test(per[i])) { bad += 1; console.log(`  ✗ 第${i + 1}题单判分处不得写"共X分"`); }
+    per.forEach((p, i) => {
+      if (!/每[^，,]+分，共\d+(?:\.\d+)?分/.test(p)) { bad += 1; console.log(`  ✗ 第${i + 1}题不是全式（形态不合规）`); }
     });
   }
 }
