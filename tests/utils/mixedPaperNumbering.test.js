@@ -214,10 +214,10 @@ describe('③ 跨学段×学科混合扫描（基准：先数作答题干 → �
         if (!t.includes('看其中一项有没有成句的文字')) bad.push(tag + '：缺"作答题干口径"');
         if (!t.includes('（单题干）')) bad.push(tag + '：缺"单题干"');
         if (!t.includes('（多题干）')) bad.push(tag + '：缺"多题干"');
-        if (!t.includes('大题标题一律写')) bad.push(tag + '：缺"单题干标分落点"');
-        if (!t.includes('大题标题一律写')) bad.push(tag + '：缺"单题干标题不写分"');
-        if (!t.includes('每题题干后必须再标一次')) bad.push(tag + '：缺"多题干逐题标分"');
-        if (!t.includes('大题标题一律写')) bad.push(tag + '：缺"多题干标题中间态"');
+        if (!t.includes('大题标题也要写')) bad.push(tag + '：缺"单题干标分落点"');
+        if (!t.includes('大题标题也要写')) bad.push(tag + '：缺"单题干标题不写分"');
+        if (!t.includes('每题题干后必须标')) bad.push(tag + '：缺"多题干逐题标分"');
+        if (!t.includes('大题标题也要写')) bad.push(tag + '：缺"多题干标题中间态"');
         if (!t.includes('Y＝X×N')) bad.push(tag + '：缺"Y＝X×N"');
         if (!t.includes('该栏标题所标')) bad.push(tag + '：缺"大题账目"');
         if (!t.includes('各大题分之和＝给定满分')) bad.push(tag + '：缺"试卷账目"');

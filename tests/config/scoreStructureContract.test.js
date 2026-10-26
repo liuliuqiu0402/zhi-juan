@@ -26,7 +26,7 @@ describe('分值结构契约：单题干 / 多题干', () => {
     expect(t, '结构判定').toContain('看其中一项有没有成句的文字');
     expect(t, '单题干').toContain('（单题干）');
     expect(t, '多题干').toContain('（多题干）');
-    expect(t, '中间态').toContain('大题标题一律写');
+    expect(t, '中间态').toContain('大题标题也要写');
     expect(t, '先定单价后乘个数').toContain('Y＝X×N');
     // 旧架构的两支判据整类清除
     expect(t, '旧"号是点名用的"不得回潮').not.toContain('号是点名用的');

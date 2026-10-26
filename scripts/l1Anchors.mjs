@@ -42,7 +42,7 @@ export const anchorsFor = ({ genType, subject, stage, hasStructure }) => ([
   { name: 'T07·正句（不得照搬教材原题）', re: /不得照搬教材原题/g, expect: FULL_REF.has(genType) ? 0 : genType === 'reading' ? 2 : 1 },
   { name: 'T07·清零（三域"不限所选教材"／G79 三项）', re: /不限所选教材|情节、篇目结构与人物设定/g, expect: 0 },
   // T03 计分单位·单价·账目（2026-10-24：单一开关重写后，逐层核分收敛为"合计自洽"一条）
-   { name: 'T03·合计自洽（每题＝（多题干）＝卷首）', re: /有号时各题 Y 之和＝该栏标题所标/g, expect: genType === 'exam' ? 1 : 0 },
+   { name: 'T03·合计自洽（每题＝（多题干）＝卷首）', re: /和必须等于该栏标题所标/g, expect: genType === 'exam' ? 1 : 0 },
   { name: 'T03·清零（载体块内 exam 专属计分句／旧"通称"／同义并置）', re: /（正式考卷）\*\*书写类题按单位|不写承载它的线条／括号等形态名|分值标注（大题级与小题级）一律由正文分值条单源承载/g, expect: 0 },
   // T08 答案区·答案角色
   { name: 'T08·正句（例题示范：解答随题即时展示）', re: /其解答与解析随例题即时展示/g, expect: DEMO.has(genType) ? 1 : 0 },
