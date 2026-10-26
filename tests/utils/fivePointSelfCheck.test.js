@@ -285,6 +285,30 @@ describe('⑥ Σ 为真值：按小题分合成，可替换原标题', () => {
     expect(head(r.html), '按 Σ 合成').toContain('共6分');
     expect(head(r.html), '原标题的 10 不得残留').not.toContain('共10分');
   });
+
+  // 🔴 2026-10-26（真机误报）：末题后面紧接答案区时，itemBlockText 曾把答案区标题的
+  //   "（每题4分，共16分）"吞进该题 ⇒ 该题被读成 16、Σ 变 28，并连带报"各大题合计≠卷首满分"。
+  it('行为：末题后的答案区标题不得被吞进该题（4×4 分 ⇒ 共16分，零误报）', () => {
+    const html = [
+      '<h1>单元测评</h1>',
+      '<p>（考试时间：90分钟　满分：100分）</p>',
+      '<h3>八、解决问题，列式、计算并写出答语（每题4分，共16分）</h3>',
+      '<p class="question">1. 甲（每空4分，共4分）</p>',
+      '<p class="question">2. 乙（每空4分，共4分）</p>',
+      '<p class="question">3. 丙（每空4分，共4分）</p>',
+      '<p class="question">4. 丁（每空4分，共4分）</p>',
+      '<div class="answer-section">',
+      '<h3>八、解决问题，列式、计算并写出答语（每题4分，共16分）</h3>',
+      '<p>1. 答案一</p><p>2. 答案二</p><p>3. 答案三</p><p>4. 答案四</p>',
+      '</div>',
+    ].join('\n');
+    const r = run(html);
+    expect(head(r.html), '按 4 题各 4 分合成').toBe('八、解决问题，列式、计算并写出答语（每题4分，共16分）');
+    const miss = (r.silentDetails || []).filter((x) => /标题声明共/.test(x.message));
+    expect(miss.length, '不得误报"标题声明与逐题合计不符"').toBe(0);
+    const total = (r.silentDetails || []).filter((x) => /与卷首满分/.test(x.message));
+    expect(total.length, '不得误报"各大题合计与卷首满分不符"').toBe(0);
+  });
 });
 
 /** 行首题号的行数（验"不得冒出新题号"用） */

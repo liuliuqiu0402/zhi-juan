@@ -51,6 +51,10 @@ const itemBlockText = (el) => {
   let text = el.textContent || '';
   let sib = el.nextElementSibling;
   while (sib) {
+    // 🔴 2026-10-26（真机误报·"28 分"）：向后合并只服务"多行题"——遇到答案区或含标题的结构块必须停。
+    //   否则**最后一个题**会把答案区标题的"（每题4分，共16分）"吞进来 ⇒ 该题分值被读成 16，
+    //   Σ 虚高（4+4+4+16=28）、并连带报"各大题合计与卷首满分不符"。
+    if (sib.matches?.('.answer-section') || sib.querySelector?.('h1,h2,h3,h4,h5,h6')) break;
     const tt = (sib.textContent || '').trim();
     if (NUMBERED_LINE_RE.test(tt)) break;
     if (/^H[1-6]$/.test(sib.tagName)) break;
