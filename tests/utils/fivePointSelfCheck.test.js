@@ -309,6 +309,28 @@ describe('⑥ Σ 为真值：按小题分合成，可替换原标题', () => {
     const total = (r.silentDetails || []).filter((x) => /与卷首满分/.test(x.message));
     expect(total.length, '不得误报"各大题合计与卷首满分不符"').toBe(0);
   });
+
+  // 🔴 2026-10-26（属主："小题的，镜像到答案区题号后面的位置，这样统一"）
+  it('行为：小题分镜像到答案区"题号后"（不在行末、幂等不叠加）', () => {
+    const html = [
+      '<h1>单元测评</h1>',
+      '<h3>八、解决问题（每题4分，共16分）</h3>',
+      '<p class="question">1. 甲（每空4分，共4分）</p>',
+      '<p class="question">2. 乙（每空4分，共4分）</p>',
+      '<p class="question">3. 丙（每空4分，共4分）</p>',
+      '<p class="question">4. 丁（每空4分，共4分）</p>',
+      '<div class="answer-section">',
+      '<h3>八、解决问题（每题4分，共16分）</h3>',
+      '<p>1. 答一</p><p>2. 答二</p><p>3. 答三</p><p>4. 答四</p>',
+      '</div>',
+    ].join('\n');
+    const sec = (h) => (h.match(/<div class="answer-section">[\s\S]*?<\/div>/) || [''])[0];
+    const r = run(html);
+    expect(sec(r.html), '题号后紧跟这道题的分').toContain('1.（每空4分，共4分）');
+    expect(sec(r.html), '分不在答案行末').not.toMatch(/答一（每空/);
+    const twice = run(r.html);
+    expect((twice.html.match(/（每空4分，共4分）/g) || []).length, '幂等：正文4＋答案区4').toBe(8);
+  });
 });
 
 /** 行首题号的行数（验"不得冒出新题号"用） */

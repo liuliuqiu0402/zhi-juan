@@ -1262,6 +1262,58 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             fixed += 1;
           }
         });
+
+        // 🔴 2026-10-26（属主："小题的，镜像到答案区题号后面的位置，这样统一"）：
+        //   正文每题的分 → 答案区**同名大题下、同题号行的题号后**，如 `1.（每空4分，共4分）6×5＝30（本）`。
+        //   只镜像**正文已有的分**（不计算、不新增）；答案区缺对应题号行、或该行含行内标签时不重写；
+        //   已在题号后带分则跳过（幂等，重复跑不叠加）。
+        const headsAllB = [...tplB.content.querySelectorAll('h2,h3,h4')];
+        const isCnHeadB = (el) => /^[一二三四五六七八九十]+、/.test((el.textContent || '').trim());
+        const nextCnHeadB = (el) => headsAllB.slice(headsAllB.indexOf(el) + 1).find(isCnHeadB) || null;
+        /** 取一段作用域内的"带题号行"（与 1.6b 取 Σ 同一口径：叶节点 .question／p） */
+        const itemsUnderB = (startEl) => {
+          const list = [];
+          const stopB = nextCnHeadB(startEl);
+          for (let node = startEl.nextElementSibling; node && node !== stopB; node = node.nextElementSibling) {
+            if (node === answerBoundB) break;
+            const cands = [];
+            if (node.matches?.('.question, p')) cands.push(node);
+            node.querySelectorAll?.('.question, p').forEach((el) => cands.push(el));
+            const leaves = cands.filter((el) => !cands.some((o) => o !== el && el.contains(o)));
+            for (const el of leaves) {
+              const tx = (el.textContent || '').trim();
+              const nm = tx.match(NUMBERED_LINE_RE);
+              if (!nm) continue;
+              list.push({ num: nm[1], el, tx });
+            }
+          }
+          return list;
+        };
+        bodyHeadsB.forEach((h) => {
+          const seqM = (h.textContent || '').trim().match(/^([一二三四五六七八九十]+)、/);
+          if (!seqM) return;
+          const ansHead = findAnsTitleB(seqM[1]);
+          if (!ansHead || ansHead === h) return;
+          const bodyItems = itemsUnderB(h);
+          const ansItems = itemsUnderB(ansHead);
+          if (!bodyItems.length || !ansItems.length) return;
+          const byNum = new Map(ansItems.map((x) => [x.num, x]));
+          bodyItems.forEach((bi) => {
+            const ai = byNum.get(bi.num);
+            if (!ai) return;
+            const scoreText = (itemBlockText(bi.el).match(/[（(][^（）()]*\d+(?:\.\d+)?\s*分[^（）()]*[)）]/g) || []).pop();
+            if (!scoreText) return;
+            // 幂等：该行已有分值括注（题号后或行末都算）则不动——避免模型已写时插成双份
+            if (/[（(][^（）()]*\d+(?:\.\d+)?\s*分[^（）()]*[)）]/.test(ai.tx)) return;
+            // 含行内标签（如 <u>）时不重写，避免破坏答案行的行内结构
+            if (ai.el.children.length) return;
+            const mh = ai.tx.match(/^(\d{1,2}\s*[.、．])\s*/);
+            if (!mh) return;
+            const rest = ai.tx.slice(mh[0].length);
+            ai.el.textContent = `${mh[1]}${scoreText}${rest ? ` ${rest}` : ''}`;
+            fixed += 1;
+          });
+        });
       }
       out = tplB.innerHTML;
     } catch (e) { console.warn('⚠️ 大题标题样式转换失败（不影响其它修复）:', e.message); }
