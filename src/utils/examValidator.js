@@ -26,7 +26,7 @@ import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHe
  *  2026-10-23（按属主定的基准）：编号/不编号判定在 A，B 这边只做"认出编号行"。 */
 const NUMBERED_LINE_RE = /^\s*(?:[（(][\s　]*[）)]\s*)?(\d{1,2})\s*[.、．]/;
 
-/** 该题分值括注（**任意位置**，真题习惯：题号后或该题最后一行末尾；多行题以末行为准）→ number|null。
+/** 该题分值括注（**任意位置**，真题习惯：整道题设问的最后一句之后；多行题以末行为准）→ number|null。
  *  2026-10-24（属主："标分位置遵循真题习惯，不要人为去定"）：原只认**行末**，
  *  写在题号后的"1.（2分）…"会被误报"没标分"。取分优先括注里的"共Y分"，其次该括注内的"X分"。 */
 const SCORE_PAREN_RE = /[（(]([^（）()]{0,30}?)[）)]/g;
@@ -1074,7 +1074,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //   等于把 A 的缺陷埋掉（真机"三空2分"正是这么补出来的）。Σ 不完整时标题也不合成（不拿残账当总数）。
         const blindP = needP.filter((x) => countBlanks(x.el.innerHTML) === 0).length;
         silentCount('title-unit-misplaced',
-          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}——逐题标分只能由你按该题的实际内容给出：写在题号后或该题最后一行末尾（多行题、有选项的以最后一行为准）写"（每${unitName}X分，共Y分）"，只有一处判分写"（X分）"，不得整组只在标题或组首标一次；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）`, 'warn');
+          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}——逐题标分只能由你按该题的实际内容给出：写在整道题设问的最后一句之后（多行题、有选项的以最后一行为准）写"（每${unitName}X分，共Y分）"，只有一处判分写"（X分）"，不得整组只在标题或组首标一次；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）`, 'warn');
         return;
       });
       out = tplP.innerHTML;
@@ -1155,7 +1155,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             const tt = (el.textContent || '').trim();
             const nm = tt.match(NUMBERED_LINE_RE);
             if (!nm) continue;
-            // 只取该题的分值括注（题号后或该题最后一行末尾均可，真题习惯；多行题以末行为准）；题干内部各分条的标分不计入合成。
+            // 只取该题的分值括注（整道题设问的最后一句之后均可，真题习惯；多行题以末行为准）；题干内部各分条的标分不计入合成。
             const itemTotal = readItemScore(itemBlockText(el));
             itemsB.push({ num: nm[1], total: itemTotal });
             seenB.add(el);

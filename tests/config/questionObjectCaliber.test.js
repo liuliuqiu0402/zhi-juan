@@ -43,7 +43,7 @@ describe('编号/不编号：单一判据（一组只做一个动作）', () => 
     expect(NUMBERING_BRANCH_RULE, '唯一开关：只属于它自己的题干话').toContain('只属于它自己的题干话');
     expect(NUMBERING_BRANCH_RULE, '带号支：每道带号小题都要有自己的分值').toContain('每道带号小题都要有自己的分值');
     // 2026-10-24（§九.68 去重）：标分位置只在【分值标注】写一次，判据常量不再复述——断言随之改查模板。
-    expect(tpl('exam'), '带号支：标分位置按真题习惯（不钉死行末）').toContain('该题最后一行末尾');
+    expect(tpl('exam'), '带号支：标分位置按真题习惯（不钉死行末）').toContain('整道题设问的最后一句之后');
     expect(NUMBERING_BRANCH_RULE, '不带号支：分值只写在大标题').toContain('**不带号**：**分值只写在大标题**');
     expect(NUMBERING_BRANCH_RULE, '旧"题内不标分"不得回潮（防跨支取用）').not.toContain('题内不标分');
     expect(NUMBERING_BRANCH_RULE, '两半互锁（号与分同生同死）').toContain('不许只有号没有分，也不许没有号却在题内标分');
@@ -113,7 +113,7 @@ describe('题量口径与卷面层级（不受本次改动影响）', () => {
   it('题量口径：不再有"题量"预载，条数由实际内容决定', () => {
     const ex = tpl('exam');
     expect(ex, '"题量"预载已废（计数统一按计分对象）').not.toContain('题量');
-    expect(ex, '计分条数由实际内容决定的判据须在位').toContain('Y 与该题实际判分处数相符');
+    expect(ex, '计分条数由实际内容决定的判据须在位').toContain('Y＝单价×处数');
     expect(ex, '旧"编号与计分按实际计分对象给出"不得回潮（与计分对象口径相抵）').not.toContain('编号与计分按实际计分对象给出');
     expect(ex, '否定式旧句不得回潮').not.toContain('不得为凑数逐项编号');
   });

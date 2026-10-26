@@ -193,8 +193,8 @@ describe('④ 双括注折叠、答案区多形态镜像、非均分许可', () 
   it('提示词允许非均分：直接写该题总分、同分或不同分', () => {
     for (const stage of ['primary_low', 'primary_mid']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, `${stage}：一处简写／多处全式`).toContain('多处判分写');
-      expect(t, `${stage}：Y 与该题实际判分处数相符`).toContain('Y 与该题实际判分处数相符');
+      expect(t, `${stage}：一处简写／多处全式`).toContain('一律写全式');
+      expect(t, `${stage}：Y＝单价×处数`).toContain('Y＝单价×处数');
       // 属主 2026-10-22："这意思是都不标单位了吗？我说的是小题，一刀切了吗？"——
       //   故锁住：不得出现"全卷统一写法"（一刀切）、不得以裸分替代全式。
       expect(t, `${stage}：不得一刀切（全卷统一写法）`).not.toContain('同一份卷内写法一致');
@@ -218,10 +218,10 @@ describe('③ 跨学段×学科混合扫描（基准：先编号/不编号 → �
         if (!t.includes('一组只做一个动作')) bad.push(`${tag}：缺“判据（一个动作）”`);
         if (!t.includes('分值只写在大标题')) bad.push(`${tag}：缺“不编号 ⇒ 分值只写在大标题”`);
         if (t.includes('题内不标分')) bad.push(`${tag}：旧“题内不标分”不得回潮（会跨支取用）`);
-        if (!t.includes('该题最后一行末尾')) bad.push(`${tag}：缺“编号 ⇒ 逐题标分（位置按真题习惯）”`);
+        if (!t.includes('整道题设问的最后一句之后')) bad.push(`${tag}：缺“编号 ⇒ 逐题标分（位置按真题习惯）”`);
         // 块切片必须**锚行首**（块内行文会行内引用【分值标注】，按子串取首个命中会切到引用处）
         const scoreBlock = (t.match(/^【分值标注】[\s\S]*?(?=\n\n【)/m) || [''])[0];
-        if (!t.includes('标题里不再重复小题分值')) bad.push(`${tag}：缺“编号 ⇒ 标题不重复小题分值”`);
+        if (!t.includes('漏标一题即不合规')) bad.push(`${tag}：缺“编号 ⇒ 标题不重复小题分值”`);
         // 🔴 2026-10-24（真机"带号题全没标分"）：A 侧不得再提"标题分由程序合成"——
         //   模型会把它当成"省掉逐题标分"的理由；程序合成只属 B 侧实现，不进模型判据。
         if (t.includes('标题分由程序按各题分合成')) bad.push(`${tag}：A 侧不得提“程序合成标题分”`);
