@@ -42,28 +42,16 @@ const SEVEN = [
 ].join('\n');
 
 describe('① 程序不代补：缺分只报，正文一字不动', () => {
-  // 🔴 2026-10-25（属主定稿："带号一律逐题标分"）：上一版"每题至多一处判分的组可免逐题标分"已删——
-  //   带号组缺分一律报（只报不改），程序仍不补、不改、不动结构。
-  it('7 道单处题全没标分 ⇒ 必报 7 道，一道都不补，标题不动', () => {
+  it('7 道全没标分 ⇒ 报 7 道，一道都不补，标题因 Σ 不完整不合成', () => {
     const r = run(SEVEN);
     const rows = pTexts(r.html).filter((t) => /^\d\./.test(t));
     expect(rows.length, '题号不得增删').toBe(7);
     expect(rows.filter((t) => /（\d+分）$|（每.*共.*分）$/.test(t)), '一行都不许被追加分值').toEqual([]);
     const w = missWarn(r);
-    expect(w.length, '带号组缺分必报').toBe(1);
-    expect(w[0].message, '报点要点到实数').toContain('7 道');
-    expect(heads(r.html), '标题不动').toContain('三、填空（每空1分，共7分）');
-  });
-
-  it('单处组：标题共分与题数×单价不符 ⇒ 仍只报缺分（不补、不改数）', () => {
-    const bad = SEVEN.replace('每空1分，共7分', '每空1分，共8分');
-    const r = run(bad);
-    const w = missWarn(r);
     expect(w.length, '必须报').toBe(1);
     expect(w[0].message, '报点要点到实数').toContain('7 道');
     expect(w[0].message, '报点要说明程序不补').toContain('程序不补分');
-    expect(pTexts(r.html).filter((t) => /^\d\./.test(t)).filter((t) => /（\d+分）$/.test(t)), '仍不补分').toEqual([]);
-    expect(heads(r.html), '标题不动').toContain('三、填空（每空1分，共8分）');
+    expect(heads(r.html), 'Σ 不完整 ⇒ 标题不动').toContain('三、填空（每空1分，共7分）');
   });
 
   it('长空格写的作答位也算判分处（真卷形态：十几个全角空格）⇒ 报"没标分"而不报"数不出"', () => {

@@ -1315,12 +1315,12 @@
           <label class="option-label">小题编号</label>
           <div class="region-select-row" style="gap:16px;flex-wrap:wrap;">
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;">
-              <input v-model="subQuestionNumbering" type="radio" value="per-section" @change="subQuestionNumberingTouched = true">
-              每大题从1起（小学默认）
+              <input v-model="subQuestionNumbering" type="radio" value="per-section">
+              每大题从1起（默认）
             </label>
             <label style="display:flex;align-items:center;gap:4px;font-size:12px;">
-              <input v-model="subQuestionNumbering" type="radio" value="continuous" @change="subQuestionNumberingTouched = true">
-              全卷连续（中学默认）
+              <input v-model="subQuestionNumbering" type="radio" value="continuous">
+              全卷连续
             </label>
           </div>
           <div style="margin-top:4px;font-size:11px;color:var(--text-tertiary);line-height:1.5;">
@@ -3245,7 +3245,7 @@ import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables
 // 🎧 听力工作台（2026-09-20）：听力配音已抽为独立功能（左侧导航「工具 → 🎧 听力配音」），
 //    生成页只保留「从本记录的答案页听力原文进入」这个便利入口，实现共用同一组件。
 import ListeningWorkbench from '../components/listening/ListeningWorkbench.vue';
-import { resolveStageKey, resolveCompetency, gradeDisplayLabel, isPerBigQuestionNumbering } from '../utils/gradeStage.js';
+import { resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
 import { checkMetaCompleteness, metaMissingMessage } from '../utils/libraryMetaEdit.js'; // 2026-09-28：生成前三维度（学段×学科）完整性判据——硬拦"真空"，引导去教材库补标
 import { resolveScopeName, selectedChaptersOf, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
 import { buildPaperKindHint } from '../config/levelMapping.js'; // 2026-09-28：高中正式卷「范围/卷别」处的卷别→水平提示（单源）
@@ -5301,13 +5301,6 @@ const getSelectedBookStageKey = () => {
   return '';
 };
 
-// 🔴 2026-10-25（编号与设计对账）：小题起编**默认随学段**——小学各大题各自起编、中学全卷连续
-//   （单一事实源＝gradeStage.isPerBigQuestionNumbering，与程序侧同一口径）。
-//   用户手动点过单选框后（touched）不再被学段切换覆盖。
-//   ⚠️ watcher 必须放在 `textbookStore` 初始化之后：getSelectedBookStageKey 会读 store，
-//      `immediate: true` 会在 setup 阶段立刻执行，放前面会 TDZ（Cannot access before initialization）。
-const subQuestionNumberingTouched = ref(false);
-
 // 2026-09-28（资料类型正规形态·卷别提示）：学段=高中 且 资料类型=正式考卷（exam）时，
 //    在「范围/卷别」处提示——按**学科**取水平（如数学「选高考按水平二；未选按水平一」、
 //    物理「选高考按水平四；未选按水平二」，单源 config/levelMapping.js）；其余情形为空（不显示）。
@@ -5391,16 +5384,6 @@ const allSelected = computed(() => generatedDocs.value.length > 0 && generatedDo
 const textbookStore = useTextbookStore();
 const templateStore = useTemplateStore();
 const { isMobile } = useMobile();
-
-// 小题起编默认随学段（放在 store 之后；见上方 subQuestionNumberingTouched 处说明）。
-// ⚠️ 不能 immediate：getSelectedBookStageKey 依赖 selectedBooks / hasAnySelected / pickPrimaryBook，
-//    其中后两者在本文件更靠后声明；setup 阶段立刻调用会 TDZ（Cannot access before initialization）。
-//    改由 onMounted 做首次同步，watcher 只在学段变化时跟随。
-const syncSubQuestionNumbering = () => {
-  if (subQuestionNumberingTouched.value) return;
-  const k = getSelectedBookStageKey();
-  if (k) subQuestionNumbering.value = isPerBigQuestionNumbering(k) ? 'per-section' : 'continuous';
-};
 
 /* ==================== 🖱️ 三栏可拖动调宽（2026-09-15 用户要求）====================
  *  原布局是「左 300px / 中 flex:1 / 右 400px」的固定三栏，长标题或窄屏时左栏/右栏常不够用。
@@ -6492,9 +6475,7 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     genType,                        // 卷别→学业质量水平（高中·按学科分型，非全科统一）：正式卷按卷别映射、教辅锚毕业合格要求（单源 config/levelMapping）
     scopeType: scopeType.value || '', // 升学卷别（gaokao=高考）→ 高考水平；其余正式卷→合格考水平
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
-    // 2026-10-25：注入措辞避开"全卷连续"四字（会被读成"每个题干都要给号"），改为行为式描述；
-    //   起编方式只作用于判为带号的组（见 QUESTION_OBJECT_CALIBER），不带号的组不占号。
-    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '接着上一大题往下编（不重起）' : '每大题从1起',
+    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '全卷连续' : '每大题从1起',
   });
   // 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
   const tplBodyText = instructionDraft.value;
@@ -6502,18 +6483,16 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   //   getPromptTemplate 是"用户自定义优先"：指令库里只要存过一份（哪怕是旧版），代码里的内置判据
   //   **永远进不来**。此处把来源与关键判据的在位性打到日志里，一眼就能看出这次生成用的是哪一份。
   {
-    // 2026-10-25：取证锚随判据同步——旧锚（"每道带号小题都要有自己的分值"／"标题括注按上条判出的结果写"／
-    //   "不带小题号（整组都不带）"）在 §九.79–§九.80 的改写中已不存在，留着只会把"已送达"误报成"没送到"。
-    const ANCHOR_SCORE_ON_STEM = '每道带号小题都要在整道题设问的最后一句之后写出自己的分值';
-    const ANCHOR_TITLE_ONLY_TOTAL = '分值只写在大标题';
-    const ANCHOR_UNNUMBERED_SCOPE = '整组不带号';
+    const ANCHOR_SCORE_ON_STEM = '每道带号小题都要有自己的分值';
+    const ANCHOR_TITLE_ONLY_TOTAL = '标题只写该大题总分、不写单价';
+    const ANCHOR_UNNUMBERED_SCOPE = '不带小题号（整组都不带）';
     const hasAnchor = instructionDraft.value.includes(ANCHOR_SCORE_ON_STEM);
     const staleScore = instructionDraft.value.includes('不是标题里要填的数字');
     const hasHead = instructionDraft.value.includes('卷首固定顺序');
     const hasTitleRule = instructionDraft.value.includes(ANCHOR_TITLE_ONLY_TOTAL);
     const hasScopeRule = instructionDraft.value.includes(ANCHOR_UNNUMBERED_SCOPE);
-    console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜含"带号题逐题标分（设问最后一句之后·全式）"判据=${hasAnchor}｜含"卷首固定顺序"=${hasHead}｜旧"标题不填分"措辞=${staleScore}${tpl.normativeMerged ? '｜规范块（卷首/卷面结构/分值标注）已并入内置现行版' : ''}`);
-    console.log(`🧾 分值标注送达取证: 不带号支"分值只写在大标题"=${hasTitleRule}｜不带号支"整组不带号"=${hasScopeRule}`);
+    console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜含"每道带号小题都要有自己的分值"判据=${hasAnchor}｜含"卷首固定顺序"=${hasHead}｜旧"标题不填分"措辞=${staleScore}${tpl.normativeMerged ? '｜规范块（卷首/卷面结构/分值标注）已并入内置现行版' : ''}`);
+    console.log(`🧾 分值标注送达取证: 带号支"标题只写该大题总分、不写单价"=${hasTitleRule}｜不带号支"（整组都不带）"=${hasScopeRule}`);
     {
       const m = instructionDraft.value.match(/【分值标注】([\s\S]*?)(?=\n\n【|$)/);
       if (m) console.log(`🧾 本次实发【分值标注】原文：\n${m[1].trim()}`);
@@ -6640,8 +6619,7 @@ const restoreDefaultInstruction = async () => {
     genType,                        // 卷别→学业质量水平（高中）：与 loadInstructionFromLibrary 同源
     scopeType: scopeType.value || '',
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
-    // 同上（另一条生成路径）：避开"全卷连续"，只描述起编行为。
-    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '接着上一大题往下编（不重起）' : '每大题从1起',
+    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '全卷连续' : '每大题从1起',
   });
   // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构（委托正文栏目骨架）
   if (genType !== 'exam') {
@@ -9545,11 +9523,8 @@ const _teardownListeners = () => {
 };
 
 // 首次挂载
-// 小题起编：watcher 放在所有 const 声明之后创建（watch 会立刻执行 source 取值，放前面会 TDZ）。
-watch(() => getSelectedBookStageKey(), syncSubQuestionNumbering);
 onMounted(async () => {
   await textbookStore.loadTextbooks();
-  syncSubQuestionNumbering(); // 教材就绪后按学段给"小题编号"默认值（见其定义处说明）
   await templateStore.loadTemplates();
   loadScopeLabelStyle(); // 📐 考试标签维度固定选择（恢复上次保存）
   // 🔧 同步已保存的 apiConfig 到响应式对象（否则模型芯片显示默认值而非实际配置）

@@ -27,9 +27,9 @@ describe('① A 侧：分条序号与题号分开（不是每一种序号都是�
 describe('② A 侧：分值条只按"这一组是多件/是一件"判，不再强调"每道题各自编号"', () => {
   it('口算/竖式：一行两式也仍是一组——算式不成句，不得各自编号', () => {
     // 2026-10-19 属主实证：`二、列竖式` 下 `1. 5×6＝　　2. 4×6＝`（同一行两个号）。
-    // 🔴 2026-10-23（属主基准）：判据已统一为整组只按一种情况写：给不给每个小题写号——算式行没有"整组只按一种情况写"⇒ 不编号；
+    // 🔴 2026-10-23（属主基准）：判据已统一为一组只做一个动作：给不给每个小题写号——算式行没有"一组只做一个动作"⇒ 不编号；
     //   原"各自有独立题干／文字表述"是第二把尺，已删。
-    expect(NUMBERING_BRANCH_RULE).toContain('整组只按一种情况写');
+    expect(NUMBERING_BRANCH_RULE).toContain('一组只做一个动作');
     expect(NUMBERING_BRANCH_RULE, '并列算式行 → 不编号').toContain('不许只有号没有分，也不许没有号却在题内标分');
     expect(QUESTION_OBJECT_CALIBER, '第二把尺（各自有独立题干）不得回潮').not.toMatch(/各自有独立题干|只属于它的陈述或问题/);
     const t = tpl('exam', '数学', 'primary_mid');
@@ -41,7 +41,7 @@ describe('② A 侧：分值条只按"这一组是多件/是一件"判，不再�
     for (const st of ['primary_low', 'middle']) {
       const t = tpl('exam', '数学', st);
       expect(t, `${st}：不编号 → 分值随标题`).toContain('分值只写在大标题');
-      expect(t, `${st}：编号 → 逐题标分（位置按真题习惯）`).toContain('整道题设问的最后一句之后');
+      expect(t, `${st}：编号 → 逐题标分（位置按真题习惯）`).toContain('该题最后一行末尾');
       expect(t, `${st}：不得再写"每道题各自编号"`).not.toContain('每道题各自编号');
       expect(t, `${st}：旧两支不得回潮`).not.toContain('这一组是多件');
       expect(t, `${st}：旧补救句不得回潮`).not.toContain('标题若已写成单价');

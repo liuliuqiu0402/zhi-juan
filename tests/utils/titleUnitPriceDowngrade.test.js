@@ -64,30 +64,15 @@ describe('带号题缺分：只报不补，标题不合成', () => {
   it('答案区同名的行不算"缺分的题"（报点只数正文，不误报）', () => {
     const html = [
       '<h1>阶段测评</h1>',
-      '<h3>二、填空（每空1分，共4分）</h3>',
-      '<p>1. 24×3＝____，45×2＝____。</p>',
-      '<p>2. 36×2＝____，18×5＝____。</p>',
-      '<div class="answer-section"><h2>参考答案</h2><p>1. 72，90</p><p>2. 72，90</p></div>',
+      '<h3>二、列竖式计算（每题3分，共12分）</h3>',
+      '<p>1. 24×3＝</p><p>2. 45×2＝</p>',
+      '<div class="answer-section"><h2>参考答案</h2><p>1. 72</p><p>2. 90</p></div>',
     ].join('\n');
     const r = audit(html);
-    expect(pTexts(r.html).filter((t) => /（\d+分）$/.test(t)).length, '一道都不补').toBe(0);
+    expect(pTexts(r.html).filter((t) => /（3分）$/.test(t)).length, '一道都不补').toBe(0);
     const w = missWarn(r);
     expect(w.length, '必须报').toBe(1);
     expect(w[0].message, '只数正文那 2 道').toContain('2 道');
-  });
-
-  // 🔴 2026-10-25（属主定稿："带号一律逐题标分"）：单处组免报缺分的豁免已删除——
-  //   带号组不论每题几处判分，缺分一律报（只报不改、不补分）。
-  it('单处组（每题 0/1 处判分）缺分 ⇒ 必报，不补分', () => {
-    const html = [
-      '<h1>阶段测评</h1>',
-      '<h3>二、列竖式计算（每题3分，共6分）</h3>',
-      '<p>1. 24×3＝</p><p>2. 45×2＝</p>',
-    ].join('\n');
-    const r = audit(html);
-    expect(missWarn(r).length, '带号组缺分必报').toBe(1);
-    expect(missWarn(r)[0].message).toContain('2 道');
-    expect(pTexts(r.html).filter((t) => /（\d+分）$/.test(t)).length, '不补分').toBe(0);
   });
 });
 

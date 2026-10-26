@@ -107,17 +107,17 @@ describe('不该有题号／小题标题的题组：一个号都不许冒出来�
 
   // 🔴 2026-10-23（属主基准·撤第二把尺）：原先这里锁的是"并列的同类作答项／哪怕并列多少项／
   //   其下不再另起题号与题干行"——那三句随编号对象口径（第二套判据）一并删除。**结果不变、判据换源**：
-  //   口算／竖式这类并列项没有"整组只按一种情况写" ⇒ 整组只按一种情况写不成立 ⇒ 不编号 ⇒ 不写小题号、
+  //   口算／竖式这类并列项没有"一组只做一个动作" ⇒ 一组只做一个动作不成立 ⇒ 不编号 ⇒ 不写小题号、
   //   其下不得出现任何题号。断言随之改锚（锁结果，不锁旧措辞）。
   it('A 侧判据（两学段）：无成句 ⇒ 不编号、不写小题号、不补号承载分值', () => {
     for (const stage of ['primary_low', 'primary_mid', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, `${stage}：编号判据＝整组只按一种情况写`).toContain('整组只按一种情况写');
-      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('每一项只有被作答的东西本身');
+      expect(t, `${stage}：编号判据＝一组只做一个动作`).toContain('一组只做一个动作');
+      expect(t, `${stage}：不编号 ⇒ 不写小题号`).toContain('只有作答内容本身、没有只属于它的话');
       expect(t, `${stage}：不许只有号没有分，也不许没有号却在题内标分`).toContain('不许只有号没有分，也不许没有号却在题内标分');
       // 🔴 2026-10-24（属主："不要人为干预模型的能力"）："不得为凑总分编题"已删——
       //   防"为挂分补号"由上面的编号判据承载（编号只看有没有只属于它自己的题干话）。
-      expect(t, `${stage}：不得为标分新增题号（判据在位）`).toContain('每一项只有被作答的东西本身');
+      expect(t, `${stage}：不得为标分新增题号（判据在位）`).toContain('只有作答内容本身、没有只属于它的话');
       expect(t, `${stage}："不得为凑总分编题"不得回潮`).not.toContain('不得为凑总分编题');
     }
     expect(QUESTION_OBJECT_CALIBER, '第二把尺（共用一条作答要求）不得回潮').not.toMatch(/共用一条作答要求/);
@@ -126,7 +126,7 @@ describe('不该有题号／小题标题的题组：一个号都不许冒出来�
   it('A 侧判据（两学段）：大题标题不得被写成带号的题干／其下不得另起说明行', () => {
     for (const stage of ['primary_low', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
-      expect(t, `${stage}：不写成带题号的题干`).toContain('不写成带题号的题干');
+      expect(t, `${stage}：不得把这条要求写成带题号的题干`).toContain('不得把这条要求写成带题号的题干');
       expect(t, `${stage}：其下不再另起说明行`).toContain('其下不再另起说明行');
     }
   });
@@ -151,15 +151,15 @@ describe('B 侧边界：只在账能对平时纠正（对不平就不猜、不�
   it('旧形（单价标题 + 其下带号题 + 无逐题标分）：只报不补，题号不删、标题不动', () => {
     const html = [
       '<h1>阶段测评</h1>',
-      '<h3>三、填空（每空1分，共4分）</h3>',
-      '<p>1. 6＋6＋6＋6表示____个6相加，是____。</p>',
-      '<p>2. 3个5相加，用乘法算式表示是____，读作____。</p>',
+      '<h3>三、填空（每空1分，共8分）</h3>',
+      '<p>1. 6＋6＋6＋6表示____个6相加。</p>',
+      '<p>2. 3个5相加，用乘法算式表示是____。</p>',
     ].join('\n');
     const r = auditExamPaper(html, { subject: '数学', stage: 'primary_mid', genType: 'exam' });
     const out = r.html;
     expect(numbered(out).length, '题号不得被程序删（不删正文）').toBe(2);
     expect(numbered(out).join('|'), '不得代补分值').not.toMatch(/（\d+分）/);
-    expect(heads(out)[0], 'Σ 不完整 ⇒ 标题不动').toBe('三、填空（每空1分，共4分）');
+    expect(heads(out)[0], 'Σ 不完整 ⇒ 标题不动').toBe('三、填空（每空1分，共8分）');
     const w = (r.silentDetails || []).filter((x) => /道带题号的题没标分/.test(x.message));
     expect(w.length, '必须报').toBe(1);
     expect(w[0].message, '报 2 道').toContain('2 道');
