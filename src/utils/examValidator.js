@@ -43,32 +43,6 @@ const readItemScore = (text) => {
   return total;
 };
 
-/** 整栏合计式标注（"（每题2分，共10分）"）：它出现在**某道题里**或单起一行时，等于把整栏总数标到了一处。
- *  2026-10-27（属主真机："它在第一小题后面标了（每题2分，共10分）"）：题内该写该题自己的分，
- *  整栏合计只归标题。本 helper 只做**识别取证**，不改数、不补分、不动结构。 */
-const COLUMN_SCORE_NOTE_RE = /[（(]\s*每\s*[^\d，,）)]{0,6}?\d+(?:\.\d+)?\s*分\s*[，,]\s*共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]/g;
-const columnScoreNotes = (text) => [...String(text || '').matchAll(COLUMN_SCORE_NOTE_RE)]
-  .map((m) => ({ raw: m[0], total: parseFloat(m[1]) }));
-
-/** 题内"替代提示形态"的中文括注取证：返回首个**真提示**括注，取不到返回 null。
- *  2026-10-27（属主报点"图题不一致"）：原判是"任何含汉字括注＝其它提示形态"，于是
- *  作答位（　）、编号（1）、单位/格式说明（单位：厘米）、图指代（如图/图略）都被当成提示 ⇒ 假告警。
- *  这里只做识别取证，不改内容。 */
-const hintParenNote = (text) => {
-  const re = /[（(]([^（）()]{1,40})[）)]/g;
-  for (const m of String(text || '').matchAll(re)) {
-    const inner = m[1].trim();
-    const cn = [...inner].filter((ch) => /[\u4e00-\u9fa5]/.test(ch)).length;
-    if (cn < 2) continue;                                       // （　）/（1）/（图）/（A）：不是提示
-    if (/^(?:单位|约|保留|精确到|结果|得数)/.test(inner)) continue; // 单位/格式说明，不是提示
-    if (/(?:如图|见图|下图|上图|左图|右图|图略)/.test(inner)) continue; // 图指代 → 属漏图，不属替代提示
-    if (/^每[^，,]{0,8}\d+(?:\.\d+)?\s*分/.test(inner)) continue;   // 分值括注（上游已摘，双保险）
-    if (/^\d+(?:\.\d+)?\s*分/.test(inner)) continue;
-    return m[0];
-  }
-  return null;
-};
-
 /**
  * 一道题的分值可能写在该题**最后一行**（多行题、带选项的题）——把带号行与其后、
  * 下一个带号行之前的行合并后再取分。只读带号那一行会把"分写在选项后/末行"误判成没标分。
@@ -1071,7 +1045,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           .find((x) => /^[一二三四五六七八九十]+、/.test((x.textContent || '').trim())) || null;
         const linesP = [];
         const seenP = new Set();
-        let secTextP = '';
         const collectP = (root) => {
           if (!root || root.nodeType !== 1) return;
           const candidates = [];
@@ -1081,16 +1054,14 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           for (const el of leaves) {
             if (seenP.has(el)) continue;
             const tt = (el.textContent || '').trim();
-            const nmP = tt.match(NUMBERED_LINE_RE);
-            if (!nmP) continue;
+            if (!NUMBERED_LINE_RE.test(tt)) continue;
             const hasOwn = readItemScore(itemBlockText(el)) != null;
-            linesP.push({ el, num: nmP[1], hasOwn });
+            linesP.push({ el, hasOwn });
             seenP.add(el);
           }
         };
         for (let node = h.nextSibling; node && node !== endP; node = node.nextSibling) {
           if (answerBoundP && (node === answerBoundP || isInAnswerArea(node, answerBoundP))) break;
-          secTextP += `${node.textContent || ''} `;
           collectP(node);
         }
         if (linesP.length === 0) return;               // 真 0 段：单价随标题是对的，不动
@@ -1106,17 +1077,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //   理由：程序只读得到标题上的单价，读不到这道题实际有几处判分、每处该值多少；替 A 补一个数，
         //   等于把 A 的缺陷埋掉（真机"三空2分"正是这么补出来的）。Σ 不完整时标题也不合成（不拿残账当总数）。
         const blindP = needP.filter((x) => countBlanks(x.el.innerHTML) === 0).length;
-        // 2026-10-27（属主："这几个报到问题列表中的问题加固下"）：报点要点到**哪几道**没分——
-        //   只给个数时，属主还得回卷里逐题比对；这里附题号。另：整栏合计（"（每题2分，共10分）"）
-        //   被写在某一小题后时，其余题看起来全"没标分"，报点必须说明这一根因，否则会被当成随机漏标。
-        const needNums = needP.map((x) => x.num);
-        const numsTipP = `（第${needNums.slice(0, 12).join('、')}${needNums.length > 12 ? '…' : ''}题）`;
-        const colNotesP = columnScoreNotes(secTextP).filter((n) => Math.abs(n.total - declared) < 1e-9);
-        const colTipP = (colNotesP.length && needP.length >= 2)
-          ? `；本栏有 ${colNotesP.length} 处整栏合计式标注（如「${colNotesP[0].raw}」）——整栏合计只写在标题，题内每道题写该题自己的"（每〈单位〉X分，共Y分）"`
-          : '';
         silentCount('title-unit-misplaced',
-          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${numsTipP}${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}${colTipP}——按【分值标注】标：每题题干后必须标"（每〈单位〉X分，共Y分）"（该题只有一处作答也写这个全式），缺一题即不合规；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）`, 'warn');
+          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}——按【分值标注】标：每题题干后必须标"（每〈单位〉X分，共Y分）"（该题只有一处作答也写这个全式），缺一题即不合规；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）`, 'warn');
         return;
       });
       out = tplP.innerHTML;
@@ -1184,7 +1146,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const itemsB = [];
         const seenB = new Set();
         const coreB = normTitleCore(t);
-        let secTextB = '';
         const collectB = (root) => {
           if (!root || root.nodeType !== 1) return;
           const candidates = [];
@@ -1200,13 +1161,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             if (!nm) continue;
             // 只取该题的分值括注（整道题设问的最后一句之后均可，真题习惯；多行题以末行为准）；题干内部各分条的标分不计入合成。
             const itemTotal = readItemScore(itemBlockText(el));
-            itemsB.push({ num: nm[1], total: itemTotal, el });
+            itemsB.push({ num: nm[1], total: itemTotal });
             seenB.add(el);
           }
         };
         for (let node = h.nextSibling; node && node !== endB; node = node.nextSibling) {
           if (answerBoundB && (node === answerBoundB || isInAnswerArea(node, answerBoundB))) break;
-          secTextB += `${node.textContent || ''} `;
           collectB(node);
         }
         if (itemsB.length === 0) return;
@@ -1221,17 +1181,8 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const missingB = itemsB.filter((x) => x.total == null);
         if (missingB.length) {
           if (!/[（(]\s*每/.test(t)) {
-            // 2026-10-27（属主："这几个报到问题列表中的问题加固下"）：同 1.6b-pre——附题号＋整栏合计取证。
-            const needNumsB = missingB.map((x) => x.num);
-            const numsTipB = `（第${needNumsB.slice(0, 12).join('、')}${needNumsB.length > 12 ? '…' : ''}题）`;
-            const declaredB = hadScoreB ? parseFloat(mB[1]) : null;
-            const colNotesB = columnScoreNotes(secTextB)
-              .filter((n) => declaredB == null || Math.abs(n.total - declaredB) < 1e-9);
-            const colTipB = (colNotesB.length && missingB.length >= 2)
-              ? `；本栏有 ${colNotesB.length} 处整栏合计式标注（如「${colNotesB[0].raw}」）——整栏合计只写在标题，题内每道题写该题自己的"（每〈单位〉X分，共Y分）"`
-              : '';
             silentCount('title-unit-misplaced',
-              `大题「${t}」其下有 ${missingB.length} 道带题号的题没标分${numsTipB}${colTipB}——请按【分值标注】在每道带号题后逐题标分；程序不改数、不动结构`, 'warn');
+              `大题「${t}」其下有 ${missingB.length} 道带题号的题没标分——请按【分值标注】在每道带号题后逐题标分；程序不改数、不动结构`, 'warn');
           }
           return;
         }
@@ -1539,31 +1490,20 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
       const ansS = findAnswerBound(tplS.content);
       const mfS = (tplS.content.textContent || '').match(/满分\s*[:：]?\s*(\d+(?:\.\d+)?)\s*分/);
       const rowsS = [];
-      const rowsOutS = [];
       Array.from(tplS.content.querySelectorAll('h2, h3, h4'))
         .filter((h) => !isInAnswerArea(h, ansS))
         .forEach((h) => {
           const t = (h.textContent || '').trim();
           if (!/^[一二三四五六七八九十]+、/.test(t)) return;
-          const nameS = t.replace(/[（(][^（）()]{0,40}[）)]\s*$/, '').replace(/\s+/g, ' ').trim();
           const m = t.match(/共\s*(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/);
-          if (m) rowsS.push({ tag: h.tagName, v: parseFloat(m[1]), name: nameS });
-          else rowsOutS.push({ tag: h.tagName, name: nameS });
+          if (m) rowsS.push({ tag: h.tagName, v: parseFloat(m[1]) });
         });
       const tagsS = new Set(rowsS.map((r) => r.tag));
       if (mfS && rowsS.length >= 2 && tagsS.size === 1) {
         const sumS = rowsS.reduce((a, r) => a + r.v, 0);
         const fullS = parseFloat(mfS[1]);
         if (Math.abs(sumS - fullS) > 1e-6) {
-          // 2026-10-27（属主："这几个报到问题列表中的问题加固下"）：只报差额时，属主无法判断缺在哪一节。
-          //   这里把**参与合计的节**与**没写"共X分"因而没进合计的节**都列出来（只报不改、不猜分值）。
-          const briefS = (s) => (s.length > 14 ? `${s.slice(0, 14)}…` : s);
-          const accountedS = rowsS.map((r) => `${briefS(r.name)} ${fmtScore(r.v)}分`).join('、');
-          const uncountedS = rowsOutS.filter((r) => r.tag === rowsS[0].tag).map((r) => briefS(r.name));
-          const uncountedTip = uncountedS.length
-            ? `；未计入合计的节：${uncountedS.slice(0, 6).join('、')}${uncountedS.length > 6 ? ' 等' : ''}（标题没有"共X分"，无法参与合计——差额很可能落在这些节）`
-            : '';
-          silentCount('score-sum-mismatch', `各大题标题分值合计 ${fmtScore(sumS)} 分，与卷首满分 ${fmtScore(fullS)} 分不符（差 ${fmtScore(fullS - sumS)} 分）；计入：${accountedS}${uncountedTip}——按【分值标注】第④层须逐层核到卷首（若为选做/附加题请忽略本提示）；程序不改数、不动结构`, 'warn');
+          silentCount('score-sum-mismatch', `各大题标题分值合计 ${fmtScore(sumS)} 分，与卷首满分 ${fmtScore(fullS)} 分不符（差 ${fmtScore(fullS - sumS)} 分）——按【分值标注】第④层须逐层核到卷首（若为选做/附加题请忽略本提示）；程序不改数、不动结构`, 'warn');
         }
       }
     } catch (e) { console.warn('⚠️ 试卷层账目核对失败（不影响其它修复）:', e.message); }
@@ -1874,7 +1814,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const headSections = String(out).match(/<h[23][^>]*>[\s\S]*?(?=<h[23][^>]*>|$)/gi) || [];
         for (const sec of headSections) {
           const secStr = String(sec);
-          const headText = ((secStr.match(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/i) || ['', ''])[1].replace(/<[^>]+>/g, '') || '').trim();
+          const headText = (secStr.match(/<h[23][^>]*>([\s\S]*?)<\/h[23]>/i) || ['', ''])[1].replace(/<[^>]+>/g, '');
           if (!figureKeywordRe.test(headText)) continue;
           const secBodyRaw = secStr.replace(/<h[23][^>]*>[\s\S]*?<\/h[23]>/i, ' ').replace(/<[^>]+>/g, ' ');
           // 🔴 2026-10-23：判"有没有替代提示形态"前，先摘掉**分值括注**——B 会按标题单价补逐题分
@@ -1883,26 +1823,16 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const secBody = secBodyRaw.replace(/[（(][^（）()]{0,24}\d+(?:\.\d+)?\s*分[^（）()]{0,8}[）)]/g, ' ');
           if (/\[IMAGE\]|\[GRAPH\]/.test(secStr)) continue;   // 本大题真的给了图 → 标题与内容相符
           if (figureKeywordRe.test(secBody)) continue;        // 题干自己也要图 → 属"漏图"，由 image-missing 报
-          // 🔴 2026-10-27（属主报点"图题不一致"）：判据由"任何含汉字括注"收窄为"**真提示**括注"——
-          //   作答位（　）、编号（1）、单位/格式说明（单位：厘米）、图指代（如图/图略）都不是提示形态；
-          //   原判会把"看图列式计算"这类题误报成"标题与内容不符"。识别统一走 hintParenNote（单一出口）。
-          const altHit = hintParenNote(secBody);
-          const underHit = /[A-Za-z][_＿]{2,}/.exec(secBody);           // 字面下划线空位（p____）
-          const carrierHit = /(?:^|[^A-Za-z])[A-Za-z]\s*<(?:u|span)\b[^>]*\bclass=["'][^"']*blank-\d+/i.test(secStr); // blank-N 载体首字母位
-          const tipIdx = secBody.indexOf('提示');
-          const hasAltHint = Boolean(altHit) || Boolean(underHit) || carrierHit || tipIdx >= 0;
-          // 报点附**触发处原文**＋大题名：原句只给结论，属主还得自己回卷里找是谁把探针钓起来的。
-          let altEv = '';
-          if (altHit) altEv = `（触发处：「${altHit}」）`;
-          else if (tipIdx >= 0) altEv = `（触发处：「${secBody.slice(Math.max(0, tipIdx - 8), tipIdx + 12).replace(/\s+/g, ' ').trim()}」）`;
-          else if (underHit) altEv = '（触发处：词首字母＋下划线空位）';
-          else if (carrierHit) altEv = '（触发处：词首字母紧邻空位载体）';
+          const hasAltHint = /[（(][^）)]*[\u4e00-\u9fa5][^）)]*[）)]/.test(secBody)
+            || /[A-Za-z][_＿]{2,}/.test(secBody)                       // 字面下划线空位（p____）
+            || /(?:^|[^A-Za-z])[A-Za-z]\s*<(?:u|span)\b[^>]*\bclass=["'][^"']*blank-\d+/i.test(secStr) // blank-N 载体首字母位（p+<u class=blank>）
+            || /提示/.test(secBody);
           silentCount('title-content-mismatch', hasAltHint
-            ? `大题「${headText}」标题声称"图片提示/看图"，题内实际用的是**其它提示形态**（文字/中文/首字母提示）${altEv}——标题与内容不符：请把标题改成与内容一致的写法（如"根据中文提示写单词"），或按标题补图（程序只提示、不改内容）`
+            ? '大题标题声称"图片提示/看图"，题内实际用的是**其它提示形态**（文字/中文/首字母提示）——标题与内容不符：请把标题改成与内容一致的写法（如"根据中文提示写单词"），或按标题补图（程序只提示、不改内容）'
             // 🔴 2026-10-17（属主真机追问"题目完整就不用给图了吧"）：本支＝题内**既无图也无任何提示形态**。
             //    按判据"不看图能否作答"：这类通常题面已自足、是**标题多写了提示方式** ⇒ 先给"改标题"这条正解；
             //    只有当本题本应配图（题面依赖图）时才补图。原句"或漏图"把两种情形并列，易把方向带向"硬补图"。
-            : `大题「${headText}」标题声称"图片提示/看图"，但题内既无图也无其它提示形态——标题与内容不符：若题面已自足（不看图也能作答），请把标题改成与内容一致的写法；若本题本应配图，则按标题补图（程序只提示、不改内容）`, 'warn');
+            : '大题标题声称"图片提示/看图"，但题内既无图也无其它提示形态——标题与内容不符：若题面已自足（不看图也能作答），请把标题改成与内容一致的写法；若本题本应配图，则按标题补图（程序只提示、不改内容）', 'warn');
           break;   // 同类只报一处，避免多个大题重复刷屏
         }
       }
