@@ -1264,9 +1264,24 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         //   正文每题的分 → 答案区**同名大题下、同题号行的题号后**，如 `1.（每空4分，共4分）6×5＝30（本）`。
         //   只镜像**正文已有的分**（不计算、不新增）；答案区缺对应题号行、或该行含行内标签时不重写；
         //   已在题号后带分则跳过（幂等，重复跑不叠加）。
+        // 🔴 2026-10-27（属主真机："答案区还是错位的…需要你定位根因"）· **根因**：
+        //   答案区分节边界原来只认 h2/h3/h4，而答案区的大题标题**常常写成 `<p><strong>四、判断</strong></p>`**
+        //   （`findAnsTitleB` 早就为标题认了这种形态，可"取一节到哪为止"没认）⇒ `itemsUnderB(三)` 一路收到
+        //   答案区末尾，把后面几节的答案行也算进本节；`byNum` 同类题号后写覆盖前写 ⇒ 本节的题号 1
+        //   归到了**后面大题的题号 1** 上，分就写到了别的大题答案行（实测：四、判断 的第1题被写上
+        //   三、填空 第1题的分）。这就是"填空题的分标到后面大题答案上"的机制。
+        //   修法＝**分节边界与 findAnsTitleB 同源**：答案区的 p/div/li 大类标题也进边界表。
         const headsAllB = [...tplB.content.querySelectorAll('h2,h3,h4')];
-        const isCnHeadB = (el) => /^[一二三四五六七八九十]+、/.test((el.textContent || '').trim());
-        const nextCnHeadB = (el) => headsAllB.slice(headsAllB.indexOf(el) + 1).find(isCnHeadB) || null;
+        const isCnHeadB = (el) => /^[一二三四五六七八九十]+[、.．]/.test((el.textContent || '').trim());
+        const ansPHeadsB = answerBoundB
+          ? Array.from(tplB.content.querySelectorAll('p, div, li'))
+            .filter((el) => isInAnswerArea(el, answerBoundB))
+            .filter((el) => !el.querySelector('p, div, h1, h2, h3, h4, li'))
+            .filter((el) => isCnHeadB(el) && (el.textContent || '').trim().length <= 60)
+          : [];
+        const secHeadsB = [...headsAllB, ...ansPHeadsB].sort((a, b) => (
+          a.compareDocumentPosition(b) & 4 /* DOCUMENT_POSITION_FOLLOWING */ ? -1 : 1));
+        const nextCnHeadB = (el) => secHeadsB.slice(secHeadsB.indexOf(el) + 1).find(isCnHeadB) || null;
         /** 取一段作用域内的"带题号行"（与 1.6b 取 Σ 同一口径：叶节点 .question／p） */
         const itemsUnderB = (startEl) => {
           const list = [];
@@ -1294,7 +1309,17 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const bodyItems = itemsUnderB(h);
           const ansItems = itemsUnderB(ansHead);
           if (!bodyItems.length || !ansItems.length) return;
-          const byNum = new Map(ansItems.map((x) => [x.num, x]));
+          // 🔴 2026-10-27（错位第二道防线）：答案区**漏写某一节标题**时，本节作用域会越过下一节；
+          //   标志就是"题号又重新出现"。遇到重复题号即在此截断——**宁缺勿错**（少补一处会被报点抓到，
+          //   写错一处分就落到别的大题答案行上）。
+          const seenNums = new Set();
+          const ansScoped = [];
+          for (const x of ansItems) {
+            if (seenNums.has(x.num)) break;
+            seenNums.add(x.num);
+            ansScoped.push(x);
+          }
+          const byNum = new Map(ansScoped.map((x) => [x.num, x]));
           bodyItems.forEach((bi) => {
             const ai = byNum.get(bi.num);
             if (!ai) return;
