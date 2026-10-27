@@ -340,6 +340,21 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     expect(scoreBlock, '分值块不得出现均分/同分口径').not.toMatch(/均分|同分|不同分/);
     expect(scoreBlock, '分值条内不得出现具体分值示例').not.toMatch(/每[空处式题]?\s*[12]\s*分[，,]/);
     expect(scoreBlock, '等分/不等分口径不得回潮').not.toMatch(/等分/);
+    // 🔴 2026-10-27（属主："每空1分，每题X分，还在判据里？"）：**成品分值形态不得进模型侧判据**——
+    //   "（每题X分，共Y分）""（每空1分，共24分）"是**程序侧合成（1.6b）与真题实例**的形态，
+    //   写进判据就是"给样例"的诱导：模型会照抄该形态、盖掉 A 的两支（模型侧只写"（共Y分）"，
+    //   由程序按规定合成）。原守卫只查数字 1/2（`/每[空处式题]?\s*[12]\s*分/`），
+    //   放过了 X/Y 占位写法，故"（每题X分，共Y分）"在中学段实发里挂了多轮。
+    //   允许形态只有一种：`（每〈单位〉X分，共Y分）`（〈单位〉是占位名，不是"空/题"这类成品名）。
+    const shots = [
+      ['小学 exam', getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'exam' }).template],
+      ['中学 exam', getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template],
+      ['教辅 practice', getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'practice' }).template],
+    ];
+    for (const [tag, txt] of shots) {
+      expect(txt, `${tag}：不得出现"每题X分／每题N分"成品形态`).not.toMatch(/每题\s*[XY\d]+\s*分/);
+      expect(txt, `${tag}：不得出现"每空N分"等具体单位分形态`).not.toMatch(/每[空处式词字线]\s*[XY\d]+\s*分/);
+    }
   });
 
   // 🔴 2026-09-12（用户实证）  //    实测漏"连线"）→ 改为**原则式**：判据=题面自身措辞。
