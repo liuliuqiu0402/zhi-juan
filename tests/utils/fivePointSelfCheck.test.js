@@ -93,11 +93,17 @@ describe('① 编号/不编号：结构事实判定 + 两支各自的动作', ()
   });
 });
 
-// 🔴 2026-10-26（换结构事实后重写）：原来问的是"凭什么这一组不写号"——那是语义判定，模型判不齐。
-//   现在只剩一件事可数：这一大题下有几个独立成 `<p class="question">` 的题干。
-describe('①-b 凭什么这么分：数独立题干，不按题型名、不留兜底', () => {
-  it('判据给的是可数的结构事实，不是题型名', () => {
-    expect(ANSWER_STEM_CALIBER, '只数独立题干').toContain('<p class="question">');
+// 🔴 2026-10-27（判法焊死·改锚）：原锚是"数独立成 <p class="question"> 的段落"——那版当日即被证伪
+//   （包几个 question 由模型自己决定＝自证，§九.90）。现锚定**四个可判定要件**：
+//   ①遮住标题（标题里的字不算）②判的是"有没有一句成句的表述"③外文完整句同样算（消除非汉语栏误判为单题干）
+//   ④一栏只取一种形态／一栏一项按整栏合一（消混排与单题的摇摆）。
+describe('①-b 凭什么这么分：只看项内有没有成句表述，不按题型名、不留兜底', () => {
+  it('判据给的是可判定的形态，不是题型名', () => {
+    expect(ANSWER_STEM_CALIBER, '遮住标题、只看其中一项').toContain('遮住大题标题、只看其中一项');
+    expect(ANSWER_STEM_CALIBER, '判的是有没有成句的表述').toContain('有没有一句成句的表述');
+    expect(ANSWER_STEM_CALIBER, '外文完整句同样算').toContain('外文完整句算');
+    expect(ANSWER_STEM_CALIBER, '一栏只取一种形态（消混排）').toContain('一栏只取一种形态');
+    expect(ANSWER_STEM_CALIBER, '一栏一项按整栏合一（消单题歧义）').toContain('一栏只有一项时按整栏合一');
     expect(ANSWER_STEM_CALIBER, '不按题型名枚举').not.toMatch(/口算|竖式|脱式|判断|选择|填空/);
     expect(ANSWER_STEM_CALIBER, '不留"其余"兜底').not.toContain('其余');
     expect(ANSWER_STEM_CALIBER, '旧两区名不得回潮').not.toMatch(/成题区|直答区/);
