@@ -153,17 +153,18 @@ describe('判据可判定性：并列算式＝单题干；带号小题＝多题�
     expect(score, '多题干').toContain('（多题干）');
   });
 
-  it('并列算式（单题干）⇒ 分写在大题标题后、题内不标', () => {
-    expect(score, '单题干：分写在大题标题后').toContain('分写在**大题标题后**');
-    expect(score, '单题干：题内不标分').toContain('**题内不标分**');
+  it('无号的栏 ⇒ 标题写单价式、题内不标', () => {
+    expect(score, '无号：题内不标').toContain('无号的栏：题内不标');
+    expect(score, '标题写法两种情况相同').toContain('两种情况相同');
     // 🔴 2026-10-24（属主："不要人为干预模型的能力"）："不得为凑总分编题"已删，防回潮。
     expect(score, '"不得为凑总分编题"不得回潮').not.toContain('不得为凑总分编题');
   });
 
-  it('带号小题（多题干）⇒ 每题题干后再标一次全式、标题写共Y分', () => {
-    expect(score, '每题题干后必须标').toContain('每题题干后必须标');
-    expect(score, '标题写"（共Y分）"').toContain('大题标题写"（共Y分）"');
+  it('有号的题 ⇒ 每题题干后再标一次全式（缺一不合规）', () => {
+    expect(score, '有号：每题题干后必须标').toContain('有号的题：每题题干后必须标');
     expect(score, '缺一题即不合规').toContain('缺一题即不合规');
+    // 🔴 2026-10-27（属主："（共Z分）整个删掉"）：不让模型写它算不出来的数。
+    expect(score, '（共Y分）中间态不得回潮').not.toContain('大题标题写"（共Y分）"');
   });
 
   it('结构事实一处定义、旧语义判据不得回潮', () => {
@@ -175,7 +176,7 @@ describe('判据可判定性：并列算式＝单题干；带号小题＝多题�
   it('中学：与小学同一套判据（不另设"标题只作范围标识"的第二套）', () => {
     const mid = getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template;
     expect(mid, '中学仍是同一结构判定').toContain('（多题干）');
-    expect(mid, '中学仍走同一支后果').toContain('大题标题写"（共Y分）"');
+    expect(mid, '中学仍走同一套标题写法').toContain('两种情况相同');
     expect(mid, '旧"标题只作范围标识"分叉不得回潮').not.toContain('标题只作范围标识');
   });
 });

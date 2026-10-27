@@ -214,10 +214,11 @@ describe('③ 跨学段×学科混合扫描（基准：先数作答题干 → �
         if (!t.includes('遮住大题标题、只看其中一项')) bad.push(tag + '：缺"作答题干口径"');
         if (!t.includes('（单题干）')) bad.push(tag + '：缺"单题干"');
         if (!t.includes('（多题干）')) bad.push(tag + '：缺"多题干"');
-        if (!t.includes('分写在**大题标题后**')) bad.push(tag + '：缺"单题干标分落点"');
-        if (!t.includes('**题内不标分**')) bad.push(tag + '：缺"单题干题内不标分"');
-        if (!t.includes('每题题干后必须标')) bad.push(tag + '：缺"多题干逐题标分"');
-        if (!t.includes('大题标题写"（共Y分）"')) bad.push(tag + '：缺"多题干标题中间态"');
+        if (!t.includes('有号的题：每题题干后必须标')) bad.push(tag + '：缺"有号逐题标分"');
+        if (!t.includes('无号的栏：题内不标')) bad.push(tag + '：缺"无号题内不标"');
+        if (!t.includes('缺一题即不合规')) bad.push(tag + '：缺"缺一不合规"');
+        if (!t.includes('两种情况相同')) bad.push(tag + '：缺"标题写法统一"');
+        if (t.includes('大题标题写"（共Y分）"')) bad.push(tag + '：旧"（共Y分）中间态"回潮');
         if (!t.includes('Y＝X×N')) bad.push(tag + '：缺"Y＝X×N"');
         if (!t.includes('该栏标题所标')) bad.push(tag + '：缺"大题账目"');
         if (!t.includes('各大题分之和＝给定满分')) bad.push(tag + '：缺"试卷账目"');

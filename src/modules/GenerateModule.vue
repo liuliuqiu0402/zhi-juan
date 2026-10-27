@@ -3292,6 +3292,7 @@ import TemplateStructureEditor from '../components/TemplateStructureEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
 import { markExamBigCategory, normalizeExamHeadOrder } from '../utils/contentCleaner.js';
 import { stripXss, stripAiCodeFence, markSoloBlankLines, wrapBareBlankRuns } from '../utils/contentCleaner.js';  // 🔧 XSS 剥离 + AI 代码块/对话残留剥离 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（导出端第二道防线共享）
+import { inspectScoreClause } from '../utils/instructionDelivery.js'; // 🧾 分值条送达体检（形态探针，只报不改）：换措辞不失效、能看见新旧两套并存
 import { scriptsToText } from '../utils/scriptText.js'; // 上下标 → Unicode/显式写法（rawText 派生时不得把 x² 拍平成 x2）
 import { handleMathPaste } from '../utils/clipboardText.js'; // 纯文本框"保公式粘贴"：textarea 只收纯文本，浏览器默认粘贴会拿到被线性化的公式（只剩字母和加减号）
 import { djb2 } from '../utils/hash.js';  // 原文变更检测哈希唯一实现（与 useAiGenerator 读 _analyzedTextHash 共用，曾各自复制）
@@ -6483,30 +6484,30 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   //   getPromptTemplate 是"用户自定义优先"：指令库里只要存过一份（哪怕是旧版），代码里的内置判据
   //   **永远进不来**。此处把来源与关键判据的在位性打到日志里，一眼就能看出这次生成用的是哪一份。
   {
-    // 2026-10-26（结构事实换代）：取证锚随之改准——旧锚（"每道带号小题都要有自己的分值"／"不带小题号（整组都不带）"）
-    //   已随 `NUMBERING_BRANCH_RULE` 整类删除，继续用它取证会永远 false ⇒ 排障时误判"判据没送达"。
-    // 2026-10-26（口径再收）：取证锚对齐现行文本——"每题题干后必须再标一次"（题内标分）／"大题标题一律写"（标题写法）／
-    //   "整栏合一（单题干）"（判据第二支）。旧锚（"各题干后标"／"（共Z分）"）已随文本改写不复存在。
-    const ANCHOR_SCORE_ON_STEM = '每题题干后必须再标一次';
-    const ANCHOR_TITLE_ONLY_TOTAL = '大题标题一律写';
-    const ANCHOR_UNNUMBERED_SCOPE = '整栏合一（单题干）';
-    const hasAnchor = instructionDraft.value.includes(ANCHOR_SCORE_ON_STEM);
-    const staleScore = instructionDraft.value.includes('不是标题里要填的数字');
-    const staleJudge = instructionDraft.value.includes('号是点名用的');
-    const hasHead = instructionDraft.value.includes('卷首固定顺序');
-    const hasTitleRule = instructionDraft.value.includes(ANCHOR_TITLE_ONLY_TOTAL);
-    const hasScopeRule = instructionDraft.value.includes(ANCHOR_UNNUMBERED_SCOPE);
-    console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜含"每题题干后必须再标一次"判据=${hasAnchor}｜含"卷首固定顺序"=${hasHead}｜旧"标题不填分"措辞=${staleScore}｜旧语义判据"号是点名用的"=${staleJudge}${tpl.normativeMerged ? '｜规范块（卷首/卷面结构/分值标注）已并入内置现行版' : ''}`);
-    console.log(`🧾 分值标注送达取证: 标题写法"大题标题一律写"=${hasTitleRule}｜判据第二支"整栏合一（单题干）"=${hasScopeRule}`);
-    {
-      const m = instructionDraft.value.match(/【分值标注】([\s\S]*?)(?=\n\n【|$)/);
-      if (m) console.log(`🧾 本次实发【分值标注】原文：\n${m[1].trim()}`);
-    }
-    if (tpl.source === 'user' && (!hasAnchor || staleScore || !hasHead || !hasTitleRule || !hasScopeRule)) {
-      console.warn(
-        '⚠️ 本次生成用的是「指令库·用户自定义模板」，与内置判据不一致——代码里的修改不会生效。' +
-        '处理：到指令库把该条「恢复默认」（或删除自定义模板）后重新生成。',
-      );
+    // 🔴 2026-10-27（取证锚换代）：原锚是**硬编码整句**（"每题题干后必须再标一次"／"大题标题一律写"），
+    //   实发一改写就恒取不到 ⇒ 日志永远显示"判据=false"，真正的旧模板反而检不出来（日志因此没人看）。
+    //   现改为**形态探针**（`utils/instructionDelivery`）：认结构不认整句，并同时查
+    //   ①【分值标注】块数（>1＝新旧两套并存）②旧口径残留（号是点名用的／不带小题号 等）。
+    //   只报不改：体检结论只进日志与告警，不改实发一个字。
+    if (genType === 'exam') {
+      const delivery = inspectScoreClause(instructionDraft.value);
+      const hasHead = instructionDraft.value.includes('卷首固定顺序');
+      console.log(`🧾 指令模板来源: ${tpl.source}｜id=${tpl.id}｜卷首固定顺序=${hasHead}${tpl.normativeMerged ? '｜规范块（卷首/卷面结构/分值标注）已并入内置现行版' : ''}`);
+      console.log(`🧾 分值标注送达体检: ${delivery.verdict}`);
+      {
+        // 🔴 2026-10-27（真机日志翻车）：锚**行首**——【卷面结构】里行内引用"按【分值标注】判"，
+        //   按子串取会把结构段尾当成该块正文（属主贴出的日志即此）。
+        const m = instructionDraft.value.match(/(?:^|\n)【分值标注[^】]*】([\s\S]*?)(?=\n【|$)/);
+        if (m) console.log(`🧾 本次实发【分值标注】原文：\n${m[1].trim()}`);
+      }
+      console.log(`🧾 版本指纹: 两处都标=${delivery.present.twoPlaces}｜写题处标分=${instructionDraft.value.includes('写完题干就把这道题的分写上')}｜块数=${delivery.blocks}｜来源=${tpl.source}`);
+      if (!delivery.ok || !hasHead) {
+        console.warn(
+          `⚠️ 本次实发的分值条不是现行版：${delivery.verdict}${hasHead ? '' : '；卷首固定顺序不在'}。` +
+          '这种实发里模型有旧版给的合法出口（标题写单价、题内不标分）⇒ 带号小题会整片不标分。' +
+          '处理：到指令库把该条「恢复默认」（或删除自定义模板）后重新生成——代码里的修改对旧模板不生效。',
+        );
+      }
     }
   }
   // 说明：渲染指令契约（EduRender）/ 卷面质检规则 / 守门条款兜底 均属程序侧形态与规则知识，

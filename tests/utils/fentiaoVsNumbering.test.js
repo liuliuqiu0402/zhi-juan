@@ -34,13 +34,13 @@ describe('② A 侧：并列算式行不是多个作答题干', () => {
     expect(QUESTION_OBJECT_CALIBER, '第二把尺（各自有独立题干）不得回潮').not.toMatch(/各自有独立题干|只属于它的陈述或问题/);
     const t = tpl('exam', '数学', 'primary_mid');
     expect(t, '单题干：不加小号序号').toContain('单作答题干大题不加小号序号');
-    expect(t, '单题干：分值写在大题标题后').toContain('分写在**大题标题后**');
+    expect(t, '标题写法两种情况相同').toContain('两种情况相同');
   });
 
   it('两支名在位；旧"每道题各自编号"不得回潮（防"每题都要有号"的二次推力）', () => {
     for (const st of ['primary_low', 'middle']) {
       const t = tpl('exam', '数学', st);
-      expect(t, `${st}：单题干 → 分写在大题标题后`).toContain('分写在**大题标题后**');
+      expect(t, `${st}：标题写法两种情况相同`).toContain('两种情况相同');
       expect(t, `${st}：多题干 → 每题题干后必须标全式`).toContain('每题题干后必须标');
       expect(t, `${st}：不得再写"每道题各自编号"`).not.toContain('每道题各自编号');
       expect(t, `${st}：旧两支不得回潮`).not.toContain('这一组是多件');

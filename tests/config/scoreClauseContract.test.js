@@ -1,0 +1,78 @@
+// ============================================================
+// 分值标注 · 骨架契约（2026-10-27 属主："能把它们固定吗？以后不能一动就回归"）
+// ------------------------------------------------------------
+// 覆盖面：**全部 54 个 学科×学段 组合**（STAGE_SUBJECTS 实际开设矩阵）× exam，不抽样。
+// 只锁**骨架的九块骨头**与**四条回潮**，不锁整句措辞：换词可以，掉骨头不行。
+// 来历（提交史）：b840e7a 成功版 → bed2773 换两支（（共Y分）回来、标题与题内重新耦合）
+//   → 4874a3e 删自洽豁免 → 9cd51f3 再清形态 ⇒ 连续两次回归。本契约逐条钉住成功版的骨头。
+// 附带守卫：实发正文不得混入源码注释标记（🔴/属主/病根/真题实证/TODO）。
+import { describe, it, expect } from 'vitest';
+import { getPromptTemplate, STAGE_SUBJECTS } from '../../src/config/promptLibrary.js';
+
+const PAIRS = Object.entries(STAGE_SUBJECTS)
+  .flatMap(([stage, subjects]) => subjects.map((subject) => ({ stage, subject })));
+
+/** 九块骨头：缺一即红 */
+const REQUIRED = [
+  ['结构判定（遮住标题、只看一项）', /遮住大题标题[、，]?只看其中一项/],
+  ['有号：每题题干后必须标', /有号的题[^。]{0,24}每题题干后必须标/],
+  ['无号：题内不标', /无号的栏：题内不标/],
+  ['标题写法：两种情况相同', /大题标题写法（两种情况相同）/],
+  ['标题一律单价式', /一律写"（每〈单位〉X分，共Y分）"/],
+  ['有号：标题与题内两处都要有', /有号的栏，标题与题内两处都要有/],
+  ['自洽：分值是正句（不是否定）', /分值不是复述——有号的题每题都要有自己的分/],
+  ['写题那一刻就写分（形态＋动作）', /写完题干就把这道题的分写上/],
+];
+
+/** 四条回潮：出现即红 */
+const FORBIDDEN = [
+  ['「（共Y分）」中间态', /大题标题写"（共Y分）"/],
+  ['指定具体单位词', /〈单位〉写"题"/],
+  ['旧单支落点（分写在标题后）', /分写在\*\*大题标题后\*\*/],
+  ['输出格式复述两支', /逐题独立时标题写|整栏合一时标题写/],
+];
+
+/** 源码注释标记：不得进实发 */
+const COMMENT_MARKS = ['🔴', '属主', '病根', '真题实证', 'TODO'];
+
+const tplOf = (subject, stage) => getPromptTemplate({ grade: stage, subject, genType: 'exam' }).template;
+
+describe('分值标注骨架契约（全部 54 个 学科×学段）', () => {
+  it(`覆盖面：${PAIRS.length} 个组合全部在册（不抽样）`, () => {
+    expect(PAIRS.length, '学科×学段 实际开设组合数').toBe(54);
+  });
+
+  for (const { stage, subject } of PAIRS) {
+    it(`${subject}/${stage}：九块骨头都在、四条回潮都无、块数=1`, () => {
+      const t = tplOf(subject, stage);
+      for (const [name, re] of REQUIRED) expect(re.test(t), `缺：${name}`).toBe(true);
+      for (const [name, re] of FORBIDDEN) expect(re.test(t), `回潮：${name}`).toBe(false);
+      expect((t.match(/(?:^|\n)【分值标注/g) || []).length, '【分值标注】块数须为 1（新旧并存即红）').toBe(1);
+    });
+  }
+
+  it('实发正文不混入源码注释标记（54 组合逐个查）', () => {
+    const bad = [];
+    for (const { stage, subject } of PAIRS) {
+      const t = tplOf(subject, stage);
+      for (const m of COMMENT_MARKS) if (t.includes(m)) bad.push(`${subject}/${stage}：出现「${m}」`);
+      const block = (t.match(/(?:^|\n)【分值标注[^】]*】([\s\S]*?)(?=\n【|$)/) || [, ''])[1];
+      if (block.includes('//')) bad.push(`${subject}/${stage}：分值标注块内出现 //`);
+    }
+    expect(bad.slice(0, 8), '注释标记不得进实发').toEqual([]);
+  });
+
+  it('守卫有牙：删掉"两处都要有"即判红（复现 bed2773 的形态）', () => {
+    const t = tplOf('数学', 'primary_low');
+    const broken = t.replace(/\*\*有号的栏，标题与题内两处都要有\*\*/, '');
+    expect(/有号的栏，标题与题内两处都要有/.test(t)).toBe(true);
+    expect(/有号的栏，标题与题内两处都要有/.test(broken)).toBe(false);
+  });
+
+  it('守卫有牙：删掉写题处那句即判红（复现"去复述"时的形态）', () => {
+    const t = tplOf('数学', 'primary_low');
+    const broken = t.replace(/写完题干就把这道题的分写上，不顺延到后面补/, '写完题干就往下写');
+    expect(/写完题干就把这道题的分写上/.test(t)).toBe(true);
+    expect(/写完题干就把这道题的分写上/.test(broken)).toBe(false);
+  });
+});

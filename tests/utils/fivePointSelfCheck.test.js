@@ -27,9 +27,11 @@ describe('① 编号/不编号：结构事实判定 + 两支各自的动作', ()
     expect(t, '判据就地内联（写分值处能读到）').toContain(ANSWER_STEM_CALIBER);
     // 块切片锚行首：【卷面结构】里行内引用"按【分值标注】判"不算块起点。
     const scoreBlock = (t.match(/^【分值标注】([\s\S]*?)(?=\n\n【)/m) || [, ''])[1];
-    expect(scoreBlock, '单题干：分写在大题标题后').toContain('分写在**大题标题后**');
-    expect(scoreBlock, '多题干：每题题干后必须标全式').toContain('每题题干后必须标');
-    expect(scoreBlock, '多题干：标题写"（共Y分）"').toContain('大题标题写"（共Y分）"');
+    // 2026-10-27（属主定稿）：题内标不标只看号；标题写法只有一种。
+    expect(scoreBlock, '题内标分只看号（有号）').toContain('有号的题：每题题干后必须标');
+    expect(scoreBlock, '题内标分只看号（无号）').toContain('无号的栏：题内不标');
+    expect(scoreBlock, '标题写法只有一种').toContain('两种情况相同');
+    expect(scoreBlock, '（共Y分）中间态不得回潮').not.toContain('大题标题写"（共Y分）"');
     expect(scoreBlock, '位置：材料与作答载体之后').toContain('全部材料与作答载体之后');
     expect(scoreBlock, '单价不枚举档值').not.toContain('{scoreUnitLadder}');
     // 🔴 2026-10-24（属主："不要提均分/不同分，模型会选择一个最简单的方式均分来标"）：
@@ -177,8 +179,8 @@ describe('②-b 个数要数：Y 须与该题干实际作答对象个数相符',
     //   单价按档选，不设整数限制、不强制全大题一个价（程序按**题**合成，不按单价合成）。
     expect(t, '不得强制同一大题一个价').not.toContain('同一大题一个价');
     expect(t, '不得强制整数分').not.toContain('取整数分');
-    // （单题干）的分写在大题标题后、题内不标（2026-10-27 属主 A 基准；旧"标题与题内两处都要有"已废）。
-    expect(t, '单题干：分写在大题标题后').toContain('分写在**大题标题后**');
+    // （标题写法）两种情况相同（2026-10-27 属主定稿；旧"标题与题内两处都要有"已废）。
+    expect(t, '标题写法两种情况相同').toContain('两种情况相同');
   });
 
   it('行为：三空只写（2分）⇒ 报"处数没数"（只报不改）', () => {
@@ -225,8 +227,8 @@ describe('③ 逐题标：每道作答题干都要有分（A 的活，缺了程�
   //   题干格式条不再复述同一义务（防双源）。
   it('判据单源：分值块写死两支各自标分，题干格式条不复述同一义务', () => {
     const t = tpl();
-    expect(t, '多题干：每题题干后必须标全式').toContain('每题题干后必须标');
-    expect(t, '单题干：分写在大题标题后').toContain('分写在**大题标题后**');
+    expect(t, '有号：每题题干后必须标全式').toContain('每题题干后必须标');
+    expect(t, '标题写法两种情况相同').toContain('大题标题写法（两种情况相同）');
     expect(t, '位置：材料与作答载体之后').toContain('分值括注写在**全部材料与作答载体之后**');
     expect(t, '题干格式条不得再写一遍（单源）').not.toContain('带题号的题，分就写在');
   });

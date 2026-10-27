@@ -115,7 +115,7 @@ describe('不该有题号／小题标题的题组：一个号都不许冒出来�
       expect(t, `${stage}：结构判定＝数独立题干`).toContain('遮住大题标题、只看其中一项');
       expect(t, `${stage}：同一题干内并列小项不另算`).toContain('题前加小号序号');
       expect(t, `${stage}：单题干 ⇒ 不加小号序号`).toContain('单作答题干大题不加小号序号');
-      expect(t, `${stage}：单题干 ⇒ 分值写在大题标题后`).toContain('分写在**大题标题后**');
+      expect(t, `${stage}：标题写法两种情况相同`).toContain('两种情况相同');
       // 🔴 2026-10-24（属主："不要人为干预模型的能力"）："不得为凑总分编题"已删，防回潮。
       expect(t, `${stage}："不得为凑总分编题"不得回潮`).not.toContain('不得为凑总分编题');
     }
