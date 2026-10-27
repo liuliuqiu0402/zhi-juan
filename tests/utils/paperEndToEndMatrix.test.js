@@ -153,16 +153,16 @@ describe('判据可判定性：并列算式＝单题干；带号小题＝多题�
     expect(score, '多题干').toContain('（多题干）');
   });
 
-  it('并列算式（单题干）⇒ 分只在该题干后、标题不写分值', () => {
-    expect(score, '单题干：大题标题也要写').toContain('大题标题也要写');
-    expect(score, '单题干：标题不写分值').toContain('大题标题也要写');
+  it('并列算式（单题干）⇒ 分写在大题标题后、题内不标', () => {
+    expect(score, '单题干：分写在大题标题后').toContain('分写在**大题标题后**');
+    expect(score, '单题干：题内不标分').toContain('**题内不标分**');
     // 🔴 2026-10-24（属主："不要人为干预模型的能力"）："不得为凑总分编题"已删，防回潮。
     expect(score, '"不得为凑总分编题"不得回潮').not.toContain('不得为凑总分编题');
   });
 
-  it('带号小题（多题干）⇒ 每题题干后再标一次全式、标题形态与无号栏一致', () => {
+  it('带号小题（多题干）⇒ 每题题干后再标一次全式、标题写共Y分', () => {
     expect(score, '每题题干后必须标').toContain('每题题干后必须标');
-    expect(score, '标题写法统一').toContain('大题标题也要写');
+    expect(score, '标题写"（共Y分）"').toContain('大题标题写"（共Y分）"');
     expect(score, '缺一题即不合规').toContain('缺一题即不合规');
   });
 
@@ -175,7 +175,7 @@ describe('判据可判定性：并列算式＝单题干；带号小题＝多题�
   it('中学：与小学同一套判据（不另设"标题只作范围标识"的第二套）', () => {
     const mid = getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template;
     expect(mid, '中学仍是同一结构判定').toContain('（多题干）');
-    expect(mid, '中学仍走同一支后果').toContain('大题标题也要写');
+    expect(mid, '中学仍走同一支后果').toContain('大题标题写"（共Y分）"');
     expect(mid, '旧"标题只作范围标识"分叉不得回潮').not.toContain('标题只作范围标识');
   });
 });

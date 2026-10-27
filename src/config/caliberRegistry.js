@@ -72,8 +72,10 @@ export const PROMPT_CONSTANTS = {
     'DECLARATION_TRUTH_CLAUSE',
     'SUBJECT_FACT_DISCIPLINE',
     'NUMBERING_HIERARCHY_RULE',
-    // 2026-10-26（属主定稿·结构事实）：**作答题干口径**——"一个大题下有几个独立成 <p class="question">
-    //   的题干"，据此判单题干/多题干（原 `NUMBERING_BRANCH_RULE`／`NUMBERING_ONLY_RULE` 语义判据已整类删除）。
+    // 2026-10-26（**我的方案，非属主定稿**）：**作答题干口径**——判这一大题是单题干还是多题干，
+    //   据此决定给不给号、分标在哪（原 `NUMBERING_BRANCH_RULE`／`NUMBERING_ONLY_RULE` 语义判据已整类删除）。
+    //   ⚠️ 我当时承诺"数 class="question" 段落＝可数结构事实"，当日即被证伪（§九.90：段数由模型自己决定＝自证）；
+    //   现行正文是"遮住大题标题、看成句文字"（§九.96）。**责任在助手，不记作属主定稿。**
     //   考卷随【分值标注】注入、其余题类随【层级与组织】注入，同一份实发只出现一次。
     'ANSWER_STEM_CALIBER',
     // 🗑 2026-10-10（属主裁定·删编法规定）：'QUESTION_NUMBERING_CALIBER' 已整块删除

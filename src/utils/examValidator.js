@@ -1198,14 +1198,11 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           }
         }
         const uniqTotals = [...new Set(itemsB.map((x) => x.total))];
+        // ⚠️ 2026-10-27：原 `itemsB.length === 1` 补分分支是**不可达死代码**——上方 `itemsB.length < 2` 已先 return
+        //   （2026-10-26 B2 单题干早退）。按属主 2026-10-27 的 A 基准，单题干大题的分由**模型写在标题后**，
+        //   程序既不补也不改 ⇒ 删除该死分支，不留"看起来会补"的假路径（守卫：`scoreStructureContract` ④）。
         let labelB = null;
-        if (itemsB.length === 1) {
-          // 2026-10-24（属主："1 题的大题不能没有分"）：A 侧带号大题标题不带小题分值，
-          //   1 题的大题原先在 `itemsB.length < 2` 处直接返回 ⇒ 整组无分。现补合成，但不写"每题X分"（1 题谈不上每题）。
-          //   标题若已带分值（含"（共1题，共15分）"这类），原样保留——只补一次，不叠第二道括注。
-          if (/(\d+(?:\.\d+)?)\s*分\s*[)）]\s*$/.test(t)) return;
-          labelB = `（共${itemsB[0].total}分）`;
-        } else if (uniqTotals.length === 1) {
+        if (uniqTotals.length === 1) {
           labelB = `（每题${uniqTotals[0]}分，共${sumTotals}分）`;
         } else {
           // 按每题总分分组；组序＝该档第一次出现的顺序，组内题号升序；≥2 题用“各”，1 题不用。
