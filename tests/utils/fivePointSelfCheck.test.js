@@ -28,10 +28,10 @@ describe('① 编号/不编号：结构事实判定 + 两支各自的动作', ()
     // 块切片锚行首：【卷面结构】里行内引用"按【分值标注】判"不算块起点。
     const scoreBlock = (t.match(/^【分值标注】([\s\S]*?)(?=\n\n【)/m) || [, ''])[1];
     // 2026-10-28（属主 A/B 基准）：判据各自成条、一处一分。
-    expect(scoreBlock, '单题干：分写在标题后').toContain('单题干（整栏合一）**：**分写在标题后**');
-    expect(scoreBlock, '多题干：分写在每题题干后').toContain('多题干（逐题独立）**：**分写在每题题干后**');
+    expect(scoreBlock, '有号：分写在每题题干后').toContain('分跟着号走**：**分写在每题题干后');
+    expect(scoreBlock, '无号：分只在标题后一处').toContain('整栏没有小号序号的，这一栏的分只写在标题后一处');
     expect(scoreBlock, '先分配、后落实').toContain('先分配、后落实');
-    expect(scoreBlock, '大题标题也写它分到的那一份').toContain('大题标题同样写它分到的那一份');
+    expect(scoreBlock, '标题写这一栏的分').toContain('标题写这一栏的分');
     expect(scoreBlock, '旧双记账不得回潮').not.toContain('标题与题内两处都要有');
     expect(scoreBlock, '（共Y分）中间态不得回潮').not.toContain('大题标题写"（共Y分）"');
     expect(scoreBlock, '位置：材料与作答载体之后').toContain('全部材料与作答载体之后');
@@ -139,7 +139,6 @@ describe('② 标分：形态唯一（全式），Y 由单价×个数', () => {
     const t = tpl();
     expect(t).toContain('（每〈单位〉X分，共Y分）');
     expect(t, 'Y 须与该题干实际作答对象个数相符').toContain('Y＝X×N');
-    expect(t, '禁止先定总分倒推单价').toContain('不得先定总分再倒推单价');
     expect(t, '整片书写区按 1 处计').toContain('整片书写区按 1 处计');
     expect(t, '旧"一处裸分/多处全式"二选一不得回潮').not.toContain('一处判分写裸分');
   });
@@ -231,8 +230,8 @@ describe('③ 逐题标：每道作答题干都要有分（A 的活，缺了程�
   it('判据单源：分值块写死各处落点，题干格式条不复述同一义务', () => {
     const t = tpl();
     expect(t, '多题干：每题题干后都有分').toContain('分写在每题题干后');
-    expect(t, '单题干：分写在标题后').toContain('单题干（整栏合一）**：**分写在标题后**');
-    expect(t, '位置：材料与作答载体之后').toContain('分值括注写在**全部材料与作答载体之后**');
+    expect(t, '无号：分写在标题后一处').toContain('整栏没有小号序号的，这一栏的分只写在标题后一处');
+    expect(t, '位置：材料与作答载体之后').toContain('写在**全部材料与作答载体之后**');
     expect(t, '题干格式条不得再写一遍（单源）').not.toContain('带题号的题，分就写在');
   });
 
@@ -361,7 +360,8 @@ describe('⑦ 分值自洽：模型侧逐层核（硬性·每题→（多题干�
       expect(i, `${name} 层必须在位`).toBeGreaterThan(-1);
     }
     expect(i1 < i2 && i2 < i3, '三层必须按顺序验（一层都不得跳）').toBe(true);
-    expect(t, '满分是给定值、不可改').toContain('不得改动满分');
+    // 满分是给定值这一事实单源在【卷首】（"按给定值原样写入…不修改"）；分值条只留等式。
+    expect(t, '满分是给定值、不可改（单源在卷首）').toContain('不自行计算、不修改');
   });
 
   it('中学：与小学同一套账目（不另设第二套）', () => {

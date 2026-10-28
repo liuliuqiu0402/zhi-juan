@@ -63,14 +63,15 @@ describe('分值块整块快照（拆条/并条/调序/换词 ⇒ 红）', () =>
   it('快照本身两块齐全、没退化成空块（防"清空快照即全绿"）', () => {
     for (const head of BLOCKS) expect(SNAP.has(head), `快照缺 ${head}`).toBe(true);
     const score = SNAP.get('【分值标注】');
-    // 只防"清空/退化成空块"；字数不是判据（2026-10-28 换代为 784 字，随判据收口继续减也应允许）。
-    expect(score.length, '分值标注字数（防清空）').toBeGreaterThan(600);
+    // 只防"清空/退化成空块"；字数不是判据（2026-10-28 判据与执行分离后约为 970 字，
+    //   结构判定保留在本块但只关编号，标分由"有没有小号"触发）。
+    expect(score.length, '分值标注字数（防清空）').toBeGreaterThan(450);
     expect(score.split('\n').length, '分值标注条数').toBeGreaterThanOrEqual(6);
-    expect(score, '结构判定在位').toContain('遮住大题标题、只看其中一项');
-    expect(score, '单题干落点在位').toContain('单题干（整栏合一）**：**分写在标题后**');
-    expect(score, '多题干落点在位').toContain('多题干（逐题独立）**：**分写在每题题干后**');
+    expect(score, '结构判定在位（只关编号）').toContain('遮住大题标题、只看其中一项');
+    expect(score, '有号：分跟着号走').toContain('分跟着号走**：**分写在每题题干后');
+    expect(score, '无号：分只写在标题后一处').toContain('整栏没有小号序号的，这一栏的分只写在标题后一处');
     expect(score, '先分配、后落实在位').toContain('先分配、后落实');
-    expect(score, '标题也写分在位').toContain('大题标题同样写它分到的那一份');
+    expect(score, '标题写这一栏的分').toContain('标题写这一栏的分');
     expect(score, '逐层验算在位').toContain('各大题分之和＝给定满分');
     const self = SNAP.get('【卷面自洽】');
     expect(self, '仲裁句在位').toContain('不逐题复述');

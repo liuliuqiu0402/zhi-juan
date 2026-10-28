@@ -1,4 +1,4 @@
-﻿// 题号 × 标题 × A × B —— 组合矩阵（2026-10-19 属主："各种可能涉及到的情况全部测试下"）
+// 题号 × 标题 × A × B —— 组合矩阵（2026-10-19 属主："各种可能涉及到的情况全部测试下"）
 // ============================================================
 // 覆盖维度：
 //   D1 题号层：无题号 / 每题带号 / 仅 1 题
@@ -108,18 +108,16 @@ describe('题号×标题×A×B 组合矩阵', () => {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t, '结构判定：数独立题干').toContain('遮住大题标题、只看其中一项');
       expect(t, '多题干落点在每题题干后').toContain('分写在每题题干后');
-      expect(t, '大题标题也写它分到的那一份').toContain('大题标题同样写它分到的那一份');
+      expect(t, '标题写这一栏的分').toContain('标题写这一栏的分');
       expect(t, '先分配、后落实').toContain('先分配、后落实');
-      expect(t, '无号：题内不标').toContain('单题干（整栏合一）**：**分写在标题后**');
+      expect(t, '无号：分只写在标题后').toContain('整栏没有小号序号的，这一栏的分只写在标题后一处');
       expect(t, '单题干：不加小号序号').toContain('不加小号序号');
       expect(t, '多题干：分写在每题题干后全式').toContain('分写在每题题干后');
       expect(t, '（共Y分）中间态不得回潮').not.toContain('大题标题写"（共Y分）"');
       expect(t, '单价先定、再乘个数').toContain('Y＝X×N');
-      expect(t, '禁止倒推').toContain('不得先定总分再倒推单价');
       expect(t, '单价不枚举档值').not.toContain('{scoreUnitLadder}');
       expect(t, '合计自洽').toContain('该大题总分＝其下各题 Y 之和');
       expect(t, '试卷层账目').toContain('各大题分之和＝给定满分');
-      expect(t, '满分不可改').toContain('不得改动满分');
       // 反向锁：旧语义判据与旧形态整类清除
       expect(t, '旧"号是点名用的"不得回潮').not.toContain('号是点名用的');
       expect(t, '旧"带小题号"不得回潮').not.toContain('带小题号');

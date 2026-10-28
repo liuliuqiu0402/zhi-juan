@@ -1,4 +1,4 @@
-﻿import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getPromptTemplate, buildInjectionInstruction, CURRICULUM_BY_STAGE, getCurriculumLabel, SUBJECT_STAGE_EXTRAS, STAGE_EXAM_EXTRAS, STAGE_TEACHING_EXTRAS, ANSWER_ROLES, PAPER_OUTPUT_CONVENTIONS, buildAnswerFormatSpec, NUMBERING_HIERARCHY_RULE, GROUP_TITLE_NUMBERING_CALIBER, QUESTION_OBJECT_CALIBER } from '../../src/config/promptLibrary.js';
@@ -521,7 +521,7 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
     // 🔴 2026-10-17（逐层验归位）：原"本大题分值＝单价×该大题实际判分处数"是**整大题一次乘法**（需先有"整大题判分处总数"，
     //    等于又逼模型去数/编号）；现改为**逐题**：各独立题干分＝该题单价×该题判分处数，大题总分由其累加。
     // 2026-10-26（换代）：正序由"先定单价、再乘个数"承载（不先定总分倒推）。
-    expect(t, '正序：先定单价、再乘个数（不先定分数去凑内容）').toContain('不得先定总分再倒推单价');
+    expect(t, '正序：先定单价、再乘个数').toContain('先定单价 X');
     // 🔴 2026-10-16（属主"填空题按小题标分"）：计分自证由**大题级除法**（共Y分÷单价＝总数）下沉为**题级**
     //    （该小题分值＝该小题判分处数×单价）。大题级除法正是"空与分值对不上"的来源——模型数不准整大题的空；
     //    改成题级后只需数本小题的空（属主："模型数一个小题的空，是好数的"），且不产生"总分÷单价除不尽"。

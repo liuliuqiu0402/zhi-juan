@@ -140,30 +140,30 @@ describe('端到端矩阵：标题 × 大题号 × 小题号 × 标分（A→B�
   });
 });
 
-// ── 判据侧：**结构事实**一处定义（一个大题下有几个独立成 <p class="question"> 的题干）──
+// ── 判据侧：**结构事实**只在编号块定义（一个大题下有几个独立成 <p class="question"> 的题干）──
 describe('判据可判定性：并列算式＝单题干；带号小题＝多题干', () => {
   const t = getPromptTemplate({ grade: 'primary_mid', subject: '数学', genType: 'exam' }).template;
   // 块切片必须**锚行首**：【卷面结构】块头会行内引用"一律按【分值标注】…"，按子串取首个命中会把引用当成块起点。
   const score = (t.match(/^【分值标注】([\s\S]*?)(?=\n\n【)/m) || [, ''])[1];
 
   it('结构判定：同一题干内的并列小项不另算；1 个＝单题干、≥2 个＝多题干', () => {
-    expect(score, '作答题干定义').toContain('遮住大题标题、只看其中一项');
-    expect(score, '并列小项不另算').toContain('题前加小号序号');
-    expect(score, '单题干').toContain('（单题干）');
-    expect(score, '多题干').toContain('（多题干）');
+    expect(t, '作答题干定义').toContain('遮住大题标题、只看其中一项');
+    expect(t, '并列小项不另算').toContain('题前加小号序号');
+    expect(t, '单题干').toContain('（单题干）');
+    expect(t, '多题干').toContain('（多题干）');
   });
 
   it('无号的栏 ⇒ 分写在标题后（一处）', () => {
-    expect(score, '单题干：分写在标题后').toContain('单题干（整栏合一）**：**分写在标题后**');
+    expect(score, '无号：分只写在标题后一处').toContain('整栏没有小号序号的，这一栏的分只写在标题后一处');
     // 🔴 2026-10-24（属主："不要人为干预模型的能力"）："不得为凑总分编题"已删，防回潮。
     expect(score, '"不得为凑总分编题"不得回潮').not.toContain('不得为凑总分编题');
   });
 
-  it('有号的题 ⇒ 每题题干后各一处全式', () => {
-    expect(score, '有号：分写在每题题干后').toContain('多题干（逐题独立）**：**分写在每题题干后**');
-    expect(score, '多题干：Y 只算这一题').toContain('Y 只算这一题');
+  it('有号的题 ⇒ 每题题干后各一处', () => {
+    expect(score, '有号：分跟着号走、分写在每题题干后').toContain('分跟着号走**：**分写在每题题干后');
+    expect(score, '每题写它自己的分').toContain('写它自己的分');
     // 🔴 2026-10-27（属主："（共Z分）整个删掉"）：不让模型写它算不出来的数。
-    expect(score, '（共Y分）中间态不得回潮').not.toContain('大题标题写"（共Y分）"');
+    expect(score, '（共Y分）旧句不得回潮').not.toContain('大题标题写"（共Y分）"');
   });
 
   it('结构事实一处定义、旧语义判据不得回潮', () => {
@@ -175,7 +175,7 @@ describe('判据可判定性：并列算式＝单题干；带号小题＝多题�
   it('中学：与小学同一套判据（不另设"标题只作范围标识"的第二套）', () => {
     const mid = getPromptTemplate({ grade: 'middle', subject: '语文', genType: 'exam' }).template;
     expect(mid, '中学仍是同一结构判定').toContain('（多题干）');
-    expect(mid, '中学仍走同一套判据（标题也写分）').toContain('大题标题同样写它分到的那一份');
+    expect(mid, '中学仍走同一套判据（标题也写分）').toContain('标题写这一栏的分');
     expect(mid, '旧"标题只作范围标识"分叉不得回潮').not.toContain('标题只作范围标识');
   });
 });

@@ -1084,7 +1084,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
         const hasScoreTextP = needP.filter((x) => /\d+(?:\.\d+)?\s*分/.test(itemBlockText(x.el))).length;
         const sampleP = (itemBlockText(needP[0].el) || '').replace(/\s+/g, ' ').trim().slice(0, 36);
         silentCount('title-unit-misplaced',
-          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}${hasScoreTextP ? `（其中 ${hasScoreTextP} 道题内有"X分"字样但未被识别）` : '（题内没有"X分"字样＝确实没写）'}——按【分值标注】标：有号的题，每题题干后写它自己的"（每〈单位〉X分，共Y分）"；标题里的共Y要和这些分之和相等，所以标题写了单价也不代替题内；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）｜取证·首题原文：「${sampleP}」`, 'warn');
+          `大题「${t}」其下有 ${needP.length} 道带题号的题没标分${blindP ? `（其中 ${blindP} 道题内没有被识别到的作答位）` : ''}${hasScoreTextP ? `（其中 ${hasScoreTextP} 道题内有"X分"字样但未被识别）` : '（题内没有"X分"字样＝确实没写）'}——按【分值标注】标：每题题干后写它自己的"（每〈单位〉X分，共Y分）"，大题标题后也写这一栏的分（Y＝各题 Y 之和）；程序不补分、不改数、不动结构（原标题每${unitName}${fmtScore(unitPrice)}分、共${fmtScore(declared)}分只作核对，标题因 Σ 不完整也不合成）｜取证·首题原文：「${sampleP}」`, 'warn');
         return;
       });
       out = tplP.innerHTML;
@@ -1190,7 +1190,7 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           if (!/[（(]\s*每/.test(t)) {
             const hasTextB = missingB.filter((x) => /\d+(?:\.\d+)?\s*分/.test(x.raw || '')).length;
             silentCount('title-unit-misplaced',
-              `大题「${t}」其下有 ${missingB.length} 道带题号的题没标分${hasTextB ? `（其中 ${hasTextB} 道题内有"X分"字样但未被识别）` : '（题内没有"X分"字样＝确实没写）'}——按【分值标注】标：有号的题，每题题干后写它自己的"（每〈单位〉X分，共Y分）"（标题里的共Y＝各题之和，标题写了单价也不代替题内）；程序不补分、不改数、不动结构`, 'warn');
+              `大题「${t}」其下有 ${missingB.length} 道带题号的题没标分${hasTextB ? `（其中 ${hasTextB} 道题内有"X分"字样但未被识别）` : '（题内没有"X分"字样＝确实没写）'}——按【分值标注】标：每题题干后写它自己的"（每〈单位〉X分，共Y分）"，大题标题后也写这一栏的分（Y＝各题 Y 之和）；程序不补分、不改数、不动结构`, 'warn');
           }
           return;
         }
