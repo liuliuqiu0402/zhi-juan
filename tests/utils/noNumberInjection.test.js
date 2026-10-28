@@ -67,8 +67,9 @@ describe('程序侧不得新增小题号/小题标题', () => {
       //   防"分值倒推编号"由编号判据承载（编号只看有没有只属于它自己的题干话）。
       expect(t, `${stage}：分值不许成为补号的理由（判据在位）`).toContain('遮住大题标题、只看其中一项');
       expect(t, `${stage}："不得为凑总分编题"不得回潮`).not.toContain('不得为凑总分编题');
-      expect(t, `${stage}：单题干 ⇒ 不加小号序号`).toContain('单作答题干大题不加小号序号');
-      expect(t, `${stage}：标题写法两种情况相同`).toContain('两种情况相同');
+      expect(t, `${stage}：单题干 ⇒ 不加小号序号`).toContain('不加小号序号');
+      expect(t, `${stage}：单题干落点（标题后）`).toContain('单题干（整栏合一）**：**分写在标题后**');
+      expect(t, `${stage}：旧"两种情况相同"不得回潮`).not.toContain('两种情况相同');
     }
   });
 });

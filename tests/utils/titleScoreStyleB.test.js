@@ -92,6 +92,27 @@ describe('B：把 A 的逐题标注合成为真题标题', () => {
     expect(out.join('|'), '不得出现"第4、5、6、7小题各1分"（单价冒充题分）').not.toContain('各1分');
   });
 
+  it('选择题：分写在最后一个选项之后 → 仍读得到（防把"读不到"误判成"模型没标"）', () => {
+    const html = [
+      '<h1>阶段测评</h1>',
+      '<h3>五、选择（每题2分，共4分）</h3>',
+      '<p class="question">1. 下列正确的是（　）</p>',
+      '<p class="option">A. 甲</p>',
+      '<p class="option">B. 乙</p>',
+      '<p class="option">C. 丙</p>',
+      '<p class="option">D. 丁（每题2分，共2分）</p>',
+      '<p class="question">2. 下列错误的是（　）</p>',
+      '<p class="option">A. 甲</p>',
+      '<p class="option">B. 乙</p>',
+      '<p class="option">C. 丙</p>',
+      '<p class="option">D. 丁（每题2分，共2分）</p>',
+    ].join('\n');
+    const r = run(html);
+    expect(titles(r.html)).toContain('五、选择（每题2分，共4分）');
+    const msgs = [...(r.issues || []), ...(r.silentDetails || [])].map((x) => x.message || '');
+    expect(msgs.filter((m) => /没标分/.test(m)), '不得误报缺分').toEqual([]);
+  });
+
   it('答案区同名大题标题同样合成（同一规则跑整份）', () => {
     const html = [
       '<h1>阶段测评</h1>',

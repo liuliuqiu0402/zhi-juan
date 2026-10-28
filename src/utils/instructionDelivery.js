@@ -10,7 +10,7 @@
  *        "标题写单价、题内不标分"。
  * 纪律：本模块不读 localStorage、不拼提示词、不改内容；调用方只拿结果去打日志/告警。
  */
-import { SCORE_TWO_PLACES } from '../config/promptLibrary.js';
+import { SCORE_PLACE_ANCHOR } from '../config/promptLibrary.js';
 
 /** 形态探针：认结构，不认整句措辞（换措辞后仍有效） */
 const PROBES = {
@@ -18,12 +18,13 @@ const PROBES = {
   structure: /遮住大题标题[、，]?只看其中一项/,
   singleStem: /整栏合一（单题干）/,
   multiStem: /逐题独立（多题干）/,
-  perItemFull: /每题题干后[^。；\n]{0,6}标/,
+  perItemFull: /每题题干后[^。；\n]{0,6}标|分写在每题题干后/,
   perItemValue: /每〈单位〉X分，共Y分/,
   titleTotal: /大题标题写/,
   // 版本指纹（**单源**）：句子取自 promptLibrary 的常量，正文与探针不可能再失配。
   // 2026-10-28（属主："强制刷新和重启都试了…都是你在改动"）：此前手抄整句 ⇒ 文本一改就误报"旧版实发"。
-  twoPlaces: new RegExp(SCORE_TWO_PLACES.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+  // 2026-10-28（A/B 基准）：指纹由"两处都要有"改为落点句"分写在每题题干后"。
+  placeSplit: new RegExp(SCORE_PLACE_ANCHOR.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
 };
 
 /** 旧口径残留（出现即说明实发里还夹着旧判据） */
@@ -32,6 +33,9 @@ const LEGACY = [
   { key: '不带小题号（整组都不带）', probe: /不带小题号/ },
   { key: '小题后不再逐个标', probe: /小题后不再/ },
   { key: '不是标题里要填的数字', probe: /不是标题里要填的数字/ },
+  // 2026-10-28（A/B 澄清版）：旧句"标题与题内两处都要有"已换成"两处各写各自的那一份"——
+  //   保留为旧版指纹：出现它即说明实发是上一版措辞。
+  { key: '旧句「标题与题内两处都要有」', probe: /标题与题内两处都要有/ },
 ];
 
 /**
@@ -49,7 +53,7 @@ export const inspectScoreClause = (text = '') => {
     perItemFull: PROBES.perItemFull.test(t),
     perItemValue: PROBES.perItemValue.test(t),
     titleTotal: PROBES.titleTotal.test(t),
-    twoPlaces: PROBES.twoPlaces.test(t),
+    placeSplit: PROBES.placeSplit.test(t),
   };
   const legacy = LEGACY.filter((x) => x.probe.test(t)).map((x) => x.key);
 
@@ -59,12 +63,12 @@ export const inspectScoreClause = (text = '') => {
   if (!present.structure) missing.push('结构判定句不在');
   if (!present.singleStem || !present.multiStem) missing.push('单/多题干两支不在');
   if (!present.perItemFull) missing.push('逐题标分要求不在');
-  if (!present.twoPlaces) missing.push(`「${SCORE_TWO_PLACES}」不在（实发不是现行分值条：请确认构建已更新，且模板为内置版）`);
+  if (!present.placeSplit) missing.push(`「${SCORE_PLACE_ANCHOR}」不在（实发不是现行分值条：请确认构建已更新，且模板为内置版）`);
   if (legacy.length) missing.push(`旧口径残留：${legacy.join('、')}`);
 
   const ok = missing.length === 0;
   const verdict = ok
-    ? `送达正常（块 ${blocks}｜结构判定 在｜单/多题干 在｜两处都标 在｜旧口径 无）`
+    ? `送达正常（块 ${blocks}｜结构判定 在｜单/多题干 在｜一处一分 在｜旧口径 无）`
     : `送达异常：${missing.join('；')}`;
   return { ok, blocks, present, legacy, verdict };
 };

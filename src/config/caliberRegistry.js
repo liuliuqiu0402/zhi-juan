@@ -80,7 +80,9 @@ export const PROMPT_CONSTANTS = {
     'ANSWER_STEM_CALIBER',
     // 2026-10-28（属主："强制刷新和重启都试了…都是你在改动"）：**分值条版本指纹句**，单源。
     //   正文用插值、送达探针（instructionDelivery）引用同一常量 ⇒ 改文本不会再让探针误报"旧版实发"。
-    'SCORE_TWO_PLACES',
+    //   🔴 2026-10-28（A/B 基准换代）：原 `SCORE_TWO_PLACES`（"标题与题内两处都要有"）随判据废除——
+    //   两处记同一份分是逆写作顺序的机制源；现行指纹＝落点句"分写在每题题干后"。
+    'SCORE_PLACE_ANCHOR',
     // 🗑 2026-10-10（属主裁定·删编法规定）：'QUESTION_NUMBERING_CALIBER' 已整块删除
     //   （小题号"全卷连续／各自起编"是**约束**、会逼出硬编小题号；"哪些题该编号"由编号对象口径单源承载）。
     'QUESTION_OBJECT_CALIBER',

@@ -6500,7 +6500,8 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
         const m = instructionDraft.value.match(/(?:^|\n)【分值标注[^】]*】([\s\S]*?)(?=\n【|$)/);
         if (m) console.log(`🧾 本次实发【分值标注】原文：\n${m[1].trim()}`);
       }
-      console.log(`🧾 版本指纹: 两处都标=${delivery.present.twoPlaces}｜写题处标分=${instructionDraft.value.includes('写完题干就把这道题的分写上')}｜块数=${delivery.blocks}｜来源=${tpl.source}`);
+      // 2026-10-28（A/B 基准）：指纹项由"两处都标"改为"落点分裂在"（单题干→标题后／多题干→每题题干后）。
+      console.log(`🧾 版本指纹: 落点分裂=${delivery.present.placeSplit}｜写题处标分=${instructionDraft.value.includes('写完题干就把这道题的分写上')}｜块数=${delivery.blocks}｜来源=${tpl.source}`);
       if (!delivery.ok || !hasHead) {
         console.warn(
           `⚠️ 本次实发的分值条不是现行版：${delivery.verdict}${hasHead ? '' : '；卷首固定顺序不在'}。` +

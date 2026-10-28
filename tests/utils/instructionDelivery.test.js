@@ -20,7 +20,7 @@ describe('分值条送达体检', () => {
     expect(r.present.singleStem).toBe(true);
     expect(r.present.multiStem).toBe(true);
     expect(r.present.perItemFull, '逐题标分要求').toBe(true);
-    expect(r.present.twoPlaces, '版本指纹：标题与题内两处都要有').toBe(true);
+    expect(r.present.placeSplit, '版本指纹：分写在每题题干后').toBe(true);
     expect(r.legacy, '旧口径不得残留').toEqual([]);
     expect(r.ok, r.verdict).toBe(true);
   });
@@ -48,13 +48,20 @@ describe('分值条送达体检', () => {
     expect(r.verdict).toContain('整块不在');
   });
 
-  it('只认形态、不认措辞：换掉整句措辞但结构在，也算送达', () => {
+  it('只认形态、不认措辞：换掉非指纹整句措辞但结构在，也算送达', () => {
     const reworded = current
       .replace('遮住大题标题、只看其中一项（标题里的字不算）', '遮住大题标题、只看其中一项（标题不算）')
-      .replace('每题题干后必须标', '每题题干后须标');
+      .replace('真实作答对象个数', '实际作答对象个数');
     const r = inspectScoreClause(reworded);
     expect(r.present.structure, '结构句仍认得出').toBe(true);
     expect(r.present.perItemFull).toBe(true);
     expect(r.ok, r.verdict).toBe(true);
+  });
+
+  it('旧版"两处都要有"残留：判为旧口径（上一版措辞）', () => {
+    const stale = `${current}\n· **有号的栏，标题与题内两处都要有**`;
+    const r = inspectScoreClause(stale);
+    expect(r.legacy).toContain('旧句「标题与题内两处都要有」');
+    expect(r.ok).toBe(false);
   });
 });

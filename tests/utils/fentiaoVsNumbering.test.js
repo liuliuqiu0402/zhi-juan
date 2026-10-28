@@ -33,15 +33,15 @@ describe('② A 侧：并列算式行不是多个作答题干', () => {
     expect(ANSWER_STEM_CALIBER, '同一题干内的并列小项不另算').toContain('题前加小号序号');
     expect(QUESTION_OBJECT_CALIBER, '第二把尺（各自有独立题干）不得回潮').not.toMatch(/各自有独立题干|只属于它的陈述或问题/);
     const t = tpl('exam', '数学', 'primary_mid');
-    expect(t, '单题干：不加小号序号').toContain('单作答题干大题不加小号序号');
-    expect(t, '标题写法两种情况相同').toContain('两种情况相同');
+    expect(t, '单题干：不加小号序号').toContain('不加小号序号');
+    expect(t, '单题干落点：标题后').toContain('单题干（整栏合一）**：**分写在标题后**');
   });
 
   it('两支名在位；旧"每道题各自编号"不得回潮（防"每题都要有号"的二次推力）', () => {
     for (const st of ['primary_low', 'middle']) {
       const t = tpl('exam', '数学', st);
-      expect(t, `${st}：标题写法两种情况相同`).toContain('两种情况相同');
-      expect(t, `${st}：多题干 → 每题题干后必须标全式`).toContain('每题题干后必须标');
+      expect(t, `${st}：多题干落点在题干后`).toContain('分写在每题题干后');
+      expect(t, `${st}：大题标题也写它分到的那一份`).toContain('大题标题同样写它分到的那一份');
       expect(t, `${st}：不得再写"每道题各自编号"`).not.toContain('每道题各自编号');
       expect(t, `${st}：旧两支不得回潮`).not.toContain('这一组是多件');
       expect(t, `${st}：旧补救句不得回潮`).not.toContain('标题若已写成单价');

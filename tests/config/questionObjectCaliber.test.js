@@ -53,7 +53,7 @@ describe('卷面层级与分值自验（本次换代不得顺带削掉）', () =
     const ex = tpl('exam');
     expect(ex, '大题序号：一、二、三…（跨大类/部分接着编）仍在').toContain('跨大类/部分接着编');
     expect(ex, '⚠️「全卷连续」四字不得回潮（会被读成题号层也连续 ⇒ 每个题干都要给号）').not.toContain('全卷连续');
-    expect(ex, '逐层自验：（多题干） 该栏标题所标').toContain('该栏标题所标');
+    expect(ex, '逐层自验：（多题干） 该大题总分＝其下各题 Y 之和').toContain('该大题总分＝其下各题 Y 之和');
     expect(ex, '试卷层：各大题分之和＝给定满分').toContain('各大题分之和＝给定满分');
     expect(ex, '满分是给定值、不可改').toContain('不得改动满分');
   });

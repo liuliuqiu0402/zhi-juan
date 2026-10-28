@@ -3,14 +3,17 @@
 // ------------------------------------------------------------
 // 覆盖两块（判据级分组，**块内拆分也属改动**）：
 //   · 【分值标注】——结构判定／先定单价／题内标分／标题写法／位置／分问／逐层验算
-//   · 【卷面自洽】——含"只出一次／不逐题复述"与"分值不是复述"的仲裁句
+//   · 【卷面自洽】——含"只出一次／不逐题复述"与其管辖域（只管标题与说明，不管标分）
 // 与既有守卫的分工：
 //   · `scoreClauseContract`   —— 锁**骨头**（换词可以过）
 //   · `scoreClauseArbitration` —— 锁**仲裁关系**（同条必须有分值豁免）
 //   · **本文件** —— 锁**整块文字与分组**：逐字比对，**拆条/并条/调序/换词一律红**
 // 真机教训：200377e（完美标分）之后把【分值标注】按"一行一判据"拆成 20 条，
 //   题内标分与"标题与题内两处都要有"被拆散、指代断开 ⇒ 小题整段不标分。
-// 允许改的唯一路径：`node scripts/snapshotScoreClause.mjs` 显式更新快照（并真机验证标分结果）。
+// 2026-10-28（A/B 基准）：那份"完美版"本身有两份记账（标题 Σ ＋ 题内），是"一改就崩"的机制源；
+//   现按 A 案一处一分。**本快照是"防手滑"的冻结，不是"文本不可再审"的裁定**——按设计改文本时，
+//   用脚本显式更新快照并在提交信息写清依据即可。
+// 允许改的唯一路径：`node scripts/snapshotScoreClause.mjs` 显式更新快照。
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
@@ -60,15 +63,18 @@ describe('分值块整块快照（拆条/并条/调序/换词 ⇒ 红）', () =>
   it('快照本身两块齐全、没退化成空块（防"清空快照即全绿"）', () => {
     for (const head of BLOCKS) expect(SNAP.has(head), `快照缺 ${head}`).toBe(true);
     const score = SNAP.get('【分值标注】');
-    expect(score.length, '分值标注字数').toBeGreaterThan(800);
+    // 只防"清空/退化成空块"；字数不是判据（2026-10-28 换代为 784 字，随判据收口继续减也应允许）。
+    expect(score.length, '分值标注字数（防清空）').toBeGreaterThan(600);
     expect(score.split('\n').length, '分值标注条数').toBeGreaterThanOrEqual(6);
     expect(score, '结构判定在位').toContain('遮住大题标题、只看其中一项');
-    expect(score, '题内标分在位').toContain('每题题干后必须标');
-    expect(score, '有号的栏：标题与题内两处都要有').toContain('有号的栏，标题与题内两处都要有');
+    expect(score, '单题干落点在位').toContain('单题干（整栏合一）**：**分写在标题后**');
+    expect(score, '多题干落点在位').toContain('多题干（逐题独立）**：**分写在每题题干后**');
+    expect(score, '先分配、后落实在位').toContain('先分配、后落实');
+    expect(score, '标题也写分在位').toContain('大题标题同样写它分到的那一份');
     expect(score, '逐层验算在位').toContain('各大题分之和＝给定满分');
     const self = SNAP.get('【卷面自洽】');
     expect(self, '仲裁句在位').toContain('不逐题复述');
-    expect(self, '分值豁免在位').toContain('分值不是复述');
+    expect(self, '管辖域在位（只管标题与说明，不管标分）').toContain('标题与作答说明');
   });
 
   it('全部 54 个学科×学段组合：两块文本与快照逐字一致', () => {
@@ -92,7 +98,7 @@ describe('分值块整块快照（拆条/并条/调序/换词 ⇒ 红）', () =>
     const merged = score.replace('\n· **先定单价、后乘个数**', '；**先定单价、后乘个数**');
     expect(merged === score, '并条后必须与快照不等').toBe(false);
     const self = SNAP.get('【卷面自洽】');
-    const split = self.replace('；**分值不是复述', '\n· **分值不是复述');
+    const split = self.replace('· **标题与作答说明**：', '\n· **标题与作答说明**：');
     expect(split === self, '把仲裁句拆出去必须与快照不等').toBe(false);
   });
 });

@@ -6,7 +6,7 @@
 // 2026-10-24 收成一条语义开关（"号是点名用的／各项有没有只属于它自己的题干话"）——**仍是语义判定**，
 //   真机实证：整卷不标分（模型对同一行可给出相反解释）。
 // 2026-10-26 属主定稿：改为**结构事实**——一个大题下有几个独立成 `<p class="question">` 的题干：
-//   1 个 ⇒ （单题干）（不加小号序号、标题不写分值）；≥2 个 ⇒ （多题干）（各题干前加小号序号、每题题干后必须标全式）。
+//   1 个 ⇒ （单题干）（不加小号序号、标题不写分值）；≥2 个 ⇒ （多题干）（各题干前加小号序号、分写在每题题干后全式）。
 // 本文件锁三件事：
 //   ① 该定义只在库内写一份，且每份实发里**只出现一次**（考卷随【分值标注】、其余题类随【层级与组织】）；
 //   ② 旧语义判据零出现（不得散回去、不得回潮）；
@@ -58,12 +58,17 @@ describe('编号判据单源（2026-10-26 结构事实）', () => {
     }
   });
 
-  it('起编与样式只写一处（QOC），各题类都携带', () => {
+  it('起编与样式只写一处（结构判定），各题类都携带', () => {
     for (const [sj, st, g] of ALL) {
       expect(count(tpl(sj, st, g), QUESTION_OBJECT_CALIBER), `${g}|${st}|${sj}`).toBe(1);
+      expect(count(tpl(sj, st, g), ANSWER_STEM_CALIBER), `${g}|${st}|${sj}`).toBe(1);
     }
-    expect(QUESTION_OBJECT_CALIBER, '样式写死一种').toContain('1. 2. 3.');
-    expect(QUESTION_OBJECT_CALIBER, '起编按注入').toContain('{subQuestionNumbering}');
+    // 2026-10-28：编号样式与起编并入结构判定（判决、段、号一处产出）——
+    //   原在 QOC 的"多作答就编号"平推规则是绕过判决的第二条路径，已整句删除。
+    expect(ANSWER_STEM_CALIBER, '样式单源（题前加小号序号）').toContain('题前加小号序号');
+    expect(ANSWER_STEM_CALIBER, '起编按注入').toContain('{subQuestionNumbering}');
+    expect(QUESTION_OBJECT_CALIBER, '编号平推规则不得回潮').not.toContain('多作答题干大题下');
+    expect(QUESTION_OBJECT_CALIBER, '起编不得在第二处再写').not.toContain('{subQuestionNumbering}');
   });
 
   it('教辅：不判分（不加载【分值标注】、不出现中间态分值）', () => {

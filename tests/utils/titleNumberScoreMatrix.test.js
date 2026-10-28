@@ -102,20 +102,22 @@ describe('题号×标题×A×B 组合矩阵', () => {
   //   第①步只判"这一组各项有没有只属于它自己的题干话"；带号 ⇒ 逐题标分、标题分由程序合成；
   //   不带号 ⇒ 不写号、单价只在大标题、题内不标分。旧"成题区/直答区"两把尺与"一题一标（成题区）"全部清除。
   // 🔴 2026-10-26（属主定稿·结构事实）：编号与标分都由"一个大题下有几个独立成 <p class="question"> 的题干"
-  //   派生——1 个 ⇒ 单题干（不加小号序号、标题不写分值）；≥2 个 ⇒ 多题干（各题干前加号、每题题干后必须标全式）。
+  //   派生——1 个 ⇒ 单题干（不加小号序号、标题不写分值）；≥2 个 ⇒ 多题干（各题干前加号、分写在每题题干后全式）。
   it('A 侧：单/多题干两支各写后果（两学段）', () => {
     for (const stage of ['primary_low', 'middle']) {
       const t = getPromptTemplate({ grade: stage, subject: '数学', genType: 'exam' }).template;
       expect(t, '结构判定：数独立题干').toContain('遮住大题标题、只看其中一项');
-      expect(t, '标题写法两种情况相同').toContain('两种情况相同');
-      expect(t, '无号：题内不标').toContain('无号的栏：题内不标');
-      expect(t, '单题干：不加小号序号').toContain('单作答题干大题不加小号序号');
-      expect(t, '多题干：每题题干后必须标全式').toContain('每题题干后必须标');
+      expect(t, '多题干落点在每题题干后').toContain('分写在每题题干后');
+      expect(t, '大题标题也写它分到的那一份').toContain('大题标题同样写它分到的那一份');
+      expect(t, '先分配、后落实').toContain('先分配、后落实');
+      expect(t, '无号：题内不标').toContain('单题干（整栏合一）**：**分写在标题后**');
+      expect(t, '单题干：不加小号序号').toContain('不加小号序号');
+      expect(t, '多题干：分写在每题题干后全式').toContain('分写在每题题干后');
       expect(t, '（共Y分）中间态不得回潮').not.toContain('大题标题写"（共Y分）"');
       expect(t, '单价先定、再乘个数').toContain('Y＝X×N');
       expect(t, '禁止倒推').toContain('不得先定总分再倒推单价');
       expect(t, '单价不枚举档值').not.toContain('{scoreUnitLadder}');
-      expect(t, '合计自洽').toContain('该栏标题所标');
+      expect(t, '合计自洽').toContain('该大题总分＝其下各题 Y 之和');
       expect(t, '试卷层账目').toContain('各大题分之和＝给定满分');
       expect(t, '满分不可改').toContain('不得改动满分');
       // 反向锁：旧语义判据与旧形态整类清除

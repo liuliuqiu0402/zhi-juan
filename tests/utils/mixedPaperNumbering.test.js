@@ -214,13 +214,14 @@ describe('③ 跨学段×学科混合扫描（基准：先数作答题干 → �
         if (!t.includes('遮住大题标题、只看其中一项')) bad.push(tag + '：缺"作答题干口径"');
         if (!t.includes('（单题干）')) bad.push(tag + '：缺"单题干"');
         if (!t.includes('（多题干）')) bad.push(tag + '：缺"多题干"');
-        if (!t.includes('有号的题：每题题干后必须标')) bad.push(tag + '：缺"有号逐题标分"');
-        if (!t.includes('无号的栏：题内不标')) bad.push(tag + '：缺"无号题内不标"');
-        if (!t.includes('缺一题即不合规')) bad.push(tag + '：缺"缺一不合规"');
-        if (!t.includes('两种情况相同')) bad.push(tag + '：缺"标题写法统一"');
+        if (!t.includes('单题干（整栏合一）**：**分写在标题后**')) bad.push(tag + '：缺"单题干落在标题后"');
+        if (!t.includes('多题干（逐题独立）**：**分写在每题题干后**')) bad.push(tag + '：缺"多题干落在每题题干后"');
+        if (!t.includes('先分配、后落实')) bad.push(tag + '：缺"先分配、后落实"');
+        if (!t.includes('大题标题同样写它分到的那一份')) bad.push(tag + '：缺"标题也写分"');
+        if (t.includes('标题与题内两处都要有')) bad.push(tag + '：旧"两处都要有"回潮');
         if (t.includes('大题标题写"（共Y分）"')) bad.push(tag + '：旧"（共Y分）中间态"回潮');
         if (!t.includes('Y＝X×N')) bad.push(tag + '：缺"Y＝X×N"');
-        if (!t.includes('该栏标题所标')) bad.push(tag + '：缺"大题账目"');
+        if (!t.includes('该大题总分＝其下各题 Y 之和')) bad.push(tag + '：缺"大题账目"');
         if (!t.includes('各大题分之和＝给定满分')) bad.push(tag + '：缺"试卷账目"');
         // 旧语义判据不得回潮
         if (t.includes('号是点名用的')) bad.push(tag + '：旧"号是点名用的"回潮');
