@@ -2831,18 +2831,15 @@ export function useAiGenerator() {
 ${analysisText}
 
 请提取：
-1. **主题**：本次范围的人文主题或核心主题名称
-2. **学习目标**：本次范围的主要学习目标或核心要求（3-5条）
-3. **关键知识点**：导语中明确提到的知识点或技能点，数量不限，每个必须能在导语中找到对应的原文词句作为依据
+1. **知识点层级结构**：导语中明确提到的知识点或技能点，按"大概念 → 核心知识点 → 具体概念"三层提取，数量不限，每个必须能在导语中找到对应的原文词句作为依据
+2. **主题**：本次范围的人文主题或核心主题名称
+3. **学习目标**：本次范围的主要学习目标或核心要求（3-5条）
 4. **学科要素/单元重点**：如果有明确的学科要素（如语文的阅读方法、写作方法，其他学科的学习方法、学科思想）或单元重点，请提取
 
 条目性质 kind（每条 coreKnowledge 必标，取值二选一：knowledge / material）。判据只看一条：**这条能不能直接变成一道题的考查点？** 能 → knowledge；它本身只是材料或背景 → material。自检两类误判：把"本身就能成题的考查点"标成 material（覆盖不足）；把"只是材料或背景"当考查点（逼着重述材料）。标 material **不减少任何提取内容**，仍逐条提取，只影响生成期的覆盖口径；kind 缺失时一律按 knowledge 处理。
 
-返回 JSON：
+返回 JSON（**先写 knowledgeHierarchy（锚清单本体），再写其余字段**；其余字段没有就给空值）：
 {
-  "visualDescription": "",
-  "formulas": [],
-  "coreTopics": "核心主题词，逗号分隔（3-6个）",
   "knowledgeHierarchy": [
     {
       "bigConcept": "单元主题名称",
@@ -2855,7 +2852,10 @@ ${analysisText}
         }
       ]
     }
-  ]
+  ],
+  "coreTopics": "核心主题词，逗号分隔（3-6个）",
+  "visualDescription": "",
+  "formulas": []
 }
 
 只返回 JSON。`
@@ -2867,15 +2867,12 @@ ${analysisText}
 
 请完成以下分析任务：
 
-1. **图表描述**：如果有图表，用文字描述；如果没有，返回空字符串
-2. **公式提取**：如果有数学/物理/化学公式，用LaTeX格式描述；如果没有，返回空数组
-3. **知识点层级结构**：按"大概念 → 核心知识点 → 具体概念"三层结构提取，标注每个知识点的学习要求（了解/理解/掌握/运用——课标通用的结果目标行为动词）
+1. **知识点层级结构**：按"大概念 → 核心知识点 → 具体概念"三层结构提取，标注每个知识点的学习要求（了解/理解/掌握/运用——课标通用的结果目标行为动词）
+2. **图表描述**：如果有图表，用文字描述；如果没有，返回空字符串
+3. **公式提取**：如果有数学/物理/化学公式，用LaTeX格式描述；如果没有，返回空数组
 
-必须返回以下JSON格式：
+必须返回以下JSON格式（**先写 knowledgeHierarchy（锚清单本体），再写其余字段**；其余字段没有就给空值）：
 {
-  "visualDescription": "图表描述或空字符串",
-  "formulas": ["$公式$ → 含义"],
-  "coreTopics": "核心主题词，逗号分隔（3-6个，按概括程度排序）",
   "knowledgeHierarchy": [
     {
       "bigConcept": "大概念名称（如：分数的意义）",
@@ -2888,7 +2885,10 @@ ${analysisText}
         }
       ]
     }
-  ]
+  ],
+  "coreTopics": "核心主题词，逗号分隔（3-6个，按概括程度排序）",
+  "visualDescription": "图表描述或空字符串",
+  "formulas": ["$公式$ → 含义"]
 }
 
 【锚树契约——三层固定结构与粒度判据（全学科统一，不因学科而异）】
@@ -3125,8 +3125,12 @@ ${isPrimary ? '- 小学：数字设备体验、信息交流与分享、信息隐
         // 引擎配置探询失败 → 回退 config 兜底（不阻断分析）
       }
 
-      // 🔧 本调用点是"教材特征分析"schema → 显式声明缓存有效性判据字段（与知识图谱区分）
-      const TEXTBOOK_FEATURE_CACHE_FIELDS = ['knowledgeHierarchy', 'coreTopics', 'visualDescription', 'formulas'];
+      // 🔧 本调用点是"教材特征分析"schema → 显式声明缓存有效性判据字段。
+      //    2026-10-28（真机"四 认识三位数"反复缺 knowledgeHierarchy）：判据字段收紧为**只认锚树本体**——
+      //    缓存读端是 `some(关键字段)`，原先带 coreTopics/visualDescription/formulas 时，
+      //    一份"可解析但没有 knowledgeHierarchy"的响应会被判有效并反复命中（正是同一条坏结果反复出现）。
+      //    该 schema 的必备字段就是 knowledgeHierarchy，缺它一律算坏缓存、删掉并真调。
+      const TEXTBOOK_FEATURE_CACHE_FIELDS = ['knowledgeHierarchy'];
       const callAnalysisRetry = async (retryPrompt) => callAI(retryPrompt, {
         taskType: 'analysis',
         temperature: apiConfig.generationSettings.analysisTemperature,
@@ -3153,36 +3157,74 @@ ${isPrimary ? '- 小学：数字设备体验、信息交流与分享、信息隐
       
       console.log(`✅ 教材特征分析完成，响应长度: ${response?.length || 0}字（maxTokens=${analysisMaxTokens}${responseFinish ? `，finish_reason=${responseFinish}` : ''}）`);
   
-      // 截断感知（2026-09-12 实测事故加固）：被限截断时 JSON 修复/补全**注定徒劳**——残件补不出缺失
-      //    字段，原地修只会把"预算问题"伪装成"结构不符"（正是这几轮难定位的原因之一）。
-      //    故截断即跳过修复链、如实报因：省 2 次无效调用，且原因在日志里可见。
-      if (responseFinish === 'length') {
-        // 2026-09-12：把真因带出到 result——分析阶段只有日志、没有问题列表报告，故必须让**日志**
-        //    说出真因（否则上层锚树日志会把"预算不足"说成"结构不符"，多轮排障都被带偏）。
-        result.analysisFailure = `输出被截断（maxTokens=${analysisMaxTokens}，finish_reason=length）——属预算/上限不足，非模型结构问题；请重试或改用单次输出上限更高的模型`;
-        console.error(`❌ 教材特征分析输出被截断（maxTokens=${analysisMaxTokens}，finish_reason=length）——JSON 修复无法补齐缺失字段，请重试或改用单次输出上限更高的模型`);
-      } else {
+      // 🔴 2026-10-28（真机"四 认识三位数"反复缺 knowledgeHierarchy）：schema 已把 knowledgeHierarchy
+      //   放在**第一位**，故截断不再"注定徒劳"——残件通常已含锚树，缺的只是后面的辅助字段（可空）。
+      //   处置顺序：① 先解析（截断也解析，不再跳过）；② 有锚树 ⇒ 收下；
+      //   ③ 没有 ⇒ **自动补取一次**（同一份 prompt，只把要求改成"先完整输出 knowledgeHierarchy"）；
+      //   ④ 仍没有才如实报因——不再把整章推给用户点"重分析"。
+      //   自动补取必须 skipCache：否则同一 prompt 会命中那份缺锚树的坏结果。
+      const recoverHierarchy = async () => {
         try {
-          const parsed = await robustJsonParse(
-            response,
-            callAnalysisRetry,
-            '教材特征分析',
+          const note = responseFinish === 'length'
+            ? `上一次输出在写完 knowledgeHierarchy 之前被长度截断（maxTokens=${analysisMaxTokens}）。`
+            : '上一次输出缺少 knowledgeHierarchy。';
+          const retryPrompt = `${analysisPrompt}\n\n【本次特别注意】${note}请**先完整输出 knowledgeHierarchy**（大概念 → coreKnowledge → specificConcepts 三层，覆盖本次范围全部知识内容），再输出其余字段；其余字段没有就给空值。只返回 JSON。`;
+          const resp = await callAI(retryPrompt, {
+            taskType: 'analysis',
+            temperature: apiConfig.generationSettings.analysisTemperature,
+            maxTokens: analysisMaxTokens,
+            skipCache: true,
+            timeout: getTimeout('analysis'),
+            cacheKeyFields: TEXTBOOK_FEATURE_CACHE_FIELDS,
+          });
+          return await robustJsonParse(
+            typeof resp === 'string' ? resp : (resp?.content || ''),
+            null,
+            '教材特征分析_补取层级',
             'analysis'
           );
-          // 结构残件不接受（2026-09-12）：解析成功但缺判据字段（knowledgeHierarchy）多为截断/修复
-          //    残件——写入空壳只会让下游锚树报"结构不符"、掩盖真因，故丢弃并如实报因。
-          const kh = parsed?.knowledgeHierarchy;
-          if (Array.isArray(kh) && kh.length) {
-            result.visualDescription = parsed.visualDescription || '';
-            result.formulas = parsed.formulas || [];
-            result.coreTopics = parsed.coreTopics || '';
-            result.knowledgeHierarchy = kh;
-          } else {
-            result.analysisFailure = '结果结构不完整（缺 knowledgeHierarchy）——疑似输出被截断或修复残件，非模型结构问题；请重试';
-            console.error('❌ 教材特征分析结果结构不完整（缺 knowledgeHierarchy）——疑似输出被截断或修复残件，已丢弃，请重试');
-          }
         } catch (e) {
-          console.error('❌ JSON 解析失败:', e.message);
+          console.warn('⚠️ knowledgeHierarchy 自动补取失败:', e.message);
+          return null;
+        }
+      };
+      const takeHierarchy = (p) => {
+        const kh = p?.knowledgeHierarchy;
+        if (!Array.isArray(kh) || !kh.length) return false;
+        result.knowledgeHierarchy = kh;
+        result.coreTopics = p.coreTopics || '';
+        result.visualDescription = p.visualDescription || '';
+        result.formulas = p.formulas || [];
+        return true;
+      };
+
+      let parsed = null;
+      try {
+        parsed = await robustJsonParse(
+          response,
+          responseFinish === 'length' ? null : callAnalysisRetry,
+          '教材特征分析',
+          'analysis'
+        );
+      } catch (e) {
+        console.error('❌ JSON 解析失败:', e.message);
+      }
+
+      if (takeHierarchy(parsed)) {
+        if (responseFinish === 'length') {
+          console.warn(`⚠️ 教材特征分析输出被截断（maxTokens=${analysisMaxTokens}）——knowledgeHierarchy 已完整取到（schema 前置），其余字段按空值处理`);
+        }
+      } else {
+        const recovered = await recoverHierarchy();
+        if (takeHierarchy(recovered)) {
+          console.warn(`⚠️ 教材特征分析首轮缺 knowledgeHierarchy（${responseFinish || 'finish_reason 未知'}），已自动补取并收下（${result.knowledgeHierarchy.length} 个大概念）`);
+        } else if (responseFinish === 'length') {
+          // 2026-09-12 口径保留：真因随 result 带出（分析阶段只有日志，不能让上游把"预算不足"读成"结构不符"）。
+          result.analysisFailure = `输出被截断（maxTokens=${analysisMaxTokens}，finish_reason=length）——自动补取仍未取到锚树；请改用单次输出上限更高的模型`;
+          console.error(`❌ 教材特征分析输出被截断（maxTokens=${analysisMaxTokens}）——自动补取未取到 knowledgeHierarchy，请改用单次输出上限更高的模型`);
+        } else {
+          result.analysisFailure = '结果结构不完整（缺 knowledgeHierarchy）——首轮与自动补取均未取到锚树，非模型结构问题；请重试';
+          console.error('❌ 教材特征分析结果结构不完整（缺 knowledgeHierarchy）——首轮与自动补取均未取到，已丢弃，请重试');
         }
       }
     } catch (e) {

@@ -135,6 +135,12 @@ describe('analysis 灵活模式：maxTokens 由原文量推导，不再静态卡
 //   JSON 修复/补全在同一 505 帽内徒劳 → 残件缺 knowledgeHierarchy → 锚树判空不落库；
 //   推导是确定性的 → 重分析仍是 505 → 怎么重试都不成功。
 //   修复：推导**只许放大、不得低于类型帽**：min(引擎护栏, max(类型帽, 推导值))。
+// 🔴 2026-10-28 第三轮（真机"四 认识三位数"）：本次不是预算不足（analysis=65536 已到位），
+//   而是 **schema 把锚树排在最后**：模型先写 visualDescription/formulas/coreTopics，写到锚树前就停，
+//   或被截断后 robustJsonParse 补全成"缺 knowledgeHierarchy 的可解析对象" → 整章丢弃。
+//   修复：① 锚树改为 schema **第一位**；② 截断也先解析（残件通常已含锚树，其余字段可空）；
+//   ③ 缺锚树 ⇒ **自动补取一次**（同 prompt＋"先完整输出 knowledgeHierarchy"，skipCache）；
+//   ④ 缓存判据字段收紧为只认 knowledgeHierarchy（防"缺锚树但可解析"的响应反复命中）。
 describe('analysis 单次帽推导必须有下限（不得低于类型帽）', () => {
   const typeCap = 65536;
   const engineCap = 196608;
@@ -165,11 +171,26 @@ describe('analysis 单次帽推导必须有下限（不得低于类型帽）', (
     expect(src).toContain('Math.min(engineCap, Math.max(analysisTypeCap, analysisQuota.perCall))');
   });
 
-  it('源码接线：截断时不走 JSON 修复链（如实报因，不再伪装成"结构不符"）', () => {
+  it('源码接线：截断也先解析；缺锚树自动补取一次；仍失败才如实报因', () => {
     const src = fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
     expect(src).toContain('returnMeta: true');
     expect(src).toContain("responseFinish === 'length'");
+    // ① 截断不再直接判失败：解析放在 length 分支之外，length 只是"不重试"（null 回调）
+    expect(src).toContain("responseFinish === 'length' ? null : callAnalysisRetry");
+    // ② 缺锚树自动补取一次（同 prompt＋前置要求，且必须 skipCache，防命中坏结果）
+    expect(src).toContain('const recoverHierarchy = async () =>');
+    expect(src).toContain('请**先完整输出 knowledgeHierarchy**');
+    expect(src).toContain('const recovered = await recoverHierarchy()');
+    // ③ 真因仍在（最终失败时如实报出，不伪装成结构不符）
     expect(src).toContain('教材特征分析结果结构不完整（缺 knowledgeHierarchy）');
+  });
+
+  it('源码接线：锚树在 schema 第一位、缓存判据只认锚树', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src', 'composables', 'useAiGenerator.js'), 'utf8');
+    // 两处 prompt（导语页／常规页）都要求"先写 knowledgeHierarchy"
+    expect((src.match(/先写 knowledgeHierarchy（锚清单本体），再写其余字段/g) || []).length).toBeGreaterThanOrEqual(2);
+    // 缓存判据字段收紧：只认锚树本体（原先 four-field some 会放过"缺锚树但可解析"的响应）
+    expect(src).toContain("const TEXTBOOK_FEATURE_CACHE_FIELDS = ['knowledgeHierarchy'];");
   });
 
   // 🔴 2026-09-12（用户口径）：分析阶段**只有日志、没有问题列表报告**，故真因必须经 result 带出、
