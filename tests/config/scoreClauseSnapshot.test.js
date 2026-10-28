@@ -64,7 +64,7 @@ describe('分值块整块快照（拆条/并条/调序/换词 ⇒ 红）', () =>
     expect(score.split('\n').length, '分值标注条数').toBeGreaterThanOrEqual(6);
     expect(score, '结构判定在位').toContain('遮住大题标题、只看其中一项');
     expect(score, '题内标分在位').toContain('每题题干后必须标');
-    expect(score, '标题与题内两处都要有').toContain('标题与题内两处都要有');
+    expect(score, '标题与题内各写自己的数').toContain('标题与题内各写这一处自己的数');
     expect(score, '逐层验算在位').toContain('各大题分之和＝给定满分');
     const self = SNAP.get('【卷面自洽】');
     expect(self, '仲裁句在位').toContain('不逐题复述');

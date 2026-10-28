@@ -20,8 +20,9 @@ const PROBES = {
   perItemFull: /每题题干后[^。；\n]{0,6}标/,
   perItemValue: /每〈单位〉X分，共Y分/,
   titleTotal: /大题标题写/,
-  // 版本指纹：2026-10-27 恢复 b840e7a 时补回的判据。出现＝实发是含该判据的版本；不出现＝跑的是旧版实发。
-  twoPlaces: /标题与题内两处都要有/,
+  // 版本指纹：2026-10-27 按"促规范不约束"改写后，标题与题内的关系句（各写这一处自己的数）。
+  // 出现＝实发是含该判据的版本；不出现＝跑的是旧版实发。
+  twoPlaces: /标题与题内各写这一处自己的数/,
 };
 
 /** 旧口径残留（出现即说明实发里还夹着旧判据） */
@@ -57,7 +58,7 @@ export const inspectScoreClause = (text = '') => {
   if (!present.structure) missing.push('结构判定句不在');
   if (!present.singleStem || !present.multiStem) missing.push('单/多题干两支不在');
   if (!present.perItemFull) missing.push('逐题标分要求不在');
-  if (!present.twoPlaces) missing.push('「标题与题内两处都要有」不在（多半是跑到了旧版实发）');
+  if (!present.twoPlaces) missing.push('「标题与题内各写这一处自己的数」不在（多半是跑到了旧版实发）');
   if (legacy.length) missing.push(`旧口径残留：${legacy.join('、')}`);
 
   const ok = missing.length === 0;

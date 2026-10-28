@@ -216,7 +216,7 @@ describe('③ 跨学段×学科混合扫描（基准：先数作答题干 → �
         if (!t.includes('（多题干）')) bad.push(tag + '：缺"多题干"');
         if (!t.includes('有号的题：每题题干后必须标')) bad.push(tag + '：缺"有号逐题标分"');
         if (!t.includes('无号的栏：题内不标')) bad.push(tag + '：缺"无号题内不标"');
-        if (!t.includes('缺一题即不合规')) bad.push(tag + '：缺"缺一不合规"');
+        if (!t.includes('照样写全式')) bad.push(tag + '：缺"单处作答照样写全式"');
         if (!t.includes('两种情况相同')) bad.push(tag + '：缺"标题写法统一"');
         if (t.includes('大题标题写"（共Y分）"')) bad.push(tag + '：旧"（共Y分）中间态"回潮');
         if (!t.includes('Y＝X×N')) bad.push(tag + '：缺"Y＝X×N"');
