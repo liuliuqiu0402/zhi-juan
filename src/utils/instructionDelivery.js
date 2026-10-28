@@ -10,6 +10,7 @@
  *        "标题写单价、题内不标分"。
  * 纪律：本模块不读 localStorage、不拼提示词、不改内容；调用方只拿结果去打日志/告警。
  */
+import { SCORE_TWO_PLACES } from '../config/promptLibrary.js';
 
 /** 形态探针：认结构，不认整句措辞（换措辞后仍有效） */
 const PROBES = {
@@ -20,9 +21,9 @@ const PROBES = {
   perItemFull: /每题题干后[^。；\n]{0,6}标/,
   perItemValue: /每〈单位〉X分，共Y分/,
   titleTotal: /大题标题写/,
-  // 版本指纹：2026-10-27 按"促规范不约束"改写后，标题与题内的关系句（各写这一处自己的数）。
-  // 出现＝实发是含该判据的版本；不出现＝跑的是旧版实发。
-  twoPlaces: /标题与题内各写这一处自己的数/,
+  // 版本指纹（**单源**）：句子取自 promptLibrary 的常量，正文与探针不可能再失配。
+  // 2026-10-28（属主："强制刷新和重启都试了…都是你在改动"）：此前手抄整句 ⇒ 文本一改就误报"旧版实发"。
+  twoPlaces: new RegExp(SCORE_TWO_PLACES.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
 };
 
 /** 旧口径残留（出现即说明实发里还夹着旧判据） */
@@ -58,7 +59,7 @@ export const inspectScoreClause = (text = '') => {
   if (!present.structure) missing.push('结构判定句不在');
   if (!present.singleStem || !present.multiStem) missing.push('单/多题干两支不在');
   if (!present.perItemFull) missing.push('逐题标分要求不在');
-  if (!present.twoPlaces) missing.push('「标题与题内各写这一处自己的数」不在（多半是跑到了旧版实发）');
+  if (!present.twoPlaces) missing.push(`「${SCORE_TWO_PLACES}」不在（实发不是现行分值条：请确认构建已更新，且模板为内置版）`);
   if (legacy.length) missing.push(`旧口径残留：${legacy.join('、')}`);
 
   const ok = missing.length === 0;
