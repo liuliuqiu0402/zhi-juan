@@ -235,6 +235,30 @@ const looksLikeWholeJson = (s: string): boolean => {
 };
 
 /**
+ * 🔴 2026-10-29（真机"教材分析返回残缺内容"根因 2）：
+ *   写/读缓存时仅查 `content.includes('knowledgeHierarchy')` + `JSON.parse` 能过是不够的——
+ *   续写链可以把残缺 JSON 续出一个"语法合法、knowledgeHierarchy 字符串出现、但实际数组
+ *   只有前几个元素"的结果。这种结果会被写缓存固化，反复命中反复返回残缺内容。
+ *   改为**结构校验**：先剥围栏 → JSON.parse → 检查 keyFields 里至少有一个字段
+ *   **实际存在且非空**（数组 .length>0、字符串 .trim() 非空、其他 truthy）。
+ */
+const parseCleanJson = (s: string): any | null => {
+  const t = String(s || '').trim().replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  try { return JSON.parse(t); } catch { return null; }
+};
+
+/** 检查解析后的 JSON 是否至少有一个 keyField 存在且有实际值 */
+const hasStructuralKeyField = (parsed: any, keyFields: string[]): boolean => {
+  if (!parsed || typeof parsed !== 'object') return false;
+  return keyFields.some((f) => {
+    const v = parsed[f];
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === 'string') return v.trim().length > 0;
+    return v != null && v !== false && v !== 0;
+  });
+};
+
+/**
  * 生成 prompt 级缓存键（确定性：相同 taskType+model+prompt → 相同键）
  */
 export function generatePromptCacheKey(taskType: string, model: string, prompt: string): string {
@@ -257,9 +281,11 @@ export async function getCachedPromptResult(cacheKey: string): Promise<string | 
     //    完整响应，否则视为坏缓存 → 删除并放行真调 API（防历史污染的坏键仍被命中冻结）。
     if (['analysis', 'blueprint'].includes(entry.taskType)) {
       const keyFields = keyFieldsFor(entry.taskType, entry.keyFields);
-      const valid = keyFields.some((f) => entry.content.includes(f)) && looksLikeWholeJson(entry.content);
+      // 🔴 结构校验：解析 JSON 后 keyFields 至少有一个实际存在且非空
+      const parsed = parseCleanJson(entry.content);
+      const valid = parsed != null && hasStructuralKeyField(parsed, keyFields);
       if (!valid) {
-        console.warn(`🗑️ [L1缓存] 命中 ${entry.taskType} 坏缓存（缺关键字段或不是完整 JSON），删除并放行真调（key:${cacheKey.slice(0, 24)}...）`);
+        console.warn(`🗑️ [L1缓存] 命中 ${entry.taskType} 坏缓存（结构校验未通过：不是完整 JSON 或关键字段为空），删除并放行真调（key:${cacheKey.slice(0, 24)}...）`);
         await storage.removeItem(cacheKey);
         return null;
       }
@@ -290,9 +316,14 @@ export async function setCachedPromptResult(
     //    会被误判为坏结果而拒缓存（2026-09-12 实证）。
     if (meta?.taskType === 'analysis' || meta?.taskType === 'blueprint') {
       const keyFields = keyFieldsFor(meta.taskType, meta.keyFields);
-      // 空内容或缺关键字段 = 坏结果 → 拒写（空串是 falsy，不能走 `content &&` 放过）
-      if (!content || !content.trim() || !keyFields.some((f) => content.includes(f)) || !looksLikeWholeJson(content)) {
-        console.warn(`🚫 [L1缓存] 拒绝写入 ${meta?.taskType} 坏结果（空/缺关键字段/不是完整 JSON），避免污染缓存（key:${cacheKey.slice(0, 24)}...）`);
+      // 🔴 结构校验（取代原字符串 includes + looksLikeWholeJson）：
+      //    续写链能续出"语法合法但内容残缺"的 JSON（knowledgeHierarchy 只有前几个元素），
+      //    原校验 `content.includes('knowledgeHierarchy')` 会被这类结果骗过。
+      //    现改为 parseCleanJson + hasStructuralKeyField——只有解析后 keyFields 中至少一个
+      //    字段**实际存在且非空**（数组.length>0/字符串.trim()非空/其他 truthy）才落库。
+      const parsed = parseCleanJson(content);
+      if (!content || !content.trim() || parsed == null || !hasStructuralKeyField(parsed, keyFields)) {
+        console.warn(`🚫 [L1缓存] 拒绝写入 ${meta?.taskType} 坏结果（结构校验未通过：空/不是完整 JSON/关键字段为空），避免污染缓存（key:${cacheKey.slice(0, 24)}...）`);
         return;
       }
     }

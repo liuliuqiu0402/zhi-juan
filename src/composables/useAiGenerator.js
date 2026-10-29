@@ -852,9 +852,11 @@ ${JSON.stringify(cardsSummary, null, 2)}
     try {
       // 🔧 本调用点是"知识图谱"schema（与教材特征分析不同）→ 显式声明缓存有效性判据字段，
       //    否则会被缓存守卫按"教材特征分析"字段误判为坏结果而拒缓存（2026-09-12 实证）
+      // 🔴 JSON 分析类一律禁用续写链（allowContinuation: false）——续写 JSON 会把残缺
+      //    结构伪装成完整（见 analyzeTextbookWithText 上方注释）
       const KM_CACHE_FIELDS = ['knowledgeGraph', 'knowledgePoints', 'keyDifficulties', 'crossChapterLinks'];
-      const response2 = await callAI(prompt2, { taskType: attempt >= 1 ? 'blueprint' : 'analysis', temperature: apiConfig.generationSettings.analysisTemperature, retries: 0, forceJson: true, cacheKeyFields: KM_CACHE_FIELDS });
-      const parsed = await robustJsonParse(response2, (rp) => callAI(rp, { taskType: 'analysis', temperature: apiConfig.generationSettings.analysisTemperature, cacheKeyFields: KM_CACHE_FIELDS }), `第二步-尝试${attempt + 1}`);
+      const response2 = await callAI(prompt2, { taskType: attempt >= 1 ? 'blueprint' : 'analysis', temperature: apiConfig.generationSettings.analysisTemperature, retries: 0, forceJson: true, cacheKeyFields: KM_CACHE_FIELDS, allowContinuation: false });
+      const parsed = await robustJsonParse(response2, (rp) => callAI(rp, { taskType: 'analysis', temperature: apiConfig.generationSettings.analysisTemperature, cacheKeyFields: KM_CACHE_FIELDS, allowContinuation: false }), `第二步-尝试${attempt + 1}`);
       if ((parsed.knowledgeGraph && parsed.knowledgeGraph.length) || (parsed.knowledgePoints && parsed.knowledgePoints.length)) {
         // 🔧 防御：确保 knowledgePoints/keyDifficulties 只包含有效字符串
         const safeKnowledgePoints = (parsed.knowledgePoints || []).filter(kp => typeof kp === 'string' && kp.trim());
@@ -3131,6 +3133,11 @@ ${isPrimary ? '- 小学：数字设备体验、信息交流与分享、信息隐
       //    一份"可解析但没有 knowledgeHierarchy"的响应会被判有效并反复命中（正是同一条坏结果反复出现）。
       //    该 schema 的必备字段就是 knowledgeHierarchy，缺它一律算坏缓存、删掉并真调。
       const TEXTBOOK_FEATURE_CACHE_FIELDS = ['knowledgeHierarchy'];
+      // 🔧 所有 JSON 分析类调用**必须禁用续写链**（allowContinuation: false）：
+      //    续写链是为连贯自然语言设计的，续写 JSON 会把残缺结构伪装成完整（knowledgeHierarchy
+      //    只有前几个大概念但 JSON 语法合法），然后 finishReason 被改成 'stop'，导致截断检测与
+      //    自动补取（recoverHierarchy）全部失效。截断处理交给 robustJsonParse + 自动补取——
+      //    我们自己的逻辑更懂 JSON 残缺补全与"重新完整跑一次 knowledgeHierarchy"。
       const callAnalysisRetry = async (retryPrompt) => callAI(retryPrompt, {
         taskType: 'analysis',
         temperature: apiConfig.generationSettings.analysisTemperature,
@@ -3138,6 +3145,7 @@ ${isPrimary ? '- 小学：数字设备体验、信息交流与分享、信息隐
         skipCache: true,       // 重试必须重跑、不得复用坏缓存（否则死循环命中同款坏结果）
         cacheKeyFields: TEXTBOOK_FEATURE_CACHE_FIELDS,
         timeout: getTimeout('analysis'),
+        allowContinuation: false,
       });
 
       const respMeta = await callAI(analysisPrompt, { 
@@ -3151,6 +3159,7 @@ ${isPrimary ? '- 小学：数字设备体验、信息交流与分享、信息隐
         //    否则同一 prompt 命中旧缓存，"重新分析"失去意义（2026-09-12 用户指出语义冲突）
         ...(forceRefresh ? { skipCache: true } : {}),
         // 🔧 推理模型思考链+输出共享；maxTokens 由原文量推导（见上），不再被旧死值钳死
+        allowContinuation: false,  // 🔴 JSON 分析禁用续写链——续写 JSON 会伪装残缺为完整，见 callAnalysisRetry 上方注释
       });
       const response = typeof respMeta === 'string' ? respMeta : (respMeta?.content || '');
       const responseFinish = typeof respMeta === 'string' ? '' : (respMeta?.finishReason || '');
@@ -3176,6 +3185,7 @@ ${isPrimary ? '- 小学：数字设备体验、信息交流与分享、信息隐
             skipCache: true,
             timeout: getTimeout('analysis'),
             cacheKeyFields: TEXTBOOK_FEATURE_CACHE_FIELDS,
+            allowContinuation: false,  // JSON 分析禁用续写链
           });
           return await robustJsonParse(
             typeof resp === 'string' ? resp : (resp?.content || ''),
@@ -3499,7 +3509,8 @@ ${extractReqsStr}
           const response2a = await callAI(step2aPrompt, { 
             taskType: 'generation',
             temperature: apiConfig.generationSettings.analysisTemperature,
-            timeout: getTimeout('analysis')
+            timeout: getTimeout('analysis'),
+            allowContinuation: false,  // JSON 分析禁用续写链
           });
       
           try {
@@ -3562,6 +3573,7 @@ ${analysisText.substring(0, 500)}
               taskType: 'generation',  // 🔧 修复：DeepSeek 引擎不支持 formatting
               temperature: apiConfig.generationSettings.analysisTemperature,
               timeout: getTimeout('chunk'),  // 🔧 优化：60秒（1分钟）
+              allowContinuation: false,  // JSON 分析禁用续写链
             });
             const styleParsed = await robustJsonParse(styleResponse, null, '语言风格提取');
             analysisResult.languageStyle = styleParsed.languageStyle || null;
@@ -3704,7 +3716,8 @@ ${chunk}
               const chunkResponse = await callAI(chunkPrompt, { 
                 taskType: 'generation',  // 🔧 修复：DeepSeek 引擎不支持 formatting
                 temperature: apiConfig.generationSettings.analysisTemperature,
-                timeout: getTimeout('analysis')
+                timeout: getTimeout('analysis'),
+                allowContinuation: false,  // JSON 分析禁用续写链
               });
               
               const parsed = await robustJsonParse(chunkResponse, null, `结构分析-段${ci + 1}`);
@@ -3768,7 +3781,8 @@ JSON格式：
                   const retryResponse = await callAI(simplifiedPrompt, { 
                     taskType: 'generation',  // 🔧 修复：DeepSeek 引擎不支持 formatting
                     temperature: apiConfig.generationSettings.analysisTemperature,
-                    timeout: getTimeout('chunk')
+                    timeout: getTimeout('chunk'),
+                    allowContinuation: false,  // JSON 分析禁用续写链
                   });
                   
                   const parsed = await robustJsonParse(retryResponse, null, `结构分析-段${ci + 1}-重试`);
@@ -3926,6 +3940,7 @@ ${typesList}
               taskType: 'generation',  // 🔧 修复：DeepSeek 引擎不支持 formatting
               temperature: apiConfig.generationSettings.analysisTemperature,
               timeout: getTimeout('analysis'),  // 第一次尝试：120秒
+              allowContinuation: false,  // JSON 分析禁用续写链
             });
             const parsed = await robustJsonParse(response2b, null, '模板结构分析-步骤b');
             analysisResult.questionCards = Array.isArray(parsed.questionCards) ? parsed.questionCards : [];
@@ -3948,6 +3963,7 @@ ${cardAnalysisText.substring(0, 1000)}
                 taskType: 'generation',  // 🔧 修复：DeepSeek 引擎不支持 formatting
                 temperature: apiConfig.generationSettings.analysisTemperature,
                 timeout: getTimeout('chunk'),  // 简化版：60秒
+                allowContinuation: false,  // JSON 分析禁用续写链
               });
               const parsed = await robustJsonParse(response, null, '简化题卡分析');
               analysisResult.questionCards = Array.isArray(parsed.questionCards) ? parsed.questionCards : [];
