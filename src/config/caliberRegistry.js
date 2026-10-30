@@ -36,6 +36,8 @@ export const PROMPT_SOURCES = {
   'src/config/promptLibrary.js': ['buildInjectionInstruction', 'buildOutputFormatHint', 'buildFreeStructureInstruction'],
   'src/config/layoutSpec.js': ['buildCarrierInstruction', 'buildBlankWidthInstruction', 'buildAnswerSpaceInstruction', 'buildLongAnswerCarrierInstruction'],
   'src/config/eduRenderContract.js': ['buildRenderContract'],
+  // 🏷 2026-10-30：标记载体段的拼装函数（【标记载体】逐条由 MARK_RULES 派生；本函数只负责拼文本）
+  'src/config/markRegistry.js': ['buildMarkCarrierClause'],
   'src/config/validatorRules.js': ['buildValidatorPrompt'],
   // 2026-10-02（职责归属·轮1① 查实）：`buildPaperKindHint` 只作**界面「范围/卷别」选择提示**（GenerateModule 的 UI computed），
   //   不进任何 prompt → 移出 E 表、改登记 NON_MODEL_SOURCES。本条只留真正进实发的 buildLevelInstruction。
@@ -99,6 +101,10 @@ export const PROMPT_CONSTANTS = {
     'BUILTIN_TEMPLATES',
   ],
   'src/config/eduRenderContract.js': ['FORMULA_RULES', 'GRAPH_SAMPLES'], // GRAPH_SAMPLES：原注释称"仅展示、不影响生成"，但**实测其文本进实发** → 依"实测为准"登记（注释不足为凭）
+  // 🏷 2026-10-30（属主："题干写着加点/画线，正文却没有标记"）：标记载体注册表——MARK_RULES 的
+  //   trigger/write/forbid 经 buildRenderContract 拼成【标记载体】进实发，属**常量形态的给模型文本**，
+  //   漏登记即红（本条正是被 promptSourceRegistry 守卫实测抓出来的）。
+  'src/config/markRegistry.js': ['MARK_RULES'],
   'src/config/teachingBlueprints.js': ['LEVEL_SELECTION_CAVEAT', 'TEACHING_SUBJECT_BLUEPRINTS', 'ERRORBOOK_FACETS'],
   'src/config/errorbookFacets.js': ['ERRORBOOK_FACETS'],
   'src/config/levelMapping.js': ['LEVEL_SOURCE'],

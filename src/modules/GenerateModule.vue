@@ -11438,6 +11438,18 @@ rt {
   text-decoration-style: solid;
   text-underline-offset: 3px;
 }
+/* 🏷 圈出 / 划去（删除）—— 与 config/markRegistry.js 同名登记（2026-10-30 补齐） */
+.circle-mark {
+  text-emphasis: circle #d32f2f;
+  -webkit-text-emphasis: circle #d32f2f;
+  text-emphasis-position: under;
+}
+.strike-mark {
+  text-decoration: line-through;
+  text-decoration-color: #d32f2f;
+  text-decoration-thickness: 1.5px;
+  color: #d32f2f;
+}
 ruby.radical rb { font-size: 1em; }
 ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
 .stroke-order {
@@ -11505,6 +11517,15 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   min-width: 80px;
   text-align: center;
 }
+/* 🔴 多列（≥3）的"表格型"载体按版心等分（两列连线题保留 40px 间距，供连线） */
+.match-question:has(.match-col:nth-child(3)) {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.match-question:has(.match-col:nth-child(3)) .match-col { min-width: 0; gap: 8px; }
+.match-question:has(.match-col:nth-child(3)) .match-item { min-width: 0; padding: 4px 8px; }
 .word-bank {
   display: inline-flex;
   flex-wrap: wrap;

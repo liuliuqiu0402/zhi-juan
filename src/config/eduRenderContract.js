@@ -14,6 +14,9 @@
  */
 
 import { isLibEntryEnabled, loadLibToggles } from '../utils/libToggles.js';
+// 🔴 2026-10-30（属主实测："题干写着加点/画线，正文却没有标记"）：标记的 class 约定统一由注册表派生，
+//    不再散在各处各写一份；本文件只负责把该学科可用的那份拼进渲染契约段。
+import { buildMarkCarrierClause } from './markRegistry.js';
 
 /** 允许的 [GRAPH] TYPE 全集 */
 export const GRAPH_TYPES = [
@@ -421,10 +424,16 @@ const loadUserContract = () => {
 export function buildRenderContract({ subject = '', stage = '', userContract } = {}) {
   const cap = resolveMarkCapability({ subject, stage, userContract });
   if (!cap.on) return '';
+  // 🏷 标记载体（语文/英语等有标记能力的学科）：与图形/公式无关，**独立注入**——
+  //    旧实现只在"有图形/公式/配图"时才返回本段，于是"标记载体"永远搭不上车（这类学科的
+  //    DOCX/Word 导出与渲染 CSS 都在，却从没进过模型视野，属主实测"写了规则也不执行"的一员）。
+  const markClause = buildMarkCarrierClause(subject);
   const typeLabel = cap.graphTypes.length ? cap.graphTypes.join('/') : '';
-  // 无任何标记能力（用户在渲染契约库把该学科图形/公式/配图全关）→ 本段不注入；
+  // 无任何标记能力（用户在渲染契约库把该学科图形/公式/配图全关，且该学科也没有文字标记）→ 本段不注入；
   // 正文侧同一判定（resolveMarkCapability）亦不提任何标记 —— 两侧恒等，不存在"要求悬空"。
-  if (!typeLabel && !cap.formula && !cap.image) return '';
+  if (!typeLabel && !cap.formula && !cap.image && !markClause) return '';
+  // 只有文字标记（语文/英语这类没有图形公式的）→ 不挂【渲染指令】段头，免得"标题有、内容无"
+  if (!typeLabel && !cap.formula && !cap.image) return `\n\n${markClause}`;
   const parts = [];
   // 🔧 段头：2026-09-17 改"按需输出，图块随题、不单独计题"——原"仅需图/公式/配图时输出，不计题量"
   //    与正文"该图是本题必不可少的内容、无图可看则该题不可作答"语义相抵（把图讲成可挂可不挂的载荷，
@@ -451,6 +460,7 @@ export function buildRenderContract({ subject = '', stage = '', userContract } =
     parts.push(`· 或图标检索（图标/标识类场景用 TYPE:ICON）：`);
     parts.push(IMAGE_SAMPLE_ICON);
   }
+  if (markClause) parts.push(markClause);
   return `\n\n${parts.join('\n')}`;
 }
 

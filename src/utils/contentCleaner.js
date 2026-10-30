@@ -1225,6 +1225,38 @@ export function stripDoubleCarrierResidual(html = '') {
   return String(html || '').replace(new RegExp(`(${BLANK_WS_RUN})(?=${BLANK_CARRIER_OPEN})`, 'g'), '');
 }
 
+/**
+ * 🏷 标记形态升级（**确定性、不改语义**）：把"作者已经标了、但形态不被系统认"的裸 `<u>` 升级成合法载体。
+ *   · 题干要求画线（画线/划线/画出/划出/标出/描出）→ 该题块内裸 `<u>…</u>` → `<u class="underline-sentence">`；
+ *   · 题干出现"加点" → 该题块内裸 `<u>1–6 个汉字</u>` → `<span class="emphasis-dot">`。
+ * 用途两处（同一实现，防两套口径）：
+ *   ① 生成归一链路（normalizeBlankMarkers 内）——避免下面的"拆裸 <u>"把它们清掉；
+ *   ② 排版模块**载入存量资料**时——老卷子当场按题意升级，不必重新生成。
+ * 幂等 + 保守：已带 class 的不动；填空横线（blank-N / 纯空白）不参与；不跨题块（以 `<p class="question">` 为界）。
+ */
+export function upgradeBareMarksByClaim(html = '') {
+  const src = String(html || '');
+  if (!src || !/<u[\s>]/i.test(src)) return src;
+  const blocks = src.split(/(?=<p[^>]*\bclass=["'][^"']*\bquestion\b)/i);
+  const askLine = /画线|划线|画出|划出|标出|描出/;
+  return blocks.map((blk) => {
+    const plain = blk.replace(/<[^>]+>/g, ' ');
+    let out = blk;
+    if (askLine.test(plain)) {
+      out = out.replace(/<u((?![^>]*class=)[^>]*)>([\s\S]*?)<\/u>/gi, (m, attrs, inner) => {
+        const text = inner.replace(/<[^>]+>/g, '').trim();
+        if (!text || /^[_\uFF3F\s\u3000&emsp;]+$/.test(text)) return m; // 空位横线不是画线
+        return `<u class="underline-sentence"${attrs && attrs.trim() ? ` ${attrs.trim()}` : ''}>${inner}</u>`;
+      });
+    }
+    if (/加点/.test(plain)) {
+      out = out.replace(/<u((?![^>]*class=)[^>]*)>([\u4e00-\u9fa5]{1,6})<\/u>/gi,
+        (_m, _attrs, inner) => `<span class="emphasis-dot">${inner}</span>`);
+    }
+    return out;
+  }).join('');
+}
+
 export function normalizeBlankMarkers(html = '') {
   let out = String(html || '');
   // ① 数字实体解码（见 decodeCarrierNumericEntities 注释，C3-C5）
@@ -1323,6 +1355,12 @@ export function normalizeBlankMarkers(html = '') {
   // 🔧 拆裸 <u> 空壳：模型把下划线写进无 class 的 <u>（<u>____</u>/<u>（　　）</u>），先被上面规则转成
   //    u.blank-N/span.blank-N 后外层 <u> 仍在 → 下划线叠下划线/叠括号。外层仅包一个 blank 空位时拆壳
   out = out.replace(/<u(?![^>]*class=)[^>]*>\s*(<(u|span) class="blank-\d+">&emsp;<\/\2>)\s*<\/u>/gi, '$1');
+  // 🔴 2026-10-30（属主："题干写着画线，正文却没有画线"·根因之一）：
+  //   模型常把"画线"写成**裸 `<u>整句。</u>`**（不带 class）；而本函数下面的"拆裸 <u> 包整句"规则
+  //   （为治"整卷被一个 <u> 包成画线"）会把它**清掉** ⇒ 用户看到的就是"要求画线却没有画线"。
+  //   现**先**按题块把这类"已标但形态不对"的裸 <u> 升级成合法载体（见 upgradeBareMarksByClaim），
+  //   下面的拆壳只再处理真正"整句误画线"的情形。
+  out = upgradeBareMarksByClaim(out);
   // 🔧 拆裸 <u> 包整句（2026-09 语文卷实证：模型用 <u> 把题干整句/整行包起来 → 整卷画线；
   //    系统语义 <u> 仅填空横线（带 class），画线句用 underline-sentence、强调用 <strong>。
   //    收窄拆壳条件：仅"整句/长句误画线"拆（裸 u 内 ≥10 字符且以句末标点结尾）；
@@ -1548,7 +1586,7 @@ export function normalizeMathCircleBlanks(html = '') {
 export function normalizeWhitespaceCarriers(html = '') {
   // 🔧 入口先解码载体内数字实体（&#160;/&#x3000;/&#95; 等，与 normalizeBlankMarkers 同源，C3-C5）
   const src = decodeCarrierNumericEntities(String(html || ''));
-  const markerCls = 'emphasis-dot|wavy-underline|double-line|single-line|underline-sentence|dashed-line|chem-condition|stroke-order';
+  const markerCls = 'emphasis-dot|wavy-underline|double-line|single-line|underline-sentence|circle-mark|strike-mark|dashed-line|chem-condition|stroke-order';
   const re = new RegExp(`<span[^>]*class=["'][^"']*(?:${markerCls})[^"']*["'][^>]*>([\\s\\S]*?)<\\/span>`, 'gi');
   return src.replace(re, (m, inner) => {
     const text = String(inner || '').replace(/<[^>]+>/g, '');

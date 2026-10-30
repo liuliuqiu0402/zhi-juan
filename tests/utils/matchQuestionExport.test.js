@@ -128,3 +128,57 @@ describe('连线题导出：match-item 方框原样导出', () => {
     }
   });
 });
+
+// 🔴 2026-10-30（属主实测："表格题在排版预览里超出纸张，超出的部分导不出来"·根因）：
+//   那张"表格"是模型把"补全表格"写成了 4 列 match-question；旧导出只取前两列 ⇒ 第 3 列起整列丢失。
+//   现按实际列数导出 N 列网格表：内容一个不丢、总宽仍压在页内。
+describe('连线题导出：多列（≥3）表格型载体不得丢列', () => {
+  const FOUR_COL = `
+<p>11. 把表格补充完整。</p>
+<div class="match-question">
+  <div class="match-col">
+    <div class="match-item"><p>课文</p></div>
+    <div class="match-item"><p>《草原》</p></div>
+    <div class="match-item"><p>《丁香结》</p></div>
+    <div class="match-item"><p>《花之歌》</p></div>
+  </div>
+  <div class="match-col">
+    <div class="match-item"><p>主要写法</p></div>
+    <div class="match-item"><p>借景抒情</p></div>
+    <div class="match-item"><p>借物抒情、由物及理</p></div>
+    <div class="match-item"><p>借花抒情</p></div>
+  </div>
+  <div class="match-col">
+    <div class="match-item"><p>表达的情感或思考</p></div>
+    <div class="match-item"><p>赞美草原风光，歌颂民族团结</p></div>
+    <div class="match-item"><p>由丁香结引发的人生思考</p></div>
+    <div class="match-item"><p>借花表达对自然与生命的赞美</p></div>
+  </div>
+  <div class="match-col">
+    <div class="match-item"><p>备注</p></div>
+    <div class="match-item"><p>散文</p></div>
+    <div class="match-item"><p>散文</p></div>
+    <div class="match-item"><p>散文诗</p></div>
+  </div>
+</div>`;
+
+  it('第 3、4 列的内容必须导出（旧实现只取前两列 → 整列丢失）', async () => {
+    const xml = await getDocumentXml(FOUR_COL);
+    for (const t of ['《花之歌》', '借花抒情', '借花表达对自然与生命的赞美', '散文诗']) {
+      expect(xml, `第 3/4 列内容「${t}」被丢了`).toContain(`>${t}</w:t>`);
+    }
+  });
+
+  it('按 4 列网格导出：1 张表、3 行 × 4 列，且总宽不超过页内容宽（9000 DXA）', async () => {
+    const xml = await getDocumentXml(FOUR_COL);
+    expect((xml.match(/<w:tbl>/g) || []).length, '合成一张网格表').toBe(1);
+    const gridCols = [...xml.matchAll(/<w:gridCol w:w="(\d+)"\/>/g)].map((m) => parseInt(m[1], 10));
+    expect(gridCols.length, '4 列').toBe(4);
+    expect(gridCols.reduce((s, w) => s + w, 0), '总宽压进页内').toBeLessThanOrEqual(9000);
+    expect((xml.match(/<w:tr[ >]/g) || []).length, '4 行（含表头行）').toBe(4);
+    // 每格四边都有框线（表格感不能丢）
+    const tcBlocks = [...xml.matchAll(/<w:tc>[\s\S]*?<\/w:tc>/g)].map((m) => m[0]);
+    expect(tcBlocks.length).toBe(16);
+    for (const block of tcBlocks) expect(block).toContain('<w:top w:val="single"');
+  });
+});

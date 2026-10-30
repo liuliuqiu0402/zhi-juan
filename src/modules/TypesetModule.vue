@@ -225,6 +225,14 @@
             >
               {{ showSource ? '🎨 渲染' : '<> 源码' }}
             </button>
+            <!-- 🏷 标记体检（2026-10-30）：逐题对账——题干要求加点/画线等而正文没有的题，逐条列出（只报不改） -->
+            <button
+              class="btn"
+              title="标记体检：检查题干要求加点/画线/波浪线而正文没有对应标记的题（只报不改）"
+              @click="runMarkAudit"
+            >
+              🏷 标记体检
+            </button>
             <!-- 🔧 学段（2026-09）：不默认、不冒充——文档有学段→自动跟随；无学段→"未选择"，手动选择才应用并写回。
                  影响作文格尺寸（小学12/初中10/高中7.5×8mm）、四线三格/六线格与拼音格行高；田字格固定低段12mm -->
             <select
@@ -495,7 +503,8 @@ import { normalizeGenType } from '../config/expertKnowledge.js'; // 资料类型
 import { getMergedSpec, normalizeStage3, blankWriteScale } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）＋ 空位手写系数
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
-import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks, markSoloBlankLines, wrapBareBlankRuns, markExamBigCategory, normalizeExamHeadOrder } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（与 GenerateModule 共用，防同构副本各自演化）
+import { stripAiCodeFence, normalizeLeadingMarkers, normalizeMathCircleBlanks, markSoloBlankLines, wrapBareBlankRuns, markExamBigCategory, normalizeExamHeadOrder, upgradeBareMarksByClaim } from '../utils/contentCleaner.js'; // 导出端 AI 代码块/对话残留剥离 + 行首"项目符号+序号"归一 + 排版"单独空行"整行延伸打标 + 裸书写空（全角/em 空格）→填空横线（与 GenerateModule 共用，防同构副本各自演化）
+import { auditMarkBlocks } from '../config/markRegistry.js'; // 🏷 标记载体注册表：标记体检（逐题对账，只报不改）
 // 公式字体内联：PDF 走 puppeteer page.setContent（无 base URL/无网络），KaTeX 相对字体
 //    解析不到 → 分式/根号字模缺失走形；导出前把自带字形的样式注入 HTML（无公式时自动短路）
 import { withKatexStyles } from '../utils/mathRender.js';
@@ -654,6 +663,27 @@ const exportBaseName = computed(() => {
 const contentEditor = ref(null);
 const paperPageRef = ref(null);
 const { showConfirmDialogFn, showAlertDialogFn } = useDialog();
+
+// 🏷 2026-10-30（属主："光靠一句自洽解决不了"）：**标记体检**——逐题对账，只报不改、不重写。
+//   学科取当前生成记录的 meta.subject（取不到就按"作者侧全集"判，学生动作类不参与）。
+const currentSubject = computed(() => {
+  const rec = genRecords.value.find((r) => r.id === currentGenRecordId.value);
+  return rec?.meta?.subject || rec?.subject || '';
+});
+const runMarkAudit = async () => {
+  const html = pristineHtmlForExport.value || rawHtmlContent.value || '';
+  if (!String(html).trim()) {
+    await showAlertDialogFn('当前没有可体检的内容。');
+    return;
+  }
+  const miss = auditMarkBlocks(html, { subject: currentSubject.value });
+  if (!miss.length) {
+    await showAlertDialogFn('标记体检通过：没有发现"题干要求标记、正文却没有"的题。');
+    return;
+  }
+  const lines = miss.slice(0, 12).map((m, i) => `${i + 1}. 缺「${m.label}」：${m.excerpt}…`);
+  await showAlertDialogFn(`标记体检：发现 ${miss.length} 处\n\n${lines.join('\n')}${miss.length > 12 ? '\n……（其余略）' : ''}\n\n提示：可机检的形态（裸 <u> 画线/加点）在载入时已自动归一；仍缺的属模型没标，需重新生成对应题目。`);
+};
 
 const { selectFiles, parseWord } = useFileHandler();
 
@@ -1531,6 +1561,9 @@ const loadContentSilent = (content, stage = '', genType = '') => {
   // 🔧 行首页签"项目符号+序号"在此统一剥离（幂等）：历史/旧内容首次载入排版即规范，与生成端/编辑器同口径，
   //    避免"第二遍才剥"——排版/导出直接读取本入口产出的 rawHtmlContent，必须先归一再装卷面
   content = normalizeMathCircleBlanks(normalizeLeadingMarkers(content));
+  // 🏷 存量归一（2026-10-30）：老资料里"已标但形态不对"的裸 <u>（画线/加点）当场升级成合法载体，
+  //   不必重新生成；完全没标的题程序补不了（语义），由「标记体检」列出。
+  content = upgradeBareMarksByClaim(content);
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   // 🔧 HTML 内容统一做密封线结构归一化 + 注入卷面固定件（编辑区所见即所得），幂等
   if (isHtml) { isHtmlContent.value = true; syncDiagramRenderOptions(); rawHtmlContent.value = rerenderDiagramsForWidth(withExamShell(content, stage, genType), contentWidthPx(paperLayout.value), diagramFontPx.value); currentContent.value = ''; }
@@ -1544,6 +1577,8 @@ const loadFromGenerate = async (payload) => {
   currentGenType.value = normalizeGenType(meta.genType);  // 🔴 归一成 key（生成记录/历史里存的是显示名『📝 正式考卷』）
   // 🔧 生成/载入统一规范：行首页签"项目符号+序号"剥离 + 算式 ○→填空圈（幂等，与生成端/编辑器同口径），确保排版/导出首次即规范
   content = normalizeMathCircleBlanks(normalizeLeadingMarkers(content));
+  // 🏷 存量归一（2026-10-30）：老资料里"已标但形态不对"的裸 <u>（画线/加点）当场升级成合法载体
+  content = upgradeBareMarksByClaim(content);
   // 🔧 文档学段（作文格/书写格/导出按学段走排版规格库）：生成参数五档 stageKey 优先，
   //    旧记录/无字段内容按载体推断（田字格/拼音格→低段、四线格→中段），避免误回退默认档
   applyDocStage(meta.stage || sniffCarrierStage(content));
@@ -2354,6 +2389,19 @@ rt {
   text-underline-offset: 3px;
 }
 
+/* 🏷 圈出 / 划去（删除）—— 与 config/markRegistry.js 同名登记（2026-10-30 补齐） */
+.circle-mark {
+  text-emphasis: circle #d32f2f;
+  -webkit-text-emphasis: circle #d32f2f;
+  text-emphasis-position: under;
+}
+.strike-mark {
+  text-decoration: line-through;
+  text-decoration-color: #d32f2f;
+  text-decoration-thickness: 1.5px;
+  color: #d32f2f;
+}
+
 /* 单线格 */
 .single-line {
   text-decoration: underline;
@@ -2452,6 +2500,15 @@ ruby.radical rt { font-size: 0.5em; color: var(--primary-light); }
   min-width: 80px;
   text-align: center;
 }
+/* 🔴 多列（≥3）的"表格型"载体按版心等分：两列连线题保留 40px 间距，多列则不能撑出版心 */
+.match-question:has(.match-col:nth-child(3)) {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.match-question:has(.match-col:nth-child(3)) .match-col { min-width: 0; gap: 8px; }
+.match-question:has(.match-col:nth-child(3)) .match-item { min-width: 0; padding: 4px 8px; }
 
 /* 词库框 - 完形填空 */
 .word-bank {

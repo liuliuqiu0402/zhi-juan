@@ -800,6 +800,7 @@ const PRESERVE_CLASSES = [
   'blank-11', 'blank-12', 'blank-13', 'blank-14', 'blank-15', 'blank-16', 'blank-17', 'blank-18', 'blank-19', 'blank-20',
   'blank-21', 'blank-22', 'blank-23', 'blank-24',
   'stroke-order', 'underline-sentence', 'wavy-underline', 'double-line', 'single-line',
+  'circle-mark', 'strike-mark',  // 🏷 圈出/划去（config/markRegistry.js 登记项；不登记的话 Tiptap 会把 class 剥掉）
   'oral-box', 'square-box', 'score-box', 'chem-condition', 'wb-item',
   'math-circle-blank-18',  // 数学填空圈（算式中的 ○ → 1.8em 圆形边框容器，与 square-box 同性质，由 normalizeMathCircleBlanks 生成）
   'superscript', 'subscript', 'dashed-line', 'list-marker',
@@ -2893,6 +2894,9 @@ defineExpose({
 .rich-text-editor :deep(rt) { font-size: 0.6em; text-align: center; color: #666; font-family: 'Times New Roman', 'Microsoft YaHei', SimSun, serif; }
 .rich-text-editor :deep(.wavy-underline) { text-decoration: underline; text-decoration-style: wavy; text-decoration-color: #d32f2f; text-underline-offset: 3px; }
 .rich-text-editor :deep(.double-line) { text-decoration: underline; text-decoration-style: double; text-underline-offset: 3px; }
+/* 🏷 圈出 / 划去（删除）—— 与 config/markRegistry.js 同名登记（2026-10-30 补齐） */
+.rich-text-editor :deep(.circle-mark) { text-emphasis: circle #d32f2f; -webkit-text-emphasis: circle #d32f2f; text-emphasis-position: under; }
+.rich-text-editor :deep(.strike-mark) { text-decoration: line-through; text-decoration-color: #d32f2f; text-decoration-thickness: 1.5px; color: #d32f2f; }
 .rich-text-editor :deep(.single-line) { text-decoration: underline; text-decoration-style: solid; text-underline-offset: 3px; }
 .rich-text-editor :deep(ruby.radical) rb { font-size: 1em; }
 .rich-text-editor :deep(ruby.radical) rt { font-size: 0.5em; color: var(--primary-light); }
@@ -2921,6 +2925,10 @@ defineExpose({
 .rich-text-editor :deep(.match-question) { display: flex; gap: 40px; margin: 12px 0; }
 .rich-text-editor :deep(.match-question .match-col) { display: flex; flex-direction: column; gap: 10px; }
 .rich-text-editor :deep(.match-question .match-item) { padding: 4px 16px; border: 1px solid #ccc; border-radius: 4px; min-width: 80px; text-align: center; }
+/* 🔴 多列（≥3）的"表格型"载体按版心等分（两列连线题保留 40px 间距，供连线） */
+.rich-text-editor :deep(.match-question:has(.match-col:nth-child(3))) { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.rich-text-editor :deep(.match-question:has(.match-col:nth-child(3)) .match-col) { min-width: 0; gap: 8px; }
+.rich-text-editor :deep(.match-question:has(.match-col:nth-child(3)) .match-item) { min-width: 0; padding: 4px 8px; }
 .rich-text-editor :deep(.word-bank) { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border: 1.5px solid #666; border-radius: 4px; margin: 4px 0; background: #fafafa; }
 .rich-text-editor :deep(.word-bank .wb-item) { display: inline-block; padding: 2px 10px; font-family: 'Times New Roman', serif; font-size: 0.9em; color: #333; }
 .rich-text-editor :deep(.chem-condition) { font-size: 0.7em; vertical-align: super; color: #555; line-height: 1; }

@@ -7,6 +7,8 @@
 //    本文件只负责规则的执行逻辑。
 // ============================================================
 import { getValidatorRules, normalizeStage } from '../config/validatorRules.js';
+// 🏷 标记载体注册表（2026-10-30）：逐题对账的"触发词 → class"名单单源；本文件不再自持一份正则
+import { auditMarkBlocks } from '../config/markRegistry.js';
 import { EMPTY_PRAISE_WORDS } from '../config/validatorRules.js'; // 空洞评价词词表单源（2026-10-14 · AI 味·清单 H3）
 import { AI_CLICHE_PHRASES, AI_CLICHE_MIN } from '../config/validatorRules.js'; // AI 味套话指纹·阈值单源（2026-10-14）
 import { detectOptionSymmetry } from './optionSymmetry.js'; // 选项对称指纹判据（纯函数·可单测；阈值单源见其内 AI_OPTION_SYM，2026-10-14）
@@ -777,27 +779,23 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
     }
   }
 
-  // ── 1.5.6. 排版语义标记自洽检测（规则 text-format-fix：题干要求加点/画线但正文无对应标记 → 静默计数）──
+  // ── 1.5.6. 排版语义标记自洽检测（规则 text-format-fix：逐题块对账，题干要求标记而该题无载体 → 静默计数）──
   if (has('text-format-fix')) {
-    const bodyText = out.replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ');
-    // 加点=emphasis-dot、画线=underline-sentence（加点严禁用 <u>，<u> 仅用于填空横线）
-    const markCount = (out.match(/<span[^>]*class=["'][^"']*emphasis-dot[^"']*["'][^>]*>|<u[^>]*class=["'][^"']*underline-sentence[^"']*["'][^>]*>/gi) || []).length;
-    // 🔴 2026-10-09（〔291〕触发对齐）：原为**枚举清单**且只认"加点字"，对题干常见措辞"照样子，用**加点的词语**…"
-    //    "给**加点的字**…""**加点词**"**够不着**——模型侧判据已原则式（"措辞如何变化都算"），程序侧仍是清单 ⇒
-    //    "有要求而无标记"的自洽检查**漏触发**。现与模型侧对齐：加点以"加点"为特征（覆盖加点的字/词语、加点字/词）；
-    //    画线以"画线/划线/划出/划一划/描出/用…线画出|划出"为特征。仅用于 silentCount 报告，不改写正文。
-    // ⚠️ 防误读（勿与〔285〕"适得其反"类混淆）：本检测属**只报不改**档——只 silentCount 供人工抽检，
-    //    **既不回灌/重试、也不改写正文**。〔285〕禁止的 (b) 档是"语义判断→回灌把判不准的语义当命令喂回模型"
-    //    （实证＝useAiGenerator 旧句"不得省略或合并任何一题"逼出多余小题号）；本处与那类无关。
-    const claims = bodyText.match(/(加点|画线|划线|划(?:出|一划)|描出|用.{0,3}线(?:画出|划出))/g) || [];
-    if (claims.length > 0 && markCount === 0) {
-      silentCount('text-format', `题干要求加点/画线（${claims[0]}）但正文无对应标记（emphasis-dot/underline-sentence）——题目不自洽，请抽检`);
+    // 🔴 2026-10-30（属主："题干写着加点、画线，正文却没有标记"·根因之三）：
+    //   旧口径是**全文计数**——`markCount === 0` 才报，于是卷里任意一处有标记（哪怕别的题），
+    //   其余缺标记的题**全部漏报**，用户看不到任何提示。现改为**逐题块对账**：
+    //   题干触发词 → 该题块内必须有对应 class（名单单源＝config/markRegistry.js）。
+    //   纪律不变：**只报不改、不重试、不判失败**（"哪几处该标"属语义，交模型侧）。
+    const missMarks = auditMarkBlocks(out, { subject });
+    if (missMarks.length) {
+      const first = missMarks[0];
+      silentCount('text-format', `题干要求「${first.label}」但该题无对应标记：共 ${missMarks.length} 处，如「${first.excerpt}…」——请抽检`);
     }
     // 🔴 2026-10-09（属主实测·乙）：原为**整卷** `/加点/` 一刀切——卷内任一处"加点"即把**全卷**无 class 的
     //    `<u>汉字</u>` 都点成加点 ⇒ 实测"**不该点的点了**"（他题把书写/强调写成裸 <u> 时被误点）。
     //    现**收窄到题块**：仅当**该 <u> 所在题块**的题面含"加点"时才转。两点保证：
     //    ① 整卷误点消失（无"加点"的题块一律不动）；② "该题含加点却写成裸 <u>"仍被转 ⇒ **不会渲染成下划线**。
-    if (/加点/.test(bodyText)) {
+    if (/加点/.test(out)) {
       const beforeDot = out;
       const dotInBlock = (blk) => (/加点/.test(blk.replace(/<[^>]+>/g, ' '))
         ? blk.replace(/<u>([\u4e00-\u9fa5]{1,6})<\/u>/g, '<span class="emphasis-dot">$1</span>')

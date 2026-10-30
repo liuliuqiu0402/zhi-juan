@@ -1403,6 +1403,12 @@ const MATCH_WORD_BANK_CSS = `
     .match-question { display: flex; gap: 40px; margin: 12px 0; }
     .match-question .match-col { display: flex; flex-direction: column; gap: 10px; }
     .match-question .match-item { padding: 4px 16px; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; min-width: 80px; text-align: center; }
+    /* 🔴 2026-10-30（属主实测："表格题在排版预览里超出纸张、超出的部分导不出来"）：
+       模型把"补全表格"写成了 4 列 match-question。两列的连线题用 flex + 40px 间距是对的（留连线空间），
+       但 ≥3 列时这个间距与 min-width 会把整幅顶出版心。多列一律按**版心等分**（grid N 等分、项内允许换行）。 */
+    .match-question:has(.match-col:nth-child(3)) { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+    .match-question:has(.match-col:nth-child(3)) .match-col { min-width: 0; gap: 8px; }
+    .match-question:has(.match-col:nth-child(3)) .match-item { min-width: 0; padding: 4px 8px; }
     /* ⭐ 词库框 - 完形填空 */
     .word-bank { display: inline-flex; flex-wrap: wrap; gap: 6px; padding: 8px 12px; border: 1.5px solid #666; border-radius: 4px; margin: 4px 0; background: #fafafa; }
     .word-bank .wb-item { display: inline-block; padding: 2px 10px; font-family: 'Times New Roman', serif; font-size: 0.9em; color: #333; }
@@ -1556,6 +1562,18 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       text-decoration-style: solid;
       text-underline-offset: 3px;
       text-decoration-thickness: 1.5px;
+    }
+    /* ⭐ 圈出 / 划去（删除）—— 标记载体注册表 config/markRegistry.js 的两项（2026-10-30 补齐） */
+    .circle-mark {
+      text-emphasis: circle #d32f2f;
+      -webkit-text-emphasis: circle #d32f2f;
+      text-emphasis-position: under;
+    }
+    .strike-mark {
+      text-decoration: line-through;
+      text-decoration-color: #d32f2f;
+      text-decoration-thickness: 1.5px;
+      color: #d32f2f;
     }
     /* ⭐ 上标 - 数学/物理/化学 */
     .superscript {
@@ -1762,6 +1780,15 @@ export const applyThemeToContent = (content, themeId, options = {}) => {
       background: #f0f4ff;
       border-color: #2b5ea7;
     }
+    /* 🔴 多列（≥3）的表格型载体按版心等分，别把整幅顶出版心（同 MATCH_WORD_BANK_CSS 口径） */
+    .match-question:has(.match-col:nth-child(3)) {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: minmax(0, 1fr);
+      gap: 8px;
+    }
+    .match-question:has(.match-col:nth-child(3)) .match-col { min-width: 0; gap: 8px; }
+    .match-question:has(.match-col:nth-child(3)) .match-item { min-width: 0; padding: 4px 8px; }
 
     /* ⭐ 词库框 - 完形填空 */
     .word-bank {

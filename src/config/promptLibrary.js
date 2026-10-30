@@ -26,6 +26,7 @@ import { isLibEntryEnabled } from '../utils/libToggles.js';
 import { resolveStageKey, STAGE_KEY_SET } from '../utils/gradeStage.js'; // 年级→学段唯一事实源（三维度与课标版本标签共用，禁止各自 parseInt 中文年级）
 import { buildCarrierInstruction, buildAnswerSpaceInstruction, buildLongAnswerCarrierInstruction, buildCarrierFormLine, BLANK_CARRIER_MARKUP } from './layoutSpec.js'; // 书写载体（格子类）+ 作答空间形态语义 + 空位载体标记 + 成句成段答案的书写载体 + **内容型载体协议句**：均由排版规格库按 学科×学段 动态生成（单一事实源，禁止在模板里手写死第二套措辞/示例）
 import { resolveMarkCapability, markCapabilitySignature } from './eduRenderContract.js'; // 标记能力判定单源（2026-09-17）：正文点名 [IMAGE]/[GRAPH] 与 system 给骨架用**同一判定**，防"正文点名而 system 无骨架"的悬空与假指针
+import { markRulesFor } from './markRegistry.js'; // 🏷 标记载体注册表（2026-10-30）：正文里的"加点/画线按 class 输出"由它派生，禁止在模板里手写第二份 class 名
 import { sectionKindOf } from './examPaperBlueprints.js'; // 蓝图栏目性质判定单源（2026-09-27）：域型→大类层 / 部分型→部分层 / 题型型→不设大类层（该行直接作大题行，题名按大题标题命名条）；本处与【层级归并】条款同源，不再由模型从栏名再猜一遍
 import { buildLevelInstruction, gaokaoLevelOf } from './levelMapping.js'; // 卷别→学业质量水平 单源（2026-09-28）：高中正式卷按卷别/学科映射、教辅锚毕业合格要求；指令正文**只在此处注入一次**，勿在别处再写一份水平口径（各科高考对标水平统一取 gaokaoLevelOf 单源）
 // 2026-09-28（单一事实源·易错题本分项名）：六分项名唯一定义在独立叶子模块 errorbookFacets.js；
@@ -852,12 +853,20 @@ const outputFormatSections = (mode = 'question', ctx = {}) => {
   // 2026-09-30（机制 C·维度隔离·用户裁定）：原"强调口径（全类型）"把**知识总结类**的口径
   //   （"需要突出重点/关键时一律用加粗"）一刀切广播到 9 类——对试卷/题类既无用又与语文学科"加点标记"
   //   正面竞争（实测：加点字被写成加粗）。现按**资料类型**分叉：内容型保留；题类与试卷改为"题面不承载强调"。
+  // 🔴 2026-10-30（属主："题干写着加点、画线，正文却没有标记"）：原半句只对语文说"按加点规范输出"，
+  //    而同一句前半是"题面不承载强调" ⇒ 模型选"不标"。现从**标记载体注册表**派生一句，明确
+  //    "题干要求时按 class 输出、不得用加粗或裸下划线代替"，两处口径不再打架（且不在这里手写 class 名，防漂移）。
+  const markHintClause = (() => {
+    const rules = markRulesFor(ctx.subject).filter((r) => r.id === 'emphasis-dot' || r.id === 'underline-sentence');
+    if (!rules.length) return '';
+    return `；题干要求${rules.map((r) => r.label).join('/')}时按 ${rules.map((r) => `\`${r.cls}\``).join('／')} 输出，不得用加粗或裸下划线代替`;
+  })();
   const emphasisClause = isContent
     // 2026-10-02（项4·以结果反推）：删"——下划线与横线在本产品语义是**作答载体**（…），用它做强调会与
     //   作答位混淆"——那是**本产品的内部语义解释**（解释"为什么"）；模型只需知道结果：重点用加粗、
     //   不用下划线/横线充当标注（＋"除题目要求画线外不出现 <u>"的例外）。判据一字未丢。
     ? '· 强调口径：需要突出"重点/关键"时一律用**加粗**（<strong>）；下划线只用于题目明确要求的画线，以及作答空位载体 <u class="blank-N">'
-    : `· 强调口径：**题面不承载"强调"**——加粗只用于层级标题、讲解示范引出与**知识性正文的重点**${ctx.subject === '语文' ? '；语文学科加点标记按加点规范输出、非加粗' : ''}；下划线只用于题目明确要求的画线，以及作答空位载体 <u class="blank-N">`;
+    : `· 强调口径：**题面不承载"强调"**——加粗只用于层级标题、讲解示范引出与**知识性正文的重点**${markHintClause}；下划线只用于题目明确要求的画线，以及作答空位载体 <u class="blank-N">`;
   // 🔴 2026-10-13（第 3 批核证·科学-primary_mid「不达标」·真错·放宽）：原题类版把加粗**只**限于"层级标题与讲解示范引出"，
   //   而 `review`（复习资料）**不属内容型**（内容型仅 preview／summary）⇒ 其"核心知识梳理"栏的"**重点难点突出**"
   //   在**全份范围内无任何标注手段**（加粗被锁、下划线属作答载体）⇒ 栏目要求与强调口径**相抵**（实测

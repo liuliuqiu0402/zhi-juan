@@ -360,6 +360,19 @@ p.blank-area {
   text-emphasis-position: under;
 }
 
+/* ⭐ 圈出 / 划去（删除）—— 标记载体注册表 config/markRegistry.js 的两项 */
+.circle-mark {
+  text-emphasis: circle #d32f2f;
+  -webkit-text-emphasis: circle #d32f2f;
+  text-emphasis-position: under;
+}
+.strike-mark {
+  text-decoration: line-through;
+  text-decoration-color: #d32f2f;
+  text-decoration-thickness: 1.5px;
+  color: #d32f2f;
+}
+
 /* 口算框 - 数学 */
 .oral-box {
   display: inline-block;

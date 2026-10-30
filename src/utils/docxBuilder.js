@@ -446,7 +446,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
     //    <span class="emphasis-dot">&nbsp;×8</span>，真加点/画线必须落在可见字上，纯空白标记是空位；
     //    宽度 = 实际空白宽（nbsp≈0.5em/全角=1em，round 后落 [2,16]），与归一规则产出 blank-N 同口径。
     //    必须位于下方各装饰分支之前，否则空白 span 会被当作"加点/画线文字"导出（无字可加 → 点/线语义失效）
-    if (/emphasis-dot|wavy-underline|double-line|single-line|underline-sentence|dashed-line|chem-condition|stroke-order/.test(child.className || '')) {
+    if (/emphasis-dot|wavy-underline|double-line|single-line|underline-sentence|circle-mark|strike-mark|dashed-line|chem-condition|stroke-order/.test(child.className || '')) {
       const rawTxt = child.textContent || '';
       if (rawTxt && /^[\s\u00A0\u2003\u2002\u3000]*$/.test(rawTxt)) {
         const emW = whitespaceEmWidth(rawTxt);
@@ -482,6 +482,17 @@ const buildTextRuns = (node, styleOverride = {}) => {
       // 🔧 画线句子（<u class="underline-sentence">/<span class="underline-sentence">）→ 单下划线
       //    （曾缺分支：主题/编辑器有 text-decoration，Word 导出却退化为普通文字）
       runs.push(new TextRun({ ...ctx, text, underline: { type: 'single' } }));
+      return;
+    }
+    // 🏷 圈出 / 划去（删除）—— 标记载体注册表 config/markRegistry.js 的两项（2026-10-30 补齐）
+    //   圈出 → Word 着重号 circle（与 CSS text-emphasis: circle 同构：字下画圈）
+    //   划去 → 删除线（Word 原生 strike，红色与预览一致）
+    if (cls.contains('circle-mark')) {
+      runs.push(new TextRun({ text, emphasisMark: { type: 'circle' }, color: 'D32F2F', ...ctx }));
+      return;
+    }
+    if (cls.contains('strike-mark')) {
+      runs.push(new TextRun({ ...ctx, text, strike: true, color: 'D32F2F' }));
       return;
     }
     // === 四线三格 / 四线格 ===
@@ -1514,6 +1525,49 @@ const processBlockNode = (node, ctx = {}) => {
       const ownIndent = readIndent(node) || 0;
       const prevIndent = node.previousElementSibling ? readIndent(node.previousElementSibling) || 0 : 0;
       const tableIndent = Math.max(ownIndent, prevIndent) + TAB_DXA;
+      // 🔴 2026-10-30（属主实测："表格题在排版预览里超出纸张，超出的部分导不出来"·根因）：
+      //   那张"表格"其实不是 <table>，是模型把"补全表格"写成了 **4 列 match-question**。
+      //   旧实现只取 cols[0] / cols[1]（连线题的两列）⇒ **第 3 列起整列被静默丢掉**，
+      //   所以导出后"右边那几列不见了"，而预览里它们只是被纸张边界裁掉。
+      //   现按实际列数导出为 N 列网格表：等宽 FIXED、列宽按内容估算后再等比缩进页内。
+      if (cols.length > 2) {
+        const MAX_TABLE_DXA = 9000; // 正文可用宽（约 159mm），与普通表格口径一致
+        const colItems = [...cols].map((c) => [...c.querySelectorAll('.match-item')]);
+        const gridRowCount = Math.max(...colItems.map((its) => its.length));
+        const rawW = colItems.map((its) => Math.max(1200, calcColWidth(its)));
+        const budget = Math.max(3000, MAX_TABLE_DXA - tableIndent - 200);
+        const sumRaw = rawW.reduce((s, w) => s + w, 0);
+        const scale = sumRaw > budget ? budget / sumRaw : 1;
+        const widths = rawW.map((w) => Math.max(600, Math.round((w * scale) / 20) * 20));
+        const gridRows = [];
+        for (let i = 0; i < gridRowCount; i += 1) {
+          gridRows.push(new TableRow({
+            children: colItems.map((its, ci) => new TableCell({
+              children: [new Paragraph({
+                children: [new TextRun({ text: (its[i]?.textContent || '').trim() || ' ', ...defaultRunStyle(node) })],
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 60, after: 60 },
+              })],
+              borders: itemBorders,
+              margins: { top: 60, bottom: 60, left: 240, right: 240 },
+              width: { size: widths[ci], type: WidthType.DXA },
+            })),
+          }));
+        }
+        children.push(new Table({
+          rows: gridRows,
+          width: { size: widths.reduce((s, w) => s + w, 0), type: WidthType.DXA },
+          columnWidths: widths,
+          layout: TableLayoutType.FIXED,
+          ...(tableIndent > 0 ? { indent: { size: tableIndent, type: WidthType.DXA } } : {}),
+        }));
+        // 表格下方留白（与普通表格同口径）
+        children.push(new Paragraph({
+          children: [new TextRun({ text: ' ', size: 1, font: 'Times New Roman' })],
+          spacing: { before: 120, after: 120, line: 1, lineRule: LineRuleType.EXACT },
+        }));
+        return children;
+      }
       const maxRows = Math.max(leftItems.length, rightItems.length);
       for (let i = 0; i < maxRows; i++) {
         children.push(new Table({
