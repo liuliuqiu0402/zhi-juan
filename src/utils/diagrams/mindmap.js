@@ -55,7 +55,13 @@ const layoutSide = (nodes, gapY, geo) => {
     const start = cursor;
     if (node.grid) {
       const g = geo(node);
-      kids.forEach((k, i) => { k.y = start + g.rowY[Math.floor(i / g.cols)]; });
+      kids.forEach((k) => {
+        const ri = g.rowOf.get(k);
+        const rh = g.rowH[ri];
+        // 同一行内**按各自高度垂直居中**（不再顶边对齐）：高度差多少就上下匀开，看着不"固定"
+        k.rowH = rh;
+        k.y = start + g.rowY[ri] + (rh - k.h) / 2;
+      });
       cursor = start + g.height + gapY;
       node.y = start + (g.height - node.h) / 2;
       if (node.y < start) node.y = start;
@@ -116,6 +122,12 @@ export const layoutMindmap = (tree, opts = {}) => {
   const margin = Math.round(fontSize * 1.2);
 
   // ── 归一化：算每行文字与节点尺寸 ──
+  // 🔴 2026-10-30（属主："Unit 1 Where did you go on vacation? 这种很长的内容，可以折行，
+  //   把更多的空间让给分支"）：**根节点单独设最大宽**（默认 栏宽×0.3，夹在 120~220px）。
+  //   根太长会独占一整列、把分支整体挤到右边；让它折成 1~2 行，横向把空间让给分支（纵向多一两行而已）。
+  //   其余节点仍按 maxLabelWidth（二分算出的折行宽），不受此限。
+  const fitForRoot = Number(opts.fitWidth) || 0;
+  const rootMaxWidth = Math.max(120, Math.min(220, Math.round((fitForRoot || 643) * 0.3)));
   let seq = 0;
   const prep = (raw, depth, color, isRoot) => {
     // 🔴 2026-10-22（属主："节点字号可以做"）：节点可自带 fs（11–24），不合法则按层级默认。
@@ -135,8 +147,9 @@ export const layoutMindmap = (tree, opts = {}) => {
     const boldK = weightPadK(effWeight, exact);
     const widthOf = (t, b) => textWidthOf(t, fs, b ? 700 : weight, measurer) * (exact ? 1 : boldK);
     const natural = widthOf(plain, anyBold);
-    const capW = natural <= maxLabelWidth ? maxLabelWidth
-      : (natural <= maxLabelWidth * 1.2 ? Math.round(natural) : maxLabelWidth);
+    const wrapCap = isRoot ? Math.min(maxLabelWidth, rootMaxWidth) : maxLabelWidth;
+    const capW = natural <= wrapCap ? wrapCap
+      : (natural <= wrapCap * 1.2 ? Math.round(natural) : wrapCap);
     const wrapW = exact ? capW : Math.max(60, Math.floor(capW / boldK));
     const lines = wrapLabel(plain, wrapW, fs, measure, lineBudget(plain, wrapW, fs, measure));
     // 按字符回填掩码：wrapLabel 只会丢"行首空白"，所以顺序扫描即可对上（末尾自动兜底成末行剩余）
@@ -198,41 +211,65 @@ export const layoutMindmap = (tree, opts = {}) => {
   //   结果整块超宽、再被整体收窄。现改为：**先算这一侧在 A4 里能拿多少宽**，能并几项就并几项；
   //   连两项都并不下（cols<2）或条目本身是长句 ⇒ **自然回落竖排同级**（一项一行），不做任何硬挤。
   const MAX_GRID_W = 460;
-  /** 只有"短条目"才横排（≈8 个汉字以内，含内边距后 ≤160px）；长句子仍竖排——横排会把长句挤成窄栏 */
+  /** 只有"短条目"才横排（含内边距 ≤160px ≈ 10 个汉字）；长句仍一条一行——横排会把长句挤成窄栏 */
   const MAX_SHORT_W = 160;
   const fitW = Number(opts.fitWidth) || 0;
-  // 一侧可用的横向预算：balanced 两侧对分（扣掉根与两侧外边距/列间隙）；right 整幅归一侧。
-  //   ⚠️ 只有"真的分成两侧"（一级分支 ≥2）时才减半——单分支的 balanced 其实独占整幅宽，
-  //   按一半算会把多支硬压成竖排（白白浪费半页）。
-  const sideCount = layout === 'balanced' && (root.children || []).length > 1 ? 2 : 1;
-  const sideBudget = fitW
-    ? Math.max(140, Math.round((fitW - 2 * margin - root.w) / sideCount - gapX))
-    : MAX_GRID_W;
-  /** 该分组可用的整块宽：其前还有 node.depth 层列，按"每列至少 56px"保守扣减 */
-  const gridBudgetOf = (node) => Math.max(120, Math.min(MAX_GRID_W, sideBudget - node.depth * (56 + gapX)));
+  /** 该分组可用的整块宽：= 整幅 − 外边距 − **它左边已经占掉的列**（根 + 各前序层的最大宽）。
+   *  🔴 2026-10-30（属主："框还是固定的上下对齐的，并不是按照内容来的"）：原按"每层扣 56px"估前缀，
+   *    与真实列宽（120~160px）差一倍 ⇒ 横排把整幅顶出栏宽、再被二分压回折行。现按真实列宽逐层扣。 */
+  const depthMaxW = {};
+  (function scan(n, d) {
+    depthMaxW[d] = Math.max(depthMaxW[d] || 0, n.w);
+    (n.children || []).forEach((c) => scan(c, d + 1));
+  })(root, 0);
+  const gridBudgetOf = (node) => {
+    const half = layout === 'balanced' && (root.children || []).length > 1 ? 2 : 1;
+    if (!fitW) return Math.max(120, Math.round(MAX_GRID_W / half) - node.depth * 76);
+    let prefix = depthMaxW[0] + gapX;
+    for (let d = 1; d <= node.depth; d++) prefix += (depthMaxW[d] || 0) + gapX;
+    return Math.max(120, Math.round((fitW - 2 * margin - prefix) / half));
+  };
+  // 🔴 2026-10-30（属主："每一个枝节的框还是固定的上下对齐的，并不是按照内容来的"）：
+  //   原横排是**按列对齐的表格**——列宽取"该列最宽的框"，于是窄框后面拖一条空白、同列左边缘强行对齐，
+  //   整组看着像固定的格子。现改**流水排（flow）**：每个框用自己的宽，从左往右依次紧挨着放，
+  //   一行放不下（超出本组可用宽）才换行；行高取该行最高框。位置与尺寸全由内容决定，不再对齐成表格。
   const gridGeo = (node) => {
     const kids = node.children || [];
-    const cols = Math.max(1, Math.min(node.grid.cols, kids.length));
-    const rows = Math.ceil(kids.length / cols);
-    const colW = Array.from({ length: cols }, (_, c) => Math.max(...kids.filter((_, i) => i % cols === c).map((k) => k.w)));
-    const rowH = Array.from({ length: rows }, (_, r) => Math.max(...kids.slice(r * cols, r * cols + cols).map((k) => k.h)));
-    const colX = [];
-    let ax = 0;
-    for (let c = 0; c < cols; c++) { colX[c] = ax; ax += colW[c] + gapX; }
+    const budget = gridBudgetOf(node);
+    const rows = [];
+    let cur = [];
+    let curW = 0;
+    kids.forEach((k) => {
+      const add = (cur.length ? gapX : 0) + k.w;
+      if (cur.length && curW + add > budget) { rows.push(cur); cur = []; curW = 0; }
+      curW += (cur.length ? gapX : 0) + k.w;
+      cur.push(k);
+    });
+    if (cur.length) rows.push(cur);
+    const xOf = new Map();
+    const rowOf = new Map();
     const rowY = [];
+    const rowH = [];
     let ay = 0;
-    for (let r = 0; r < rows; r++) { rowY[r] = ay; ay += rowH[r] + gapY; }
-    return { cols, rows, colW, rowH, colX, rowY, width: ax - gapX, height: ay - gapY };
+    rows.forEach((r, ri) => {
+      let ax = 0;
+      r.forEach((k) => { xOf.set(k, ax); rowOf.set(k, ri); ax += k.w + gapX; });
+      const h = Math.max(...r.map((k) => k.h));
+      rowY[ri] = ay;
+      rowH[ri] = h;
+      ay += h + gapY;
+    });
+    const width = Math.max(0, ...rows.map((r) => r.reduce((s, k) => s + k.w, 0) + Math.max(0, r.length - 1) * gapX));
+    return { rows, xOf, rowOf, rowY, rowH, width, height: Math.max(0, ay - gapY) };
   };
   const decideGrid = (node) => {
     node.grid = null;
     const kids = node.children || [];
-    if (kids.length >= 3 && kids.every((k) => !(k.children || []).length)) {
-      const maxW = Math.max(...kids.map((k) => k.w));
+    if (kids.length >= 3 && kids.every((k) => !(k.children || []).length && k.w <= MAX_SHORT_W)) {
       const budget = gridBudgetOf(node);
-      const cols = Math.min(4, Math.floor((budget + gapX) / (maxW + gapX)));
-      // cols < 2 ⇒ A4 里这一侧放不下两项并排 ⇒ 不横排，自动走"竖排同级"（下方 tidy 布局一项一行）
-      if (cols >= 2 && maxW <= MAX_SHORT_W) node.grid = { cols };
+      // 至少能并排两项才值得横排；并不下就自然竖排（一项一行），不做任何硬挤
+      const two = kids.map((k) => k.w).sort((a, b) => a - b).slice(0, 2);
+      if (two.length === 2 && two[0] + two[1] + gapX <= budget) node.grid = true;
     }
     kids.forEach(decideGrid);
   };
@@ -337,9 +374,9 @@ export const layoutMindmap = (tree, opts = {}) => {
     const childEdge = bandEdge(n.depth + 1, side);
     if (n.grid) {
       const g = gridGeo(n);
-      n.children.forEach((c, i) => {
-        const col = i % g.cols;
-        c.x = side === 1 ? childEdge + g.colX[col] : childEdge - g.colX[col] - c.w;
+      n.children.forEach((c) => {
+        const off = g.xOf.get(c) || 0;
+        c.x = side === 1 ? childEdge + off : childEdge - off - c.w;
         placeX(c, side, true);
       });
       return;
@@ -415,12 +452,15 @@ export const buildMindmapSvg = (tree, opts = {}) => {
         ? Math.max(...kids.map((c) => c.x + c.w))
         : Math.min(...kids.map((c) => c.x));
       const trunk = leftward ? from - (from - near) / 2 : from + (near - from) / 2;
-      // 同一 rowY 的算一行（横排换行后会有多行）
+      // 同一 rowY 的算一行（横排换行后会有多行）。
+      // 🔴 2026-10-30：行内改为"各自垂直居中"后，同行的 y 不再相同 ⇒ 用行顶（rowH 反推）分组。
+      const rowTopOf = (c) => (c.rowH != null ? c.y - (c.rowH - c.h) / 2 : c.y);
       const rows = [];
       for (const c of kids) {
-        const hit = rows.find((r) => Math.abs(r.top - c.y) < 0.5);
+        const top = rowTopOf(c);
+        const hit = rows.find((r) => Math.abs(r.top - top) < 0.5);
         if (hit) hit.items.push(c);
-        else rows.push({ top: c.y, items: [c] });
+        else rows.push({ top, items: [c] });
       }
       const laneY = (r) => r.top - Math.max(4, Math.round(gapY / 2));
       const lanes = rows.map(laneY);

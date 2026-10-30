@@ -156,6 +156,37 @@
                     @change="onNum(e.path, 'fs', $event.target.value)"
                   >
                 </label>
+                <!-- 🔴 2026-10-30（属主："用户可以在排版模块拖动这个框调整长宽吗？"→ 选 A：面板给数值输入）：
+                     "宽/高"是**最小**尺寸——只放大不缩字（渲染侧 max(内容, 手填)），所以手改永远裁不到字；
+                     留空＝随内容自适应。 -->
+                <label
+                  class="de-num"
+                  title="该框的最小宽度（40–600px；留空＝随字自适应，只放大不裁字）"
+                >宽
+                  <input
+                    type="number"
+                    min="40"
+                    max="600"
+                    step="4"
+                    :value="e.w"
+                    placeholder="自动"
+                    @change="onNum(e.path, 'w', $event.target.value)"
+                  >
+                </label>
+                <label
+                  class="de-num"
+                  title="该框的最小高度（24–800px；留空＝随内容自适应）"
+                >高
+                  <input
+                    type="number"
+                    min="24"
+                    max="800"
+                    step="2"
+                    :value="e.h"
+                    placeholder="自动"
+                    @change="onNum(e.path, 'h', $event.target.value)"
+                  >
+                </label>
                 <span class="de-hint">局部：**粗**　{{ colorSyntax }} 换色（红橙绿蓝紫灰金）</span>
               </div>
             </div>
@@ -266,9 +297,10 @@ const onMove = (path, dir) => { const n = moveNode(draft.value, path, dir); if (
 const onBold = (path, bold) => { const n = setStyleAt(draft.value, path, { bold }); if (n) draft.value = n; };
 const onColor = (path, color) => { const n = setStyleAt(draft.value, path, { color }); if (n) draft.value = n; };
 // 字号（2026-10-22 属主："节点字号可以做"）——空值＝自动（删字段），越界由渲染侧同一套 norm 夹到合法区间。
-// ⚠️ 2026-10-22 属主："我们现在是随字自适配的，所以也不需要改框了吧？" ⇒ **面板撤掉"宽≥/高≥"两个输入**：
-//   自动排版已保证"框随内容、字不出框"，手改只剩"对齐美观"一条用途，不值得常驻占位。
-//   规格与渲染侧的 `w`／`h`（最小值语义，只放大不缩小）**保留**，将来若要"对齐美观"再加回 UI 即可。
+// 🔴 2026-10-30（属主："用户可以在排版模块拖动这个框调整长宽吗？"→ 定 A）：
+//   恢复"宽/高"两个输入（2026-10-22 曾按"随字自适配就不必改框"撤掉）。语义仍是**最小值**——
+//   渲染侧取 max(内容宽, 手填)，所以只放大、不会裁字；留空＝随内容自适应。
+//   本轮同时把节点排版改成"按内容流水排"，手改宽/高只会让该框更宽/更高，不影响别的框。
 const onNum = (path, key, val) => { const n = setStyleAt(draft.value, path, { [key]: val }); if (n) draft.value = n; };
 /** 面板里的写法示例（放在 JS 常量里，避免 Vue 把 `{{…}}` 当成插值解析） */
 const colorSyntax = '{{红:字}}';
@@ -366,10 +398,10 @@ const onSave = () => { if (draft.value) emit('save', draft.value); };
 .de-row { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; border-radius: 5px; }
 .de-main { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .de-line1 { display: flex; align-items: center; gap: 6px; }
-.de-line2 { display: flex; align-items: center; gap: 10px; padding-left: 2px; font-size: 11px; color: #64748b; }
+.de-line2 { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; padding-left: 2px; font-size: 11px; color: #64748b; }
 .de-num { display: inline-flex; align-items: center; gap: 3px; }
 .de-num input {
-  width: 52px; padding: 1px 4px; font-size: 11px; border: 1px solid #dfe4ea; border-radius: 4px;
+  width: 46px; padding: 1px 4px; font-size: 11px; border: 1px solid #dfe4ea; border-radius: 4px;
 }
 .de-hint { color: #94a3b8; }
 .de-grip {

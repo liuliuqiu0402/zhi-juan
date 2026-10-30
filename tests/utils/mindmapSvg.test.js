@@ -308,6 +308,58 @@ describe('mindmapSvg · 按内容自动横排（不设横/竖参数）', () => {
     expect([...xs].sort((a, b) => a - b)).toEqual(xs);
   });
 
+  // 🔴 2026-10-30（属主："Unit 1 Where did you go on vacation? 这种很长的内容，可以折行，
+  //   把更多的空间让给分支"）：根节点有单独的折行上限（栏宽×0.3，夹 120~220px），
+  //   长根折成 1~2 行，横向把空间让出去；短根不折。
+  it('长根节点折行（把空间让给分支），短根不折', () => {
+    const longRoot = {
+      title: 'Unit 1 Where did you go on vacation?',
+      children: [{ title: 'Section A', children: [{ title: '重点词汇' }, { title: '句型' }] }],
+    };
+    const { nodes } = layoutMindmap(longRoot, { layout: 'right', fitWidth: 643 });
+    const root = nodes.find((n) => n.depth === 0);
+    expect(root.lines.length, '长根折行').toBeGreaterThan(1);
+    expect(root.w, '根宽被限制住（不再独占一列）').toBeLessThanOrEqual(230);
+    expect(root.h, '折行后变高').toBeGreaterThan(40);
+
+    const shortRoot = { title: '分数', children: [{ title: '分子' }, { title: '分母' }] };
+    const r2 = layoutMindmap(shortRoot, { layout: 'right', fitWidth: 643 });
+    expect(r2.nodes.find((n) => n.depth === 0).lines.length, '短根不折').toBe(1);
+  });
+
+  // 🔴 2026-10-30（属主："每一个枝节的框还是固定的上下对齐的，并不是按照内容来的"）：
+  //   原实现是"按列对齐的表格"（列宽取该列最宽的框）⇒ 窄框后面拖一条空白、同列左缘强行对齐。
+  //   现改为按内容流水排：同一行里后一个框的左边 = 前一个框的右边 + 行内间隙（无"列宽"空白）。
+  it('同级框按内容紧挨着排（不再按列宽对齐成表格）', () => {
+    const tree = {
+      title: '根',
+      children: [{
+        title: '分组',
+        children: [{ title: '短' }, { title: '一个中等长度的要点' }, { title: '再短一点' }, { title: '中等要点' }],
+      }],
+    };
+    const { nodes, metrics } = layoutMindmap(tree, { layout: 'right' });
+    const ks = kidsOf(nodes, '分组');
+    const gapX = metrics.gapX;
+    // 按行分组
+    const rows = new Map();
+    for (const k of ks) {
+      const key = Math.round(k.y - ((k.rowH || k.h) - k.h) / 2);
+      if (!rows.has(key)) rows.set(key, []);
+      rows.get(key).push(k);
+    }
+    let checked = 0;
+    for (const items of rows.values()) {
+      items.sort((a, b) => a.x - b.x);
+      for (let i = 1; i < items.length; i++) {
+        const expectX = items[i - 1].x + items[i - 1].w + gapX;
+        expect(Math.abs(items[i].x - expectX), `「${items[i].title}」应紧挨前一个框，不留列宽空白`).toBeLessThanOrEqual(1.5);
+        checked++;
+      }
+    }
+    expect(checked, '至少要有一行并排两项才算验到').toBeGreaterThan(0);
+  });
+
   it('短条目放不下就换行（宽度卡在版心内，不靠缩字号）', () => {
     const many = {
       title: 'r',

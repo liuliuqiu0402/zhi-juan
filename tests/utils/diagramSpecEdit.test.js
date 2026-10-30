@@ -3,6 +3,8 @@
  * 这些函数是"编辑面板"的全部逻辑（改文字/增删/上下移/换图种），**不可变**、可单测。
  */
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import {
   collectEntries, setTextAt, removeAt, addChildAt, moveNode, moveNodeTo,
   rebuildFromTree, changeTreeType, setStyleAt, indentNode, outdentNode,
@@ -246,5 +248,23 @@ describe('diagramSpecEdit · 加粗／改色（写进规格，渲染侧照做）
     expect(e.fs).toBe(16);
     expect(e.w).toBe(200);
     expect(e.h).toBe(60);
+  });
+});
+
+// 🔴 2026-10-30（属主："用户可以在排版模块拖动这个框调整长宽吗？"→ 定方案 A：面板给"宽/高"数值输入）：
+//   这两个输入不存在时，`w`/`h` 就只有底层能力、用户改不到 —— 用静态守卫防止再被悄悄撤掉。
+describe('编辑面板 · 宽/高输入在位（方案 A）', () => {
+  const src = readFileSync(path.join(process.cwd(), 'src', 'components', 'DiagramEditorPanel.vue'), 'utf8');
+
+  it('有"宽/高"两个数字输入，并接到 setStyleAt 的 w / h 字段', () => {
+    expect(src, '宽 输入').toContain("onNum(e.path, 'w', $event.target.value)");
+    expect(src, '高 输入').toContain("onNum(e.path, 'h', $event.target.value)");
+    expect(src, '宽的语义提示（最小值、不裁字）').toContain('最小宽度');
+    expect(src, '高的语义提示').toContain('最小高度');
+  });
+
+  it('输入区间与渲染侧校验一致（40–600 / 24–800）', () => {
+    expect(src).toMatch(/min="40"[\s\S]{0,80}max="600"/);
+    expect(src).toMatch(/min="24"[\s\S]{0,80}max="800"/);
   });
 });
