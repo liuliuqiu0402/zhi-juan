@@ -174,6 +174,27 @@ describe('diagrams · 框随内容 / 只在超版心时折行', () => {
     expect(r2.width, '折行后整幅仍在版心内').toBeLessThanOrEqual(643);
   });
 
+  // 🔴 2026-10-30（属主："不要弄人为的计算那么繁琐，交给内容本身；框只是加在内容上的"）：
+  //   折行宽不再有"150px""版心×0.38""二分十几次"这些人为口径——判据只剩一条：
+  //   **这一支还剩多少宽**。放得下就一行，放不下才折。
+  it('自然宽已超旧口径 150px、但这一支放得下 ⇒ 仍是一行（无 150 阈值）', () => {
+    const t = { type: 'mindmap', layout: 'right', root: { title: '根', children: [{ title: '分子和分母同时乘或除以相同的数（0除外）' }] } };
+    const leaf = buildDiagramSvg(t, { fitWidth: 643 }).nodes.find((n) => n.depth === 1);
+    expect(leaf.w - 2 * leaf.padX, '自然宽应大于 150（否则本条无意义）').toBeGreaterThan(150);
+    expect(leaf.lines.length, '版心放得下就不折').toBe(1);
+  });
+
+  it('整幅超版心时只收折行宽、字号不变（不靠缩放/不靠固定阈值）', () => {
+    const mk = (t, d) => (d ? { title: t, children: [mk(`${t}甲`, d - 1), mk(`${t}乙`, d - 1)] } : { title: t });
+    const root = mk('三要素：定义域、值域与对应法则', 3);
+    const open = buildDiagramSvg({ type: 'mindmap', root }, {});
+    const fitted = buildDiagramSvg({ type: 'mindmap', root }, { fitWidth: 643 });
+    expect(fitted.width, '收进版心').toBeLessThanOrEqual(643);
+    expect(fitted.width, '确实收窄过（否则本条无意义）').toBeLessThan(open.width);
+    const fsOf = (r) => (r.nodes.find((n) => n.isRoot) || {}).fs;
+    expect(fsOf(fitted), '字号不变（缩的是折行宽）').toBe(fsOf(open));
+  });
+
   // 🔴 2026-10-30（属主："左右两支这种可否取消？都用右支"）：不再出现左右两支，
   //   全部节点都在同一侧（side=1）——"一侧过长一侧过短"的问题从版式上消除。
   it('不再出现左右两支：所有节点在同一侧', () => {

@@ -122,14 +122,19 @@ export const layoutMindmap = (tree, opts = {}) => {
   const margin = Math.round(fontSize * 1.2);
 
   // ── 归一化：算每行文字与节点尺寸 ──
-  // 🔴 2026-10-30（属主："Unit 1 Where did you go on vacation? 这种很长的内容，可以折行，
-  //   把更多的空间让给分支"）：**根节点单独设最大宽**（默认 栏宽×0.3，夹在 120~220px）。
-  //   根太长会独占一整列、把分支整体挤到右边；让它折成 1~2 行，横向把空间让给分支（纵向多一两行而已）。
-  //   其余节点仍按 maxLabelWidth（二分算出的折行宽），不受此限。
-  const fitForRoot = Number(opts.fitWidth) || 0;
-  const rootMaxWidth = Math.max(120, Math.min(220, Math.round((fitForRoot || 643) * 0.3)));
+  // 🔴 2026-10-30（属主："不要弄人为的计算那么繁琐，交给内容本身"）：
+  //   折行宽不再由总装层二分得出，改成**每个节点按自己还剩多少横向空间**决定——
+  //   可用宽 = 版心 − 外边距 − **这一支父链已经占掉的宽**（父链累加，含内边距）。
+  //     · 文字自然宽放得下 ⇒ 一行（框宽=文字宽，框只是"加在内容上"）；
+  //     · 放不下 ⇒ 就在剩余宽处折行（不是"版心×0.38"这类人为阈值）。
+  //   根是视觉锚点：最多占版心 1/3，超过就折（把横向让给分支）。
+  //   无栏宽约束（单测/样张）时退回 opts.maxLabelWidth（默认 150）作兜底，行为与老口径一致。
+  const pageW = Number(opts.fitWidth) || 0;
+  const baseCap = Number(opts.maxLabelWidth) || 150;
+  // 整幅仍超版心时，总装层会一次性给一个"折行宽系数"（只收窄折行宽、不动字号），这里逐节点套用
+  const wrapFactor = Math.min(1, Math.max(0.25, Number(opts.wrapFactor) || 1));
   let seq = 0;
-  const prep = (raw, depth, color, isRoot) => {
+  const prep = (raw, depth, color, isRoot, usedW = 0) => {
     // 🔴 2026-10-22（属主："节点字号可以做"）：节点可自带 fs（11–24），不合法则按层级默认。
     //   行高必须**跟着该节点字号**算（原先全图共用一个 lineH ⇒ 改了字号行距不跟、字会压在一起）。
     const fs = normNodeFont(raw.fs) || (isRoot ? rootFontSize : fontSize);
@@ -147,10 +152,15 @@ export const layoutMindmap = (tree, opts = {}) => {
     const boldK = weightPadK(effWeight, exact);
     const widthOf = (t, b) => textWidthOf(t, fs, b ? 700 : weight, measurer) * (exact ? 1 : boldK);
     const natural = widthOf(plain, anyBold);
-    const wrapCap = isRoot ? Math.min(maxLabelWidth, rootMaxWidth) : maxLabelWidth;
-    const capW = natural <= wrapCap ? wrapCap
-      : (natural <= wrapCap * 1.2 ? Math.round(natural) : wrapCap);
-    const wrapW = exact ? capW : Math.max(60, Math.floor(capW / boldK));
+    // 这一支还剩多少横向空间：版心 − 外边距 − 父链已占 − 本框左右内边距（保证排完整幅 ≤ 版心）。
+    // 剩余很少时也照实折行（最少 ~2 个字），不硬留 padding 把整幅顶出版心——宁可窄，也不越界。
+    const avail = pageW ? Math.max(24, pageW - 2 * margin - usedW - padX * 2) : baseCap;
+    // 根最多占版心 1/3（视觉锚点，别让它独占一行）；减掉内边距，保证**框宽**不超过 1/3 版心
+    const capLimit = (isRoot && pageW) ? Math.min(avail, Math.round(pageW / 3) - padX * 2) : avail;
+    const capW = (natural <= capLimit ? natural : capLimit) * wrapFactor;
+    // ⚠️ capW 与 estimateTextWidth 同一量纲（非实测时都已含字重余量），**不能再除一次 boldK**，
+    //    否则"明明放得下也被折行"（实测：8 字根节点 125px 被压到 113px → 折成两行）。
+    const wrapW = Math.max(60, Math.round(capW));
     const lines = wrapLabel(plain, wrapW, fs, measure, lineBudget(plain, wrapW, fs, measure));
     // 按字符回填掩码：wrapLabel 只会丢"行首空白"，所以顺序扫描即可对上（末尾自动兜底成末行剩余）
     let cur = 0;
@@ -194,7 +204,8 @@ export const layoutMindmap = (tree, opts = {}) => {
       parent: null,
       y: 0,
       x: 0,
-      children: (raw.children || []).map((c) => prep(c, depth + 1, depth === 0 ? palette[seq % palette.length] : color)),
+      // 子节点继承"父链已占宽"（含本节点宽 + 列间隙）——折行宽全由这条父链剩余空间决定
+      children: (raw.children || []).map((c) => prep(c, depth + 1, depth === 0 ? palette[seq % palette.length] : color, false, usedW + w + gapX)),
     };
   };
   const root = prep(rawRoot, 0, palette[0], true);
@@ -214,20 +225,18 @@ export const layoutMindmap = (tree, opts = {}) => {
   /** 只有"短条目"才横排（含内边距 ≤160px ≈ 10 个汉字）；长句仍一条一行——横排会把长句挤成窄栏 */
   const MAX_SHORT_W = 160;
   const fitW = Number(opts.fitWidth) || 0;
-  /** 该分组可用的整块宽：= 整幅 − 外边距 − **它左边已经占掉的列**（根 + 各前序层的最大宽）。
-   *  🔴 2026-10-30（属主："框还是固定的上下对齐的，并不是按照内容来的"）：原按"每层扣 56px"估前缀，
-   *    与真实列宽（120~160px）差一倍 ⇒ 横排把整幅顶出栏宽、再被二分压回折行。现按真实列宽逐层扣。 */
-  const depthMaxW = {};
-  (function scan(n, d) {
-    depthMaxW[d] = Math.max(depthMaxW[d] || 0, n.w);
-    (n.children || []).forEach((c) => scan(c, d + 1));
-  })(root, 0);
+  /** 该分组可用的整块宽：= 整幅 − 外边距 − **这一支从根到本节点已经占掉的宽度**（父链累加）。
+   *  🔴 2026-10-30：横向改为"按父框贴边生长"后，前缀不再是"每层最大宽"，而是**本支自身父链的宽**。 */
+  const prefixWidthOf = (node) => {
+    let acc = 0;
+    let cur = node;
+    while (cur) { acc += cur.w + gapX; cur = cur.parent; }
+    return acc;
+  };
   const gridBudgetOf = (node) => {
     const half = layout === 'balanced' && (root.children || []).length > 1 ? 2 : 1;
-    if (!fitW) return Math.max(120, Math.round(MAX_GRID_W / half) - node.depth * 76);
-    let prefix = depthMaxW[0] + gapX;
-    for (let d = 1; d <= node.depth; d++) prefix += (depthMaxW[d] || 0) + gapX;
-    return Math.max(120, Math.round((fitW - 2 * margin - prefix) / half));
+    if (!fitW) return Math.max(120, Math.round(MAX_GRID_W / half));
+    return Math.max(120, Math.round((fitW - 2 * margin - prefixWidthOf(node)) / half));
   };
   // 🔴 2026-10-30（属主："每一个枝节的框还是固定的上下对齐的，并不是按照内容来的"）：
   //   原横排是**按列对齐的表格**——列宽取"该列最宽的框"，于是窄框后面拖一条空白、同列左边缘强行对齐，
@@ -336,47 +345,28 @@ export const layoutMindmap = (tree, opts = {}) => {
     root.y = centerY - root.h / 2;
   }
 
-  // ── 横向：按"每层最大节点宽"排柱，左右两侧共用同一套柱距（视觉对称）──
-  const depthW = {};
-  const collectW = (n, d) => {
-    depthW[d] = Math.max(depthW[d] || 0, n.w);
-    (n.children || []).forEach((c) => collectW(c, d + 1));
-  };
-  all.forEach((n) => collectW(n, 1));
-  // 横排分组的**整块宽**也要算进它所占的那一层（否则下一层列间距按单节点宽算，
-  //   横排的项会插进下一层的列里、和别的节点压在一起）。
-  const collectGridW = (n) => {
-    if (n.grid) depthW[n.depth + 1] = Math.max(depthW[n.depth + 1] || 0, gridGeo(n).width);
-    (n.children || []).forEach(collectGridW);
-  };
-  all.forEach(collectGridW);
-  const colStep = [];
-  for (let d = 1; d <= 12; d++) colStep[d] = (depthW[d] || 0) + gapX;
-
+  // ── 横向：**按父框贴边生长**（不再"每层一列"）──
+  // 🔴 2026-10-30（属主："枝节横向并列的还是被固定长宽…连着上下的全部统一了长宽、上下对齐了，正常不应该这样"）：
+  //   原实现按"每层一列"排（同层所有框左缘相同、列距取该层最宽框）⇒ 整张图像一张表格，
+  //   同一列上下对齐、框间还留着"列宽 − 自己宽"的空白。现改为：**每个子框紧贴自己父框的右（左）边 gapX**，
+  //   x 由父链算，同层不同父的框自然错开，不再上下对齐成一列。
   const halfW = root.w / 2;
   // 根节点自己也要占位！它不参与 placeX（placeX 只排左右两侧的子节点），
   //    漏赋值会让 root.x 停在初始的 0，归一化后整块压到右侧分支上。
   root.x = -halfW;
-  /** 第 depth 层、某一侧"靠父节点那一条边"的坐标（右侧＝左边缘，左侧＝右边缘） */
-  const bandEdge = (depth, side) => {
-    const dir = side === 1 ? 1 : -1;
-    let x = dir * (halfW + gapX);
-    for (let i = 1; i < depth; i++) x += dir * (colStep[i] || gapX);
-    return x;
-  };
   const placeX = (n, side, keepX = false) => {
-    // 左侧必须**逐层往左**排（colStep 取负），否则越深的节点越往右跑、
-    //    直接压到根节点和右半区上（实测 balanced 版式会出现 3200px² 的重叠）。
     if (!keepX) {
-      const e = bandEdge(n.depth, side);
-      n.x = side === 1 ? e : e - n.w;
+      const p = n.parent;
+      n.x = p
+        ? (side === 1 ? p.x + p.w + gapX : p.x - gapX - n.w)
+        : (side === 1 ? halfW + gapX : -halfW - gapX - n.w);
     }
-    const childEdge = bandEdge(n.depth + 1, side);
+    const edge = side === 1 ? n.x + n.w + gapX : n.x - gapX;
     if (n.grid) {
       const g = gridGeo(n);
       n.children.forEach((c) => {
         const off = g.xOf.get(c) || 0;
-        c.x = side === 1 ? childEdge + off : childEdge - off - c.w;
+        c.x = side === 1 ? edge + off : edge - off - c.w;
         placeX(c, side, true);
       });
       return;

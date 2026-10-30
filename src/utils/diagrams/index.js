@@ -60,40 +60,24 @@ export const buildDiagramSvg = (spec, opts = {}) => {
   //   这样同一份资料里不会出现"一边长一边短"的左右两支，也保证老记录重画后版式一致。
   //   （`layoutMindmap` 仍保留 balanced 分支，仅作旧规格兼容，生产入口不再选它。）
   const merged = type === 'mindmap' ? { ...opts, layout: 'right' } : opts;
-  let r = BUILDERS[type](body, merged);
+  // 🔴 2026-10-30（属主："不要弄人为的计算那么繁琐，交给内容本身；框只是加在内容上的"）：
+  //   **删掉"按版心二分折行宽"那一层**。折行交给排版本身：思维导图的每个节点按"这一支还剩多少宽"折行
+  //   （见 mindmap.prep 的 usedW），其余图种各自按 fitWidth 处理；总装层只把栏宽传下去，不再反复试排。
+  //   这样：文字放得下就一行、框宽=文字宽；只有真挤到版心边界才折——没有"274px""160px"这类人为阈值。
+  const r0 = BUILDERS[type](body, merged);
   const layoutUsed = merged.layout;
-  // 🔴 2026-10-22（属主："按 A4 尺寸排版"）：**先排版、再整体缩放**会让字号跟着变小。
-  //   这里加一步"**按版心宽度重排**"：宽了只收窄折行宽度（maxLabelWidth）再排，字号保持不变。
+  // 🔴 2026-10-30（属主："超过 A4 版面的时候才换行"）：先按内容自然排（不折行能放下就不折）；
+  //   只有整幅仍超版心时，才**一次性收窄折行宽**（给一个系数、字号不变），最多再排 2 次——
+  //   这跟"二分十几次"是两回事：没有人为阈值，只按"离版心还差多少"按比例收。
   const fit = Number(merged.fitWidth) || 0;
-  if (fit) {
-    // 🔴 2026-10-22（属主："框的长短应该根据实际内容和 A4 尺寸来""一行不够才换行吧？"）：
-    //   折行宽度的判据从"写死 150px"改成"**A4 版心允许多宽就用多宽**"——
-    //   在 [56, 版心×0.38] 区间上**二分**，取"仍能装进版心"的最宽值：
-    //     · 一行放得下 ⇒ 不折行（少折行、少空高）；
-    //     · 版心装不下 ⇒ 收到刚好装得下（不缩字号，只调折行宽度）。
-    //   原实现只在"已超宽"时才 ×0.85 硬收窄，既收过头（120 够用会收到 87），也从不肯放宽到 150 以上。
-    /** 二分：返回"整幅仍 ≤ 版心"的最宽折行宽那一版；`__wrap` 只为下面比较用，不外传 */
-    const narrowTo = (o) => {
-      const start = Number(o.maxLabelWidth) || 150;
-      // 🔴 2026-10-30（属主："要的是导图框随内容的长短自适应的，超过 A4 版面的时候才换行"）：
-      //   原上限是"版心 × 0.38 ≈ 244"——30 字以内的标签才 260px，明明一行放得下也被折成两行
-      //   （实测 22 字标签 286px 被折成 2 行、框宽被统一压到 244+padding，看着"长宽都一样"）。
-      //   现把上限放到**整幅版心**，仍由二分自己收敛（排完整幅 ≤ 版心）：只有真超过版心才折行。
-      //   版心宽度由调用方按**纸张/栏宽**传入（fitWidth），不再写死成某个像素常数。
-      const hiCap = Math.max(start, Math.round(fit));
-      let lo = 56;
-      let hi = hiCap;
-      let best = null;
-      while (lo <= hi) {
-        const mid = Math.round((lo + hi) / 2);
-        const cur = BUILDERS[type](body, { ...o, maxLabelWidth: mid });
-        if (cur.width <= fit) { best = { ...cur, __wrap: mid }; lo = mid + 1; } else { hi = mid - 1; }
-      }
-      // 二分假设"越窄越窄"；个别图种（按条数排的时间轴）不单调 → 兜底再试一次最小宽度，仍超宽就交给导出侧。
-      return best || { ...BUILDERS[type](body, { ...o, maxLabelWidth: 56 }), __wrap: 56 };
-    };
-    // 只有一种版式（向右生长），不存在"换另一种版式"的兜底：整幅仍超版心时只收折行宽，字号不变。
-    r = narrowTo(merged);
+  let r = r0;
+  if (fit && r0.width > fit) {
+    let factor = 1;
+    // 目标留 20px 余量：折行是按"整行"跳变的，贴着 0 收会因取整差几像素仍超界
+    for (let i = 0; i < 8 && r.width > fit; i += 1) {
+      factor *= Math.min(1, Math.max(0.3, (fit - 20) / Math.max(1, r.width)));
+      r = BUILDERS[type](body, { ...merged, wrapFactor: factor });
+    }
   }
   return {
     svg: r.svg, width: r.width, height: r.height, nodes: r.nodes || [], type,

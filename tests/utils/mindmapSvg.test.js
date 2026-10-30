@@ -327,6 +327,27 @@ describe('mindmapSvg · 按内容自动横排（不设横/竖参数）', () => {
     expect(r2.nodes.find((n) => n.depth === 0).lines.length, '短根不折').toBe(1);
   });
 
+  // 🔴 2026-10-30（属主："枝节横向并列的还是被固定长宽…连着上下的全部统一了长宽、上下对齐了，正常不应该这样"）：
+  //   横向改为"按父框贴边生长"——子框紧贴自己父框的右边 gapX，所以**不同父的兄弟子框不再对齐到同一列**。
+  it('不同父节点的子框各贴自己的父框（不再同层对齐成一列）', () => {
+    const tree = {
+      title: '根',
+      children: [
+        { title: '短分支', children: [{ title: '甲一' }, { title: '甲二' }, { title: '甲三' }] },
+        { title: '一个比较长的分支名', children: [{ title: '乙一' }, { title: '乙二' }, { title: '乙三' }] },
+      ],
+    };
+    const { nodes, metrics } = layoutMindmap(tree, { layout: 'right' });
+    const byTitle = (t) => nodes.find((n) => n.title === t);
+    const pa = byTitle('短分支');
+    const pb = byTitle('一个比较长的分支名');
+    const a = byTitle('甲一');
+    const b = byTitle('乙一');
+    expect(a.x - (pa.x + pa.w), '甲一紧贴短分支').toBeCloseTo(metrics.gapX, 0);
+    expect(b.x - (pb.x + pb.w), '乙一紧贴长分支').toBeCloseTo(metrics.gapX, 0);
+    expect(a.x, '两个分支的子框不再对齐到同一列').not.toBe(b.x);
+  });
+
   // 🔴 2026-10-30（属主："每一个枝节的框还是固定的上下对齐的，并不是按照内容来的"）：
   //   原实现是"按列对齐的表格"（列宽取该列最宽的框）⇒ 窄框后面拖一条空白、同列左缘强行对齐。
   //   现改为按内容流水排：同一行里后一个框的左边 = 前一个框的右边 + 行内间隙（无"列宽"空白）。
