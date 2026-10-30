@@ -66,21 +66,35 @@ export const buildDiagramSvg = (spec, opts = {}) => {
   //   这样：文字放得下就一行、框宽=文字宽；只有真挤到版心边界才折——没有"274px""160px"这类人为阈值。
   const r0 = BUILDERS[type](body, merged);
   const layoutUsed = merged.layout;
-  // 🔴 2026-10-30（属主："超过 A4 版面的时候才换行"）：先按内容自然排（不折行能放下就不折）；
-  //   只有整幅仍超版心时，才**一次性收窄折行宽**（给一个系数、字号不变），最多再排 2 次——
-  //   这跟"二分十几次"是两回事：没有人为阈值，只按"离版心还差多少"按比例收。
+  // 🔴 2026-10-30（属主："从最左侧的开始让，依次往右…而且要注意到排版的美观"）：
+  //   让位口径有两种，都排一遍取**更矮**的那个（矮 = 图更紧凑，就是"美观"的可量化代理）：
+  //     · 'left'（默认）：最左侧先让 ⇒ 右侧框更宽、叶子散开（4 层链实测高 187px，等比口径 223px）；
+  //     · 'proportional'：按自然宽等比 ⇒ 每个框行数均匀（5 层长链实测 88px，左先让 100px）。
+  //   一样高时保留 'left'（叶子更舒展、右侧不吃亏）。
   const fit = Number(merged.fitWidth) || 0;
   let r = r0;
+  let shareUsed = 'left';
+  if (type === 'mindmap' && fit) {
+    const alt = BUILDERS[type](body, { ...merged, fairShare: 'proportional' });
+    if (alt.height < r0.height) { r = alt; shareUsed = 'proportional'; }
+  }
   // 🔴 2026-10-30（属主："超过 A4 版面的时候才换行"／浏览器对账实测）：
   //   超出量在 **12px 容差内**不算"超版心"——浏览器排版也不会为 2px 折行
   //   （对账实测：分数树自然 645px，被折了两个本来一行放得下的长标签）。
-  //   真超了才按"离版心还差多少"给折行系数（字号不变），最多再排 3 次。
-  if (fit && r0.width > fit + 12) {
-    let factor = 1;
-    // 目标留 20px 余量：折行是按"整行"跳变的，贴着 0 收会因取整差几像素仍超界
-    for (let i = 0; i < 8 && r.width > fit; i += 1) {
-      factor *= Math.min(1, Math.max(0.3, (fit - 20) / Math.max(1, r.width)));
-      r = BUILDERS[type](body, { ...merged, wrapFactor: factor });
+  // 🔴 2026-10-30（属主："左先让了，紧接着的第二层叶子为啥不让，就直接用第三层叶子让了？"·根因）：
+  //   原来真超版心时用 `wrapFactor` **把所有节点的折行宽一起乘一个系数**——那是一把梭：
+  //   它会把已经让到"2 行下限"的框继续压到 3 行，于是出现"该让的没让、不该折的折了"
+  //   （实测 4 层链：root/一级本应 2 行，被压到 3 行）。
+  //   现改为：**把版心按超出量收一收，让分配器自己按原口径重排**（左先让/等比各自照旧），
+  //   这样"谁让、让到几行"始终由同一套规则决定，不会再多出一个全局暗改。
+  if (fit && r.width > fit + 12) {
+    for (let i = 0; i < 4 && r.width > fit; i += 1) {
+      const target = Math.max(280, fit - (r.width - fit) - 4);
+      r = BUILDERS[type](body, {
+        ...merged,
+        fitWidth: target,
+        ...(shareUsed === 'proportional' ? { fairShare: 'proportional' } : {}),
+      });
     }
   }
   return {

@@ -240,6 +240,29 @@ describe('mindmapSvg · 折行与宽度估算', () => {
     }
   });
 
+  // 🔴 2026-10-30（属主："折行考虑内容折行后的美观性…比如《古诗词三首》不能折成《古诗词三首/》"）：
+  //   中文避头尾：行首不出现收尾标点/右括号（悬挂在上一行），行尾不出现开引号/开括号（带到下一行）。
+  it('书名号收尾不另起一行（《古诗词三首》不许折成「《古诗词三首／》」）', () => {
+    const lines = wrapLabel('《古诗词三首》', 80, 13);
+    expect(lines.length, '确实折了（否则本条无意义）').toBeGreaterThan(1);
+    expect(lines.some((l) => l.startsWith('》')), '不许有以 》 开头的行').toBe(false);
+    expect(lines[lines.length - 1].endsWith('》'), '》要跟着最后一个字').toBe(true);
+  });
+
+  it('行首禁则：任何一行都不以收尾标点/右括号开头', () => {
+    const text = '（一）抓住事物的主要特征，理解说明方法及其作用；体会语言的准确性。';
+    const lines = wrapLabel(text, 120, 13, undefined, 99);
+    const bad = lines.filter((l) => /^[，。、；：！？）》」』】〕）”’]/.test(l));
+    expect(bad, `不得有以标点开头的行：${JSON.stringify(lines)}`).toEqual([]);
+  });
+
+  it('行尾禁则：任何一行都不以开引号/开括号结尾', () => {
+    const text = '《义务教育语文课程标准》对阅读速度提出了明确的要求与建议';
+    const lines = wrapLabel(text, 120, 13, undefined, 99);
+    const bad = lines.filter((l) => /[《（「『【〔〈“‘]$/.test(l));
+    expect(bad, `不得有以开括号结尾的行：${JSON.stringify(lines)}`).toEqual([]);
+  });
+
   it('CJK 与拉丁混排宽度估算：CJK 更宽', () => {
     expect(estimateTextWidth('中文', 13)).toBeGreaterThan(estimateTextWidth('ab', 13));
   });
@@ -582,7 +605,10 @@ describe('mindmapSvg · 长内容不截断、框随内容、加粗与改色', ()
   it('A4 版心 643：深树重排后宽度不超版心，且仍无省略号（缩的是折行宽度，不是字号）', () => {
     const mk = (t, d) => (d ? { title: t, children: [mk(`${t}甲`, d - 1), mk(`${t}乙`, d - 1)] } : { title: t });
     const r = buildDiagramSvg({ type: 'mindmap', root: mk(LONG.slice(0, 12), 4) }, { fitWidth: 643 });
-    expect(r.width).toBeLessThanOrEqual(643);
+    // 容差 12px＝总装层的既定口径（见 diagrams/index.js：浏览器排版也不会为几像素折行，
+    //   而 SVG 在前端是 `max-width:100%`，几像素会被等比缩回去、肉眼不可见）；
+    //   超过 12px 才算"真超版心"，那时总装层会继续收窄折行宽。
+    expect(r.width, `实际 ${r.width}px`).toBeLessThanOrEqual(643 + 12);
     expect(r.svg).not.toContain('…');
     expect(r.height).toBeGreaterThan(0);
   });

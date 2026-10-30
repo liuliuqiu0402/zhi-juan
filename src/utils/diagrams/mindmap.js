@@ -133,8 +133,22 @@ export const layoutMindmap = (tree, opts = {}) => {
   const baseCap = Number(opts.maxLabelWidth) || 150;
   // 整幅仍超版心时，总装层会一次性给一个"折行宽系数"（只收窄折行宽、不动字号），这里逐节点套用
   const wrapFactor = Math.min(1, Math.max(0.25, Number(opts.wrapFactor) || 1));
-  let seq = 0;
-  const prep = (raw, depth, color, isRoot, usedW = 0) => {
+  // 🔴 2026-10-30（属主："可否不是等比让，是让最左侧的先让"）：
+  //   一支放不下时，"谁让位"的口径（默认 left = 最左侧先让）：
+  //     · 'left'（默认）：**根/靠左的先让**，让到约 4 字为止再轮到下一级 ⇒ 最右侧的叶子保住自然宽（散开）
+  //     · 'proportional'：按自然宽等比让（前一次口径，保留供对比）
+  //     · false：谁先谁吃满、剩下的才给后面（最右叶子被压得最狠的老口径，仅对账/回退用）
+  const shareMode = opts.fairShare === false
+    ? 'none'
+    : (opts.fairShare === 'proportional' ? 'proportional' : 'left');
+  /** 单框文字宽的让位下限（≈4 个汉字）——再窄就只剩竖排单字，没有排版意义 */
+  const MIN_TEXT_W = 60;
+
+  /**
+   * 单节点度量（prep 与"这一支还要多宽"的预扫共用**一份**口径，防两处各算一次而漂移）。
+   * 返回的 measure/widthOf 已绑定该节点的 字号/字重（含行内加粗），可直接量行与段。
+   */
+  const measureNode = (raw, depth, isRoot) => {
     // 🔴 2026-10-22（属主："节点字号可以做"）：节点可自带 fs（11–24），不合法则按层级默认。
     //   行高必须**跟着该节点字号**算（原先全图共用一个 lineH ⇒ 改了字号行距不跟、字会压在一起）。
     const fs = normNodeFont(raw.fs) || (isRoot ? rootFontSize : fontSize);
@@ -151,17 +165,178 @@ export const layoutMindmap = (tree, opts = {}) => {
     const measure = exact ? (t, f) => measurer(t, f, effWeight) : undefined;
     const boldK = weightPadK(effWeight, exact);
     const widthOf = (t, b) => textWidthOf(t, fs, b ? 700 : weight, measurer) * (exact ? 1 : boldK);
-    const natural = widthOf(plain, anyBold);
+    return { fs, lineHn, weight, exact, plain, boldMask, colors, anyBold, effWeight, measure, boldK, widthOf, natural: widthOf(plain, anyBold) };
+  };
+
+  /**
+   * 这一支"从本节点到最深后代"**不折行时**需要的横向空间（框宽 + 间隙逐级累加）。
+   * 用途：判断"本框吃满自然宽之后，后面的分支还够不够"——不够就按比例让位。
+   */
+  const chainNeedOf = (raw, depth, isRoot) => {
+    const { natural } = measureNode(raw, depth, isRoot);
+    const kids = raw.children || [];
+    const below = kids.length ? Math.max(...kids.map((k) => chainNeedOf(k, depth + 1, false))) : 0;
+    return natural + padX * 2 + (below ? gapX + below : 0);
+  };
+
+  /**
+   * 🔴 2026-10-30（属主："从最左侧开始让，依次往右，这样就需要知道让到什么程度是合适的才能实施？
+   *   而且要注意到排版的美观"）：
+   *   让位的下限**不能拍像素**（"让到 4 字"会变成竖柱，"等比让"又让每个框都变窄），
+   *   决定美观的是**每个框里有几行字**。故下限取"本支统一折 L 行"所需的文字宽：
+   *     L = 这一支**最少统一折几行**才放得下的那个行数（1 行放得下就 1 行，否则 2 行、3 行…最多 6 行）。
+   *   这样：左先让、右保住；每个框的折行数不超过 L，不会出现一列 4 字 6 行的柱子。
+   */
+  /**
+   * "这个框要折成 L 行，**最少**要多宽"——用真的折行函数**二分**试出来，不做像素折算。
+   * 为什么不用 natural/L：折行按整字断（9 字塞 73px 会成 4+4+1 三行），按除法算会假小一档；
+   *   而用同一个 wrapLabel 试宽度，结果与真正出图**必然一致**。
+   * 为什么用二分而不是"每次 +15%"：粗步长会把"2 行够用"估成"2 行放不下"，于是整条链白升到 3 行
+   *   （实测 5 层链：真排 2 行只有 606px，粗估却算成 638px ⇒ 升 3 行、图反而更高）。
+   */
+  const lwCache = new WeakMap();
+  const linesWidthOf = (m, raw, lines) => {
+    const want = Math.max(1, lines);
+    let byLines = lwCache.get(raw);
+    if (!byLines) { byLines = new Map(); lwCache.set(raw, byLines); }
+    if (byLines.has(want)) return byLines.get(want);
+    const fits = (w) => wrapLabel(m.plain, w, m.fs, m.measure, 99).length <= want;
+    const full = Math.ceil(m.natural);
+    let lo = Math.max(1, Math.ceil(m.natural / want));
+    let hi = full;
+    let out = lo;
+    if (fits(lo)) out = lo;
+    else if (!fits(hi)) out = hi;            // 整宽都放不进（极少：单字超宽）
+    else {
+      for (let i = 0; i < 12 && hi - lo > 1; i += 1) {
+        const mid = Math.floor((lo + hi) / 2);
+        if (fits(mid)) hi = mid; else lo = mid;
+      }
+      out = hi;
+    }
+    byLines.set(want, out);
+    return out;
+  };
+  /** 整支统一折 L 行时，从本节点到最深后代需要的横向空间（框宽 + 间隙逐级累加） */
+  const chainNeedLines = (raw, depth, isRoot, lines) => {
+    const m = measureNode(raw, depth, isRoot);
+    const kids = raw.children || [];
+    const below = kids.length ? Math.max(...kids.map((k) => chainNeedLines(k, depth + 1, false, lines))) : 0;
+    return linesWidthOf(m, raw, lines) + padX * 2 + (below ? gapX + below : 0);
+  };
+  let chainLines = 1;
+  if (pageW && shareMode === 'left' && (rawRoot.children || []).length) {
+    // room = 整幅可用宽（版心减两侧外边距）；chainNeedLines 返回的是**框宽**（文字宽已含内边距），
+    //   所以这里**不能再减一排内边距**——减了就"算得下也判成放不下"，白白升到 3 行。
+    const room = pageW - 2 * margin;
+    // 上限 **3 行**：2 行还放不下时（超长链）才升到 3 行——不封顶会出现"父 2 行、叶子 5 行"的窄柱；
+    //   3 行也放不下时，交由总装层在两种口径里择优（谁更矮用谁），不会把某个框无限压成竖排。
+    // 12px 容差与总装层同口径：全 L 行的"刚好差几像素"不算放不下——叶子那一格本来就有富余，
+    //   为了 3px 把整条链从 2 行升到 3 行，图反而更高（实测 4 层链：614 判 611 ⇒ 白升一行）。
+    while (chainLines < 3 && chainNeedLines(rawRoot, 0, true, chainLines) > room + 12) chainLines += 1;
+  }
+
+  let seq = 0;
+  /**
+   * 这一支"散出去多少叶子"（扇出权重）。用于让位分摊：让窄 1px，这一支里**每片叶子**都受益，
+   *   所以权重＝叶子数，叶子多的先让。
+   */
+  const weightCache = new WeakMap();
+  const weightOf = (raw) => {
+    if (!raw || typeof raw !== 'object') return 1;
+    const hit = weightCache.get(raw);
+    if (hit) return hit;
+    const kids = raw.children || [];
+    const w = kids.length ? kids.reduce((s, k) => s + weightOf(k), 0) : 1;
+    weightCache.set(raw, w);
+    return w;
+  };
+  /** 从本节点沿"自然宽最大的孩子"走到底——这条链才是决定整幅宽度的约束，让位只在这条链上摊 */
+  const subchainOf = (raw, depth, isRoot) => {
+    const m = measureNode(raw, depth, isRoot);
+    const kids = raw.children || [];
+    if (!kids.length) return [{ raw, m }];
+    let best = kids[0];
+    let bestNeed = -1;
+    for (const k of kids) {
+      const need = chainNeedOf(k, depth + 1, false);
+      if (need > bestNeed) { bestNeed = need; best = k; }
+    }
+    return [{ raw, m }, ...subchainOf(best, depth + 1, false)];
+  };
+  /**
+   * 本框的"让位下限"（文字宽）：扇出 ≥3 的允许让到 3 行——它一让，下面**每片叶子**都跟着宽；
+   * 扇出小的（1–2 片）只让到 L 行，链尾基本不动。这是"按散出去的叶子多少让"的落点。
+   */
+  const fanFloorOf = (m, raw) => {
+    const lines = Math.max(chainLines, weightOf(raw) >= 3 ? 3 : chainLines);
+    return Math.min(m.natural, Math.max(linesWidthOf(m, raw, lines), MIN_TEXT_W));
+  };
+  const prep = (raw, depth, color, isRoot, usedW = 0) => {
+    const m = measureNode(raw, depth, isRoot);
+    const { fs, lineHn, weight, exact, plain, boldMask, colors, measure, widthOf, natural } = m;
     // 这一支还剩多少横向空间：版心 − 外边距 − 父链已占 − 本框左右内边距（保证排完整幅 ≤ 版心）。
     // 剩余很少时也照实折行（最少 ~2 个字），不硬留 padding 把整幅顶出版心——宁可窄，也不越界。
     const avail = pageW ? Math.max(24, pageW - 2 * margin - usedW - padX * 2) : baseCap;
     // 根最多占版心 1/3（视觉锚点，别让它独占一行）；减掉内边距，保证**框宽**不超过 1/3 版心
     const capLimit = (isRoot && pageW) ? Math.min(avail, Math.round(pageW / 3) - padX * 2) : avail;
-    const capW = (natural <= capLimit ? natural : capLimit) * wrapFactor;
+    let capW = (natural <= capLimit ? natural : capLimit);
+    // 🔴 2026-10-30（属主："可否不是等比让，是让最左侧的先让"）：
+    //   这一支放不下时（本框 + 间隙 + 后代链 > 可用宽），**靠左的先让**：
+    //     本框先把缺口让掉，让到约 4 字（MIN_TEXT_W）为止；还不够就让下一级接着让（递归自然发生——
+    //     子节点拿到的 avail 已扣掉本框让完后的实际宽）⇒ 最右侧的叶子尽量保住自然宽、不再被压成柱子。
+    if (shareMode !== 'none' && pageW) {
+      const kids = raw.children || [];
+      // 本框的"让位下限"：仍能保持 L 行（L≤2）所需的宽度，再低就到 MIN_TEXT_W 为止
+      const floorMine = Math.min(natural, Math.max(linesWidthOf(m, raw, chainLines), MIN_TEXT_W));
+      if (shareMode === 'proportional') {
+        // 等比让：本框与后代按自然宽占比分摊（对照口径，保留）
+        const descNeed = kids.length ? Math.max(...kids.map((k) => chainNeedOf(k, depth + 1, false))) : 0;
+        const need = natural + (descNeed ? gapX + descNeed : 0);
+        if (descNeed > 0 && need > avail) {
+          const reserve = Math.max(floorMine, Math.round((avail * descNeed) / need));
+          capW = Math.min(capW, Math.max(floorMine, avail - gapX - reserve));
+        }
+      } else if (kids.length) {
+        // 🔴 2026-10-30（属主："还是从最左侧开始智能折让哦，最左侧开始，这个基础不能丢"）：
+        //   **顺序永远是"从最左往右"**（父先让，让到自己的下限才轮到下一级）；
+        //   "智能"只体现在**每层让到几行**——按这一支散出去的叶子数：
+        //     一个框让窄 1px，它下面**每片叶子**都跟着宽 ⇒ 扇出越大越值得让，允许它让到 3 行；
+        //     扇出小的（1–2 片叶子）只让到 2 行，链尾基本不动。
+        //   放得下且有富余时，富余也按扇出分（叶子多的框更宽），而不是机械地全给链尾。
+        const chain = subchainOf(raw, depth, isRoot);
+        if (chain.length > 1) {
+          const needAll = chain.reduce((s, c) => s + Math.round(c.m.natural) + padX * 2, 0) + (chain.length - 1) * gapX;
+          const availAll = pageW - 2 * margin - usedW;
+          // 放得下 ⇒ 一点不让（框宽=文字宽）；真放不下 ⇒ 本框让到"扇出决定的下限"，余量整块让给右边。
+          // 注意：**不在富余里给自己加宽**——一加宽就等于把右边挤窄，会出现"父没折、子折了"的乱序。
+          // 也不留容差：既然"左先让"，那"差 1px"也该由左边先让，而不是让最右边那个框去折。
+          if (needAll > availAll) capW = Math.min(capW, fanFloorOf(m, raw));
+        }
+      }
+    }
+    capW *= wrapFactor;
     // ⚠️ capW 与 estimateTextWidth 同一量纲（非实测时都已含字重余量），**不能再除一次 boldK**，
     //    否则"明明放得下也被折行"（实测：8 字根节点 125px 被压到 113px → 折成两行）。
-    const wrapW = Math.max(60, Math.round(capW));
-    const lines = wrapLabel(plain, wrapW, fs, measure, lineBudget(plain, wrapW, fs, measure));
+    // 🔴 2026-10-30（属主："排版模块里预览还是存在不该折行的折行了"·根因）：
+    //   这里**必须是 ceil、不能 round**——`capW` 就是"文字自然宽"本身（放得下时），
+    //   而 `wrapLabel` 的判据是"自然宽 ≤ wrapW 才不折"。自然宽常带小数（实测 measurer 会给
+    //   124.4px），`Math.round` 把它取成 124 < 124.4 ⇒ **每一处小数 ≥0.5 的标签都被折成两行**
+    //   （末行只落一两个字）。实测：`分数的意义和性质`(124.4→124) 折成「分数的意义和性／质」，
+    //   `分数的意义`(68.3→68) 折成「分数的意／义」，与版心宽窄无关（fitWidth=0 也照折）。
+    const wrapW = Math.max(60, Math.ceil(capW));
+    let lines = wrapLabel(plain, wrapW, fs, measure, lineBudget(plain, wrapW, fs, measure));
+    // 🔴 2026-10-30（属主："折行考虑内容折行后的美观性"）：
+    //   真要折行时，**回填到"刚好放下这几行"的宽度**再折一次——贪心折行只保证"不超宽"，
+    //   常折成"几乎一整行 + 末尾一个字"（实测：「二、习作…再写思／考」），既难看又白占宽度。
+    //   回填后各行长度均匀，框也跟着变窄，让出的宽度自然给了后面的分支。
+    if (lines.length > 1) {
+      const tightW = Math.max(MIN_TEXT_W, linesWidthOf(m, raw, lines.length));
+      if (tightW < wrapW) {
+        const balanced = wrapLabel(plain, tightW, fs, measure, lineBudget(plain, tightW, fs, measure));
+        if (balanced.length <= lines.length) lines = balanced;
+      }
+    }
     // 按字符回填掩码：wrapLabel 只会丢"行首空白"，所以顺序扫描即可对上（末尾自动兜底成末行剩余）
     let cur = 0;
     const lineRuns = lines.map((line) => {
@@ -274,7 +449,9 @@ export const layoutMindmap = (tree, opts = {}) => {
   const decideGrid = (node) => {
     node.grid = null;
     const kids = node.children || [];
-    if (kids.length >= 3 && kids.every((k) => !(k.children || []).length && k.w <= MAX_SHORT_W)) {
+    // 🔴 2026-10-30：判据加"**必须是一行的短条目**"——折过行的条目再横排，等于把长句塞进窄格
+    //   （实测 14 字/条的要点被并排成三列窄栏）。宽度阈值只是"短"的上限，行数才是"短"的本质。
+    if (kids.length >= 3 && kids.every((k) => !(k.children || []).length && k.lines.length === 1 && k.w <= MAX_SHORT_W)) {
       const budget = gridBudgetOf(node);
       // 至少能并排两项才值得横排；并不下就自然竖排（一项一行），不做任何硬挤
       const two = kids.map((k) => k.w).sort((a, b) => a - b).slice(0, 2);
@@ -407,7 +584,7 @@ export const layoutMindmap = (tree, opts = {}) => {
     nodes,
     width: Math.round(canvasW),
     height: Math.round(contentH + margin * 2),
-    metrics: { padX, padY, lineH, gapX, gapY, margin, fontSize, rootFontSize },
+    metrics: { padX, padY, lineH, gapX, gapY, margin, fontSize, rootFontSize, shareLines: chainLines },
   };
 };
 
@@ -517,3 +694,4 @@ export const buildMindmapSvg = (tree, opts = {}) => {
 };
 
 export default { buildMindmapSvg, layoutMindmap, estimateTextWidth, wrapLabel };
+

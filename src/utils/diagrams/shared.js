@@ -90,7 +90,17 @@ export const estimateTextWidth = (text, fontSize, measurer) => {
  * 按最大宽度折行（CJK 逐字断行；拉丁词尽量整词；最多 maxLines 行，超出加省略号）。
  * "是否被截断"的判据必须看**非空白内容**：换行处的行首空格被丢掉是正常排版，
  *    拿含空白的长度比会给出没截断也加"…"的假象（实测踩过）。
+ *
+ * 🔴 2026-10-30（属主："折行考虑内容折行后的美观性…比如《古诗词三首》不能折成《古诗词三首/》"）：
+ *   加了**中文避头尾（禁则）**——折行除了"放不放得下"，还要看断点是不是个体面的位置：
+ *     · 行首禁则：收尾标点/右括号（。，、；：！？）》」』】〕）’”…—～ 等）不许另起一行，
+ *       宁可让上一行多出这一个字（悬挂标点），否则就会出现"《古诗词三首"换行后孤零零一个"》"。
+ *     · 行尾禁则：开引号/开括号（《（「『【〔〈“‘ 等）不许留在行末，遇到就把它挪到下一行开头。
+ *   这两条只在**真的要折行**时生效，不影响"放得下一行就不折"。
  */
+const CLOSING_RE = /^[》」』】〕）〉”’！？。，、；：…—～·%‰,.;:?!)\]}]$/;
+const OPENING_RE = /[《（「『【〔〈“‘(\[{]$/;
+
 export const wrapLabel = (text, maxWidth, fontSize, measurer, maxLines = 3) => {
   const s = String(text == null ? '' : text).trim();
   if (!s) return [''];
@@ -104,6 +114,20 @@ export const wrapLabel = (text, maxWidth, fontSize, measurer, maxLines = 3) => {
     if (lines.length >= maxLines) break;
     const next = cur + t;
     if (cur && estimateTextWidth(next, fontSize, measurer) > maxWidth) {
+      // ① 行首禁则：该断点后是个"收尾标点/右括号"→ 宁可悬挂在上一行末，也不让它单独成行
+      if (CLOSING_RE.test(t)) {
+        cur = next;
+        continue;
+      }
+      // ② 行尾禁则：上一行以"开引号/开括号"结尾 → 把它带到下一行开头（不留半个书名号在行尾）
+      if (OPENING_RE.test(cur)) {
+        const carry = cur.slice(-1);
+        cur = cur.slice(0, -1);
+        flush();
+        if (lines.length >= maxLines) break;
+        cur = carry + (/^\s+$/.test(t) ? '' : t);
+        continue;
+      }
       flush();
       if (lines.length >= maxLines) break;
       cur = /^\s+$/.test(t) ? '' : t;
