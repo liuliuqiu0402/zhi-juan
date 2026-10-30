@@ -488,6 +488,8 @@ import {
 } from '../themeConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
 import { PAPER_PRESETS } from '../config/paperPresets.js';
+import { contentWidthPx } from '../config/paperPresets.js';
+import { rerenderDiagramsForWidth } from '../utils/diagramBlock.js'; // 导图按纸张栏宽重排（折行上限交给排版版面）
 import { normalizeGenType } from '../config/expertKnowledge.js'; // 资料类型 key 归一（门控唯一判据：key/显示名两值域）
 import { getMergedSpec, normalizeStage3, blankWriteScale } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）＋ 空位手写系数
 import RichTextEditor from '../components/RichTextEditor.vue';
@@ -1303,6 +1305,13 @@ const exportDocument = async () => {
         clone.style.color = theme.bodyColor || '#000000';
       }
       clone.innerHTML = sourceHtml;
+      // 🔴 2026-10-30（属主："折行上限可否不固定，交给排版处的版面自适应？排版模块是有纸张尺寸的吧？"）：
+      //   导出前按**当前纸张的栏宽**把导图重画一遍（规格 JSON 是唯一事实源，只重排、不改内容）。
+      try {
+        const { rerenderDiagramFiguresInElement } = await import('../utils/diagramBlock.js');
+        const { contentWidthPx } = await import('../config/paperPresets.js');
+        rerenderDiagramFiguresInElement(clone, contentWidthPx(paperLayout.value));
+      } catch (e) { console.warn('导图按纸张栏宽重排失败（沿用原图）:', e?.message || e); }
 
       // 🔑 注入主题 CSS <style> 标签到 wrapper（不在 clone 内部），
       //    CSS 规则通过文档级联对 clone 内所有元素生效，
@@ -1504,7 +1513,7 @@ const loadContentSilent = (content, stage = '', genType = '') => {
   content = normalizeMathCircleBlanks(normalizeLeadingMarkers(content));
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   // 🔧 HTML 内容统一做密封线结构归一化 + 注入卷面固定件（编辑区所见即所得），幂等
-  if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = withExamShell(content, stage, genType); currentContent.value = ''; }
+  if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = rerenderDiagramsForWidth(withExamShell(content, stage, genType), contentWidthPx(paperLayout.value)); currentContent.value = ''; }
   else { isHtmlContent.value = false; rawHtmlContent.value = ''; currentContent.value = content; }
 };
 
@@ -1523,6 +1532,8 @@ const loadFromGenerate = async (payload) => {
   // 🔧 密封线结构归一化 + 注入卷面固定件（编辑区所见即所得，幂等）
   // 🔴 2026-10-30：genType 门控——只有试卷资料才注入注意事项+得分表，教辅类绝不泄露
   content = withExamShell(content, meta.stage, meta.genType || '');
+  // 🔴 2026-10-30（属主："折行上限交给排版处的版面自适应"）：导图按当前所选纸张的栏宽重排（只重排、不改内容）
+  content = rerenderDiagramsForWidth(content, contentWidthPx(paperLayout.value));
   pristineHtmlForExport.value = content;
   
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);

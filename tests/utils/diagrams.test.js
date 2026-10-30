@@ -113,19 +113,17 @@ describe('diagrams · 类型分发', () => {
     expect(buildDiagramSvg(null).type).toBe('mindmap');
   });
 
-  it('思维导图支持两种版式，且版式真的换了样（尺寸不同）', () => {
-    expect(MINDMAP_LAYOUTS.map((l) => l.value)).toEqual(['balanced', 'right']);
-    const a = buildDiagramSvg({ ...SPECS.mindmap, layout: 'balanced' });
-    const b = buildDiagramSvg({ ...SPECS.mindmap, layout: 'right' });
-    expect(`${a.width}x${a.height}`).not.toBe(`${b.width}x${b.height}`);
-    // 🔴 2026-10-30（属主："导图改为右支后，为啥导图框不是按照内容自适应的"）：
-    //   默认不再写死 right：不传 layout 时**按内容自动择一**（balanced/right 中折行更少者）。
-    const auto = buildDiagramSvg(SPECS.mindmap);
-    expect(['balanced', 'right']).toContain(auto.layout);
-    expect([`${a.width}x${a.height}`, `${b.width}x${b.height}`]).toContain(`${auto.width}x${auto.height}`);
-    // 模型显式给了版式就必须照办（不得被程序悄悄改成另一版式）
-    expect(buildDiagramSvg({ ...SPECS.mindmap, layout: 'balanced' }, { fitWidth: 643 }).layout).toBe('balanced');
-    expect(buildDiagramSvg({ ...SPECS.mindmap, layout: 'right' }, { fitWidth: 643 }).layout).toBe('right');
+  // 🔴 2026-10-30（属主定："左右两支这种可否取消？都用右支"）：思维导图只保留"向右生长"，
+  //   历史内容里写的 `data-layout="balanced"` 也一律按 right 出图（老记录重画后版式一致、不再一边长一边短）。
+  it('思维导图只有"向右生长"：显式写 balanced 也按 right 出图', () => {
+    expect(MINDMAP_LAYOUTS.map((l) => l.value)).toEqual(['right']);
+    const explicit = buildDiagramSvg({ ...SPECS.mindmap, layout: 'balanced' }, { fitWidth: 643 });
+    const right = buildDiagramSvg({ ...SPECS.mindmap, layout: 'right' }, { fitWidth: 643 });
+    const auto = buildDiagramSvg(SPECS.mindmap, { fitWidth: 643 });
+    expect(explicit.layout).toBe('right');
+    expect(auto.layout).toBe('right');
+    expect(`${explicit.width}x${explicit.height}`).toBe(`${right.width}x${right.height}`);
+    expect(`${auto.width}x${auto.height}`).toBe(`${right.width}x${right.height}`);
   });
 
   it('可以直接把树传给 mindmap（允许 spec 不带 root 包裹）', () => {
@@ -139,6 +137,59 @@ describe('diagrams · 类型分发', () => {
       expect(r.width).toBeGreaterThan(0);
       expect(r.height).toBeGreaterThan(0);
     }
+  });
+});
+
+// 🔴 2026-10-30（属主："导图框都是长宽固定一样的，要的是导图框随内容的长短自适应的，
+//   超过 A4 版面的时候才换行的"）：
+//   ① 框宽由内容反推（不同长度的标签必须出不同宽度的框）；
+//   ② 只有真超过版心（643）才折行——原折行上限"版心×0.38≈244"会让 20 字标签无谓折成两行、框宽被压齐。
+describe('diagrams · 框随内容 / 只在超版心时折行', () => {
+  const twoLeaves = {
+    type: 'mindmap',
+    layout: 'right',
+    root: { title: '分数的意义', children: [{ title: '单位“1”' }, { title: '分子和分母同时乘或除以相同的数（0除外）' }] },
+  };
+
+  it('框宽随标签长度变化（不是固定长宽）', () => {
+    const r = buildDiagramSvg(twoLeaves, { fitWidth: 643 });
+    const leaves = r.nodes.filter((n) => n.depth === 1);
+    const short = leaves.find((n) => n.title.length <= 5);
+    const long = leaves.find((n) => n.title.length > 10);
+    expect(short && long, '两个叶子都在').toBeTruthy();
+    expect(long.w, '长标签的框必须更宽').toBeGreaterThan(short.w + 40);
+    expect(long.lines.length, '长标签一行放得下（远小于版心）').toBe(1);
+  });
+
+  it('标签在版心内就一行（不提前折行），超版心才折行', () => {
+    const fits = { type: 'mindmap', layout: 'right', root: { title: '根', children: [{ title: '分子和分母同时乘或除以相同的数（0除外）' }] } };
+    const r1 = buildDiagramSvg(fits, { fitWidth: 643 });
+    expect(r1.nodes.find((n) => n.depth === 1).lines.length).toBe(1);
+
+    // 够长才超版心：用同一句重复到自然宽明显 > 643（实测约 11.4px/汉字）
+    const tooLong = { type: 'mindmap', layout: 'right', root: { title: '根', children: [{ title: '超过A4版心宽度才折行的超长标签'.repeat(6) }] } };
+    const r2 = buildDiagramSvg(tooLong, { fitWidth: 643 });
+    const leaf = r2.nodes.find((n) => n.depth === 1);
+    expect(leaf.lines.length, '超版心才折行').toBeGreaterThan(1);
+    expect(r2.width, '折行后整幅仍在版心内').toBeLessThanOrEqual(643);
+  });
+
+  // 🔴 2026-10-30（属主："左右两支这种可否取消？都用右支"）：不再出现左右两支，
+  //   全部节点都在同一侧（side=1）——"一侧过长一侧过短"的问题从版式上消除。
+  it('不再出现左右两支：所有节点在同一侧', () => {
+    const asym = {
+      type: 'mindmap',
+      root: { title: '单元知识梳理', children: [
+        { title: '小分支', children: [{ title: '一点' }] },
+        { title: '大分支一', children: [{ title: '甲' }, { title: '乙' }, { title: '丙' }] },
+        { title: '大分支二', children: [{ title: '丁' }, { title: '戊' }, { title: '己' }] },
+        { title: '大分支三', children: [{ title: '庚' }, { title: '辛' }, { title: '壬' }] },
+      ] },
+    };
+    const r = buildDiagramSvg(asym, { fitWidth: 643 });
+    expect(r.layout).toBe('right');
+    expect(r.nodes.filter((n) => n.side === -1), '不应有左侧节点').toHaveLength(0);
+    expect(r.nodes.filter((n) => n.side === 1).length).toBeGreaterThan(0);
   });
 });
 

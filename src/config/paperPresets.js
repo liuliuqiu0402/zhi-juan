@@ -20,3 +20,19 @@ export const normalizeLayout = (layout) => {
   if (!layout || layout === 'a4') return 'a4-1col';
   return PAPER_PRESETS[layout] ? layout : 'a4-1col';
 };
+
+/** 页面左右页边距（mm）——与排版页面 CSS/导出 docx 同口径（20mm×2） */
+export const PAGE_MARGIN_MM = 20;
+
+/**
+ * 单栏**版心宽度（mm）**：纸宽 − 两侧页边距 − 栏距×(栏数−1)，再除以栏数。
+ * 例：A4 单栏 210−40＝170mm；A3 两栏 (420−40−20)/2＝180mm。
+ */
+export const contentWidthMm = (layout) => {
+  const p = PAPER_PRESETS[normalizeLayout(layout)];
+  const usable = p.wMm - PAGE_MARGIN_MM * 2 - (p.gapMm || 0) * (p.cols - 1);
+  return Math.max(80, usable / p.cols);
+};
+
+/** 单栏版心宽度（px @96dpi）——导图"折行上限"按它算（不再写死像素常数） */
+export const contentWidthPx = (layout) => Math.round((contentWidthMm(layout) * 96) / 25.4);

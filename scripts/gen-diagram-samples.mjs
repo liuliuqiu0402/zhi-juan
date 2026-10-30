@@ -25,20 +25,9 @@ const outDir = path.join(root, 'docs', 'samples');
 const { buildDiagramSvg } = await import(pathToFileURL(path.join(root, 'src/utils/diagrams/index.js')).href);
 
 /** 样张清单：每题一个 spec（字段口径见 docs/design/导图族-图种规格.md） */
+// 🔴 2026-10-30（属主定："左右两支这种可否取消？都用右支"）：删掉原 `01-思维导图-左右分布` 样张——
+//   思维导图只剩"向右生长"一种版式，再留一张 balanced 样张会与产品实际出图不符。
 const SAMPLES = [
-  {
-    file: '01-思维导图-左右分布.svg',
-    spec: {
-      type: 'mindmap',
-      layout: 'balanced',
-      title: '函数的性质',
-      children: [
-        { title: '单调性', children: [{ title: '增函数' }, { title: '减函数' }] },
-        { title: '奇偶性', children: [{ title: '奇函数' }, { title: '偶函数' }] },
-        { title: '最值', children: [{ title: '最大值' }, { title: '最小值' }] },
-      ],
-    },
-  },
   {
     file: '02-思维导图-向右生长.svg',
     spec: {

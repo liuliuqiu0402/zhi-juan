@@ -72,7 +72,7 @@ export const getCanvasMeasurer = () => {
 };
 
 /** 规格属性 → SVG（属性里的 JSON 坏了也不抛错：返回空串并告警，规格本身仍在图上可重画） */
-export const svgFromSpecAttr = (raw) => {
+export const svgFromSpecAttr = (raw, { fitWidth = PRINT_SAFE_WIDTH } = {}) => {
   const spec = readSpecAttr(raw);
   if (!spec) return '';
   try {
@@ -80,12 +80,53 @@ export const svgFromSpecAttr = (raw) => {
     //   编辑器/导出是**从规格重画**（renderHTML → 本函数），原来这条路没带实测 measurer，
     //   于是"生成时按实测出框、进编辑器/导出又按估算出框"——两套宽度，后者可能偏窄 ⇒ 又出框。
     //   这里与生成侧用**同一个** canvas 实测（无 canvas 时自动退回估算）。
+    // 🔴 2026-10-30（属主："折行上限可否不固定，交给排版处的版面自适应"）：折行上限由调用方按纸张栏宽传入。
     const m = getCanvasMeasurer();
-    return buildDiagramSvg(spec, { ...(m ? { measurer: m } : {}), fitWidth: PRINT_SAFE_WIDTH }).svg || '';
+    const width = Number(fitWidth) > 0 ? Number(fitWidth) : PRINT_SAFE_WIDTH;
+    return buildDiagramSvg(spec, { ...(m ? { measurer: m } : {}), fitWidth: width }).svg || '';
   } catch (e) {
     console.warn('⚠️ 导图规格重绘失败：', e?.message || e);
     return '';
   }
+};
+
+/**
+ * 按某个栏宽**重画正文里的所有导图**（规格是唯一事实源，重画不改内容）。
+ * 为什么需要：导图的折行宽度要跟着"排版处选的纸张/栏宽"走——生成时按 A4 排过的图，
+ *   换成 A3 两栏或 8K 两栏后栏宽不同，直接沿用会白缩或白折。
+ * @param {string} html 载入态 HTML（本函数返回同样形态的新 HTML）
+ * @param {number} fitWidth 目标栏宽（px）
+ */
+export const rerenderDiagramsForWidth = (html, fitWidth) => {
+  const src = String(html == null ? '' : html);
+  const width = Number(fitWidth);
+  if (!src || !(width > 0) || typeof DOMParser === 'undefined') return src;
+  try {
+    const doc = new DOMParser().parseFromString(`<div id="__k_root">${src}</div>`, 'text/html');
+    const root = doc.getElementById('__k_root');
+    const figs = Array.from(root?.querySelectorAll?.(`figure.${FIGURE_CLASS}`) || []);
+    if (!figs.length) return src;
+    for (const fig of figs) {
+      const svg = svgFromSpecAttr(fig.getAttribute(SPEC_ATTR), { fitWidth: width });
+      if (svg) fig.innerHTML = toResponsiveSvg(svg);
+    }
+    return root.innerHTML;
+  } catch {
+    return src;
+  }
+};
+
+/** 同上，但作用在**真实 DOM**（导出前对 clone 调用，避免改动屏幕上的编辑器） */
+export const rerenderDiagramFiguresInElement = (el, fitWidth) => {
+  const width = Number(fitWidth);
+  if (!el || !(width > 0)) return 0;
+  const figs = Array.from(el.querySelectorAll?.(`figure.${FIGURE_CLASS}`) || []);
+  let done = 0;
+  for (const fig of figs) {
+    const svg = svgFromSpecAttr(fig.getAttribute(SPEC_ATTR), { fitWidth: width });
+    if (svg) { fig.innerHTML = toResponsiveSvg(svg); done++; }
+  }
+  return done;
 };
 
 /** 规格属性 → 结构化 spec 对象（坏数据返回 null，绝不抛错） */

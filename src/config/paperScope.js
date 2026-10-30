@@ -119,16 +119,17 @@ export const composeDocTitle = ({
   const isExam = isExamGenType(genType);
   const scopeName0 = scopeInfo?.name || '';
   const scopeIsLabel = !!scopeInfo?.isScopeLabel;
-  // 考试型标题：**只有正式考卷**才有资格（其余类型即使范围被推断成考试维度，也走普通型）
-  const isLabelScope = isExam && scopeIsLabel
-    && (EXAM_LABEL_CATS.includes(scopeType || '') || EXAM_LABEL_CATS.includes(scopeInfo?.category || ''));
-  // 教辅不吃"考试卷名"当范围名（综合检测/期末质量检测…对教辅没有语义）：
-  //   · 用户**显式**选了期中/期末/月考/专题 → 用维度词本身当范围名（"六年级语文上册期末知识梳理"，读得通）；
-  //   · 只是跨单元**推断**出来的卷名 → 整段不进标题（"六年级语文上册知识梳理"）。
+  // 考试型标题：**只有正式考卷 + 用户自己选了期中/期末/月考/专题/升学卷别**才走。
+  //   🔴 2026-10-30（属主："试卷，如果跨单元的，用户没有选择月考/期中/期末的，就都写，如果选择了，按选择的来"）：
+  //   原判据连"推断出来的期中/期末"也算 ⇒ 用户没选也会被命名成"…期末质量检测"。现只认**显式选择**。
+  const isLabelScope = isExam && scopeIsLabel && EXAM_LABEL_CATS.includes(scopeType || '');
+  // 范围名（非考试型标题时）：用户显式选的维度词 > 父级单元名 > 各课名（"都写上"）。
   const dimWord = Object.prototype.hasOwnProperty.call(SCOPE_DIMENSION_LABELS, scopeType || '') && scopeType !== 'default'
     ? SCOPE_DIMENSION_LABELS[scopeType]
     : '';
-  const scopeName = (scopeIsLabel && !isLabelScope) ? dimWord : scopeName0;
+  const unitRange = formatUnitRange(scopeInfo?.units || []);
+  const lessonRange = formatLessonRange(scopeInfo?.lessons || []);
+  const scopeName = (scopeIsLabel && !isLabelScope) ? (dimWord || unitRange || lessonRange) : scopeName0;
   let typeLabel = isLabelScope ? '' : (labelStyle || (pickLabel ? pickLabel(genType, scopeName0 || '_all_') : ''));
   // 避重：范围名含"单元"时，类型名不用含"单元"的词（防"第二单元单元测试卷"病句）
   if (typeLabel && /单元/.test(typeLabel) && /单元/.test(scopeName0)) {
@@ -187,13 +188,19 @@ export function findCommonAncestorIndex(chapters, outline) {
  */
 export function inferPaperScope(chapters = [], outline = [], scopeType = '', pickScope) {
   const arr = (Array.isArray(chapters) ? chapters : []).filter(Boolean);
+  // 🔴 2026-10-30（属主："选了单元了…原先的设计是取父级的吧？没有父级就都写的吧？"）：
+  //   把"所选章节落在哪些单元"一并带出（units）——单单元时是父级名，跨单元时供调用方"都写上"，
+  //   不再只剩一个考试卷名标签（教辅拿它当范围名没有语义）。
+  const units = unitTitlesOf(arr, outline);
+  // 目录层级：小标题 → 课 → 单元。单元归不出来时（扁平目录/只勾了课），"都写"就写到课名这一级。
+  const lessons = lessonTitlesOf(arr, outline);
 
   // 显式范围类型（期中/期末/月考/专题）：尊重用户意图，直接取标签词（可轮换 override）
   if (EXPLICIT_SCOPE_TYPES.includes(scopeType)) {
     const label = pickScope
       ? pickScope(scopeType)
       : (SCOPE_LABEL_POOLS[scopeType]?.[0] ?? SCOPE_LABEL_POOLS.default[0]);
-    return { name: label, isScopeLabel: true, category: scopeType };
+    return { name: label, isScopeLabel: true, category: scopeType, units, lessons };
   }
 
   // 单课：只勾选一个节点 → 课名；若勾选的是附属顶层节点（语文园地）→ 归并到前一个有效单元
@@ -202,25 +209,30 @@ export function inferPaperScope(chapters = [], outline = [], scopeType = '', pic
     if (ATTACHED_TOP_RE.test(node.title || '')) {
       const idx = effectiveUnitIndices([node], outline);
       if (idx.length === 1 && outline[idx[0]]?.title) {
-        return { name: outline[idx[0]].title, isScopeLabel: false, category: 'unit' };
+        return { name: outline[idx[0]].title, isScopeLabel: false, category: 'unit', units, lessons };
       }
     }
-    return { name: node.title || '', isScopeLabel: false, category: 'lesson' };
+    return { name: node.title || '', isScopeLabel: false, category: 'lesson', units, lessons };
   }
 
   // 多节点：求最近公共祖先。目录顶层即单元，单单元内多选 → LCA 为该单元（index 0 也有效）
   if (arr.length > 1) {
     const lca = findCommonAncestorIndex(arr, outline);
-    if (lca && lca.node) return { name: lca.node.title || '', isScopeLabel: false, category: 'unit' };
+    // 🔴 2026-10-30（"教材库里的教材导入的还是挺全的"）：有的目录带**书（册）根节点**——
+    //   此时跨单元的 LCA 就是那本书，绝不能拿书名当范围名（"六年级语文上册六年级上册…"）。
+    const isBookRoot = Array.isArray(outline) && outline.length === 1 && outline[0] === lca?.node;
+    if (lca && lca.node && !isBookRoot) return { name: lca.node.title || '', isScopeLabel: false, category: 'unit', units, lessons };
   }
 
   // 多节点但 LCA 失败（常见于"语文园地"与单元平级、勾选单元课文+园地）：
   //    把"园地/综合练习/单元小结"等附属顶层节点归并到前一个有效单元，
   //    避免整单元勾选被误判为跨单元而丢单元名（用户勾"第二单元"应出"第二单元"）。
-  const effectiveIdx = effectiveUnitIndices(arr, outline);
+  //    取数层同样按"容器层"算（有书根时容器是书的 children），不假设顶层就是单元。
+  const container = containerChildrenOf(arr, outline);
+  const effectiveIdx = effectiveUnitIndices(arr, container);
   if (effectiveIdx.length === 1) {
-    const u = outline[effectiveIdx[0]];
-    if (u?.title) return { name: u.title, isScopeLabel: false, category: 'unit' };
+    const u = container[effectiveIdx[0]];
+    if (u?.title) return { name: u.title, isScopeLabel: false, category: 'unit', units, lessons };
   }
 
   // 真正跨单元多选 → 按所选单元在整本的覆盖位置自动归 期中/期末/综合
@@ -228,9 +240,85 @@ export function inferPaperScope(chapters = [], outline = [], scopeType = '', pic
   const label = pickScope
     ? pickScope(category)
     : (SCOPE_LABEL_POOLS[category]?.[0] ?? SCOPE_LABEL_POOLS.default[0]);
-  if (label) return { name: label, isScopeLabel: true, category };
-  return { name: arr[0]?.title || '', isScopeLabel: false, category };
+  if (label) return { name: label, isScopeLabel: true, category, units, lessons };
+  return { name: arr[0]?.title || '', isScopeLabel: false, category, units, lessons };
 }
+
+/** 所选章节的"容器层"（彼此互为兄弟的那一层）：有公共祖先就用它的 children；没有就用目录根 */
+const containerChildrenOf = (arr, outline) => {
+  const lca = findCommonAncestorIndex(arr, outline);
+  return lca?.node ? (lca.node.children || []) : (Array.isArray(outline) ? outline : []);
+};
+
+/**
+ * 所选章节落在哪些"单元级"节点（= 容器层里被命中的那些兄弟节点）。
+ * 🔴 2026-10-30（属主："教材库里的教材导入的还是挺全的，你要先看目录树关系吗？"）：
+ *   改**认结构不认学科/不认字**——不再假"目录顶层就是单元"：
+ *     · 单元→课（语文/数学/英语/物理…）：单元是顶层，命中即单元；
+ *     · 书（册）→单元→课（部分高中/整套导入）：顶层是"书"，会先落到书的 children 再取单元；
+ *     · 扁平目录（体育/美术常见：顶层直接是课）：顶层节点就是"课"，此处即课名。
+ *   判据只用"公共祖先的下一层"这一条结构事实，与学科名无关。
+ */
+export const unitTitlesOf = (chapters = [], outline = []) => {
+  const arr = (Array.isArray(chapters) ? chapters : []).filter(Boolean);
+  if (!arr.length) return [];
+  const children = containerChildrenOf(arr, outline);
+  if (!children.length) return [];
+  return effectiveUnitIndices(arr, children)
+    .map((i) => children[i]?.title || '')
+    .filter(Boolean);
+};
+
+/**
+ * 单元名清单 → 标题里能用的范围名（"都写上"的短形态）：
+ *   1 个 → 原名；2 个 → "第一单元、第二单元"；3 个以上 → 首尾相接（"第一章至第三章" / "Unit 1至Unit 3"）。
+ */
+export const formatNameRange = (titles = [], kindWord = '单元') => {
+  const list = (Array.isArray(titles) ? titles : []).filter(Boolean);
+  if (!list.length) return '';
+  if (list.length <= 2) return list.join('、');
+  const first = list[0];
+  const last = list[list.length - 1];
+  // 中文序号（第一单元 / 第一章 / 第3课 / 第二部分…）——量词是**词组**，不能按单字匹配
+  const cn = /^(第[一二三四五六七八九十百零〇0-9]+(?:单元|章|课|节|讲|部分|模块|专题))/;
+  const m1 = first.match(cn);
+  const m2 = last.match(cn);
+  if (m1 && m2) return `${m1[1]}至${m2[1]}`;
+  // 英文 Unit/Module/Lesson/Chapter/Part + 数字
+  const en = /^((?:Unit|Module|Lesson|Chapter|Part)\s*\d+)/i;
+  const e1 = first.match(en);
+  const e2 = last.match(en);
+  if (e1 && e2) return `${e1[1]}至${e2[1]}`;
+  return `${first}等${list.length}${kindWord}`;
+};
+export const formatUnitRange = (titles = []) => formatNameRange(titles, '个单元');
+export const formatLessonRange = (titles = []) => formatNameRange(titles, '课');
+
+/**
+ * 所选章节各自所属的"课"（层级：小标题 → 课 → 单元；有书根时：书 → 单元 → 课 → 小标题）。
+ * 判据同样是"结构位置"：课 = 单元节点往下第一层；勾的就是课时即自身；扁平目录时顶层即课。
+ */
+export const lessonTitlesOf = (chapters = [], outline = []) => {
+  const arr = (Array.isArray(chapters) ? chapters : []).filter(Boolean);
+  if (!arr.length) return [];
+  const children = containerChildrenOf(arr, outline);
+  const unitSet = new Set(effectiveUnitIndices(arr, children).map((i) => children[i]));
+  const titles = [];
+  const walk = (nodes, path) => {
+    for (const n of nodes || []) {
+      const p = [...path, n];
+      if (arr.includes(n)) {
+        let unitIdx = -1;
+        p.forEach((x, i) => { if (unitSet.has(x)) unitIdx = i; });
+        const lesson = unitIdx >= 0 ? (p[unitIdx + 1] || p[unitIdx]) : p[Math.min(1, p.length - 1)];
+        titles.push(lesson?.title || n.title || '');
+      }
+      walk(n.children, p);
+    }
+  };
+  walk(Array.isArray(outline) ? outline : [], []);
+  return [...new Set(titles.filter(Boolean))];
+};
 
 /** 附属顶层节点正则：语文园地/综合练习/单元小结/复习等（教材中随附前一个单元，不算独立单元） */
 const ATTACHED_TOP_RE = /园地|综合练习|单元小结|复习与|总复习|整理与复习/i;
@@ -298,6 +386,7 @@ export const resolveScopeName = ({ book = null, scopeType = '', scopeOverride = 
     // 自定义名是"名称"（按普通型拼：年级+学科+册别+名称+类型名）
     isScopeLabel: !!dimType,
     category: dimType || base.category,
+    units: base.units || [],
     fromOverride: true,
   };
 };

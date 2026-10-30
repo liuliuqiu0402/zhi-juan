@@ -362,14 +362,13 @@ export const styleInstructions = {
   //    几何由 utils/diagrams 算（模型手写 SVG 必然歪、还会被清洗器改坏）；
   //    约定与容错见 utils/diagramBlock.js（解析失败会原样保留那块文字，不会丢内容）。
   'mindmap': '以「导图块」真实呈现知识结构（本风格的核心交付物；**全篇一张总览导图**，不是每栏一块）：'
-    + '<div class="k-diagram" data-type="mindmap" data-layout="balanced">{"title":"中心主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
+    + '<div class="k-diagram" data-type="mindmap" data-layout="right">{"title":"中心主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
     // 🔴 2026-10-23（属主："左右分布、还是单独往右，这个不人为定，交由模型按内容定"）：
     //   版式（data-layout）是**内容判断**，交给模型；判据绑在可自判的结果上——标签能否一行放下、图幅是否超版心。
     //   几何侧不抢这个决定：模型写了就照办，程序只在"没写"或"已把一行压到不足 7 字"时兜底。
-    // 🔴 2026-10-30（属主："导图改为右支后，为啥导图框不是按照内容自适应的"）：上一轮把这里写成
-    //   "统一用 right 布局"——版式被**写死**，宽扁的浅树也被拉成一条阶梯长条，"框的宽高不跟内容走"由此而来。
-    //   现恢复**按内容选版式**（当年属主原话），仍以"标签不折行、图幅不超 A4 版心"为自判判据。
-    + 'data-type 与 data-layout 都按内容自选：mindmap(概念层级；**版式由你按内容定**——"balanced" 左右分布／"right" 向右生长，以"**标签不折行、图幅不超 A4 版心**"为准)、'
+    // 🔴 2026-10-30（属主："左右两支这种可否取消？都用右支"）：上一条（按内容选版式）作废——
+    //   左右分布会出现"一侧过长、一侧过短"，两份导图并排看也不齐；现**统一向右生长**，不再有 balanced。
+    + 'data-type 按内容自选：mindmap(概念层级；**版式一律 "right" 向右生长，不做左右分布**)、'
     + 'brace(整体与部分：title,children)、flow(步骤与判定：steps[{text,kind:"start|process|decision|end",branches:[{label,steps:[…]}]}])、'
     + 'timeline(时间顺序：items[{when,text,detail}])、fishbone(因果：effect,categories[{name,causes:[…]}])、'
     + 'concept(带关系标注：nodes[{id,text}],links[{from,to,label}])。'
@@ -418,8 +417,8 @@ export const styleInstructions = {
     //   这不是"模型偷懒"，是**判据只覆盖了一栏**。现按栏目写清：**每一个知识型栏目都要出图**（不只首栏），
     //   只有纯题目类栏目（典型例题/自测/练习）仍按题的形态照常给。
     + '；**每一个栏目都要出图，不只「知识框架」那一栏**——凡栏目内容是知识、方法、规律、易混点或分类，都用该板块的导图承载；只有纯题目类栏目（典型例题、自测、练习）按题的形态照常给'
-    + '<div class="k-diagram" data-type="mindmap" data-layout="balanced">{"title":"该板块主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
-    + 'data-type 与 data-layout 都按该板块内容自选：mindmap(概念层级；**版式由你按内容定**——"balanced" 左右分布／"right" 向右生长，以"**标签不折行、图幅不超 A4 版心**"为准)、'
+    + '<div class="k-diagram" data-type="mindmap" data-layout="right">{"title":"该板块主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
+    + 'data-type 按该板块内容自选：mindmap(概念层级；**版式一律 "right" 向右生长，不做左右分布**)、'
     + 'brace(整体与部分：title,children)、flow(步骤与判定：steps[{text,kind:"start|process|decision|end",branches:[{label,steps:[…]}]}])、'
     + 'timeline(时间顺序：items[{when,text,detail}])、fishbone(因果：effect,categories[{name,causes:[…]}])、'
     + 'concept(带关系标注：nodes[{id,text}],links[{from,to,label}])。'

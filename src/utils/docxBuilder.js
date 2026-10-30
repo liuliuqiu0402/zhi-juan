@@ -2364,7 +2364,7 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
  * 失败（无 canvas / 解码超时）时**保留原 SVG 并只警告**：宁可 Word 里缺这一张图，
  *    也绝不能让整个导出失败或挂死。
  */
-const rasterizeSvgsForExport = async (container) => {
+const rasterizeSvgsForExport = async (container, maxWidthPx = PRINT_SAFE_WIDTH) => {
   if (!container || typeof XMLSerializer === 'undefined') return 0;
   const svgs = Array.from(container.querySelectorAll?.('svg') || []);
   let done = 0;
@@ -2375,11 +2375,14 @@ const rasterizeSvgsForExport = async (container) => {
       if (!dataUrl) throw new Error('光栅化未返回数据');
       const w0 = Number(svgEl.getAttribute('width')) || 600;
       const h0 = Number(svgEl.getAttribute('height')) || 400;
-      // 🔴 2026-10-22（属主："按 A4 尺寸排版·取 643"）：Word 里的图片是**固定尺寸**（px→EMU），
-      //   不像 PDF 有 CSS `max-width:100%` 兜底 ⇒ 超版心的图会直接出界。这里按版心等比收敛：
+      // 🔴 2026-10-22（属主："按 A4 尺寸排版"）：Word 里的图片是**固定尺寸**（px→EMU），
+      //   不像 PDF 有 CSS `max-width:100%` 兜底 ⇒ 超版心的图会直接出界。这里按**当前纸张的栏宽**等比收敛：
       //   只在超宽时缩，宽高同比，绝不拉伸变形。
-      const w = w0 > PRINT_SAFE_WIDTH ? PRINT_SAFE_WIDTH : w0;
-      const h = w0 > PRINT_SAFE_WIDTH ? Math.round((h0 * PRINT_SAFE_WIDTH) / w0) : h0;
+      // 🔴 2026-10-30（属主："折行上限可否不固定，交给排版处的版面自适应？排版模块是有纸张尺寸的吧？"）：
+      //   上限不再写死 643，改由调用方按所选纸张/栏宽传入（`contentWidthPx(paperLayout)`）。
+      const cap = Number(maxWidthPx) > 0 ? Number(maxWidthPx) : PRINT_SAFE_WIDTH;
+      const w = w0 > cap ? cap : w0;
+      const h = w0 > cap ? Math.round((h0 * cap) / w0) : h0;
       const img = document.createElement('img');
       img.setAttribute('src', dataUrl);
       img.setAttribute('width', String(w));

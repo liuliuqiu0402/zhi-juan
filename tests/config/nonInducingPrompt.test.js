@@ -642,11 +642,11 @@ describe('防诱导不变量：提示词不枚举呈现形式/组织序列', () 
     //   不能只落在「知识框架」一栏（栏目结构里也只有那栏写了导图块 → 模型只在首栏出图）。
     expect(mf, '每个知识型栏目都要出图（不只首栏）').toContain('每一个栏目都要出图');
     expect(mf, '纯题目类栏目按题的形态给').toContain('纯题目类栏目');
-    // 🔴 2026-10-30（属主："导图改为右支后，为啥导图框不是按照内容自适应的"）：
-    //   版式是内容判断，**两套风格都不得写死版式**（曾写成"统一用 right 布局"）。
+    // 🔴 2026-10-30（属主定："左右两支这种可否取消？都用右支"）：两套风格都只给"向右生长"，
+    //   不得再让模型去选 balanced（左右分布会出现"一侧过长、一侧过短"）。
     for (const [name, text] of [['导图式', styleInstructions.mindmap], ['全篇导图式', mf]]) {
-      expect(text, `${name}不得写死版式`).not.toContain('统一用 right');
-      expect(text, `${name}版式由内容定`).toContain('版式由你按内容定');
+      expect(text, `${name}版式统一向右`).toContain('一律 "right"');
+      expect(text, `${name}不得再提供左右分布`).not.toContain('balanced');
     }
   });
 

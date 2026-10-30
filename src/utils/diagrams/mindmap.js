@@ -243,17 +243,26 @@ export const layoutMindmap = (tree, opts = {}) => {
   let leftKids = [];
   let rightKids = all;
   if (layout === 'balanced' && all.length > 1) {
-    const weight = (n) => 1 + (n.children || []).length * 0.9;
-    const total = all.reduce((s, n) => s + weight(n), 0);
+    // 🔴 2026-10-30（属主："左右两支同时存在时，一侧过长、一侧过短，极度不协调"）：
+    //   原切法按"一级子节点个数×0.9 + 1"粗估重量、且**只数一层** ⇒ 分到某侧的分支可能深得多，
+    //   两侧高度差被放大（实测 4 个分支切成 10 节点 : 4 节点）。现按**子树叶子数**累计，
+    //   并**枚举所有切点取差值最小者**（O(分支数)），两侧尽量等高；切不动时仍退化为单侧。
+    const leavesOf = (n) => {
+      const kids = n.children || [];
+      return kids.length ? kids.reduce((s, k) => s + leavesOf(k), 0) : 1;
+    };
+    const counts = all.map(leavesOf);
+    const total = counts.reduce((s, c) => s + c, 0);
     let acc = 0;
-    let cut = 1;
-    for (let i = 0; i < all.length - 1; i++) {
-      acc += weight(all[i]);
-      cut = i + 1;
-      if (acc >= total / 2) break;
+    let bestCut = 1;
+    let bestDiff = Infinity;
+    for (let i = 0; i < all.length - 1; i++) {   // 至少给右侧留一个分支
+      acc += counts[i];
+      const diff = Math.abs(total - 2 * acc);
+      if (diff < bestDiff) { bestDiff = diff; bestCut = i + 1; }
     }
-    leftKids = all.slice(0, cut);
-    rightKids = all.slice(cut);
+    leftKids = all.slice(0, bestCut);
+    rightKids = all.slice(bestCut);
   }
   // side 必须**整棵子树继承**：连线方向（从父节点哪条边出线）和文字对齐
   //    （左半区右对齐）都靠它。只给根的一级子节点设 side，深层节点就会

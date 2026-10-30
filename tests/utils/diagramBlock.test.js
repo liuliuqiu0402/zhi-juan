@@ -72,12 +72,16 @@ describe('diagramBlock · 标记块渲染', () => {
     expect(r.html).toContain('k-diagram');
   });
 
-  it('data-layout 生效（两种思维导图版式出图尺寸不同）', () => {
+  // 🔴 2026-10-30（属主："左右两支这种可否取消？都用右支"）：`data-layout` 不再改变出图——
+  //   写 balanced 的和写 right 的、什么都不写的，出的都是同一张右支图。
+  it('data-layout 不再分支：balanced/right/未写 出图一致（统一右支）', () => {
     const tree = '{"title":"根","children":[{"title":"一"},{"title":"二"},{"title":"三"},{"title":"四"}]}';
     const a = renderDiagramBlocks(`<div class="k-diagram" data-type="mindmap" data-layout="balanced">${tree}</div>`);
     const b = renderDiagramBlocks(`<div class="k-diagram" data-type="mindmap" data-layout="right">${tree}</div>`);
+    const c = renderDiagramBlocks(`<div class="k-diagram" data-type="mindmap">${tree}</div>`);
     const wh = (h) => (h.match(/viewBox="0 0 (\d+) (\d+)"/) || []).slice(1).join('x');
-    expect(wh(a.html)).not.toBe(wh(b.html));
+    expect(wh(a.html)).toBe(wh(b.html));
+    expect(wh(c.html)).toBe(wh(b.html));
   });
 
   it('多个块一次全渲染', () => {
@@ -154,25 +158,24 @@ describe('diagramBlock · 标记块渲染', () => {
     }
   });
 
-  // 🔴 2026-10-22（属主定：A4 版心取 643，且要"按 A4 排版"而不是事后整体缩放）：
-  //   超宽时应收窄折行宽度**重排**（字号不变），图宽落回版心内。
-  // 🔴 2026-10-30（默认 layout 改为 right）：显式给 raw 指定 balanced——balanced 左右分布会更宽，
-  //   这样 fitted（带 fitWidth 版心约束）重排后才会明显收窄、有对比效果。
-  it('按 A4 版心（643）重排：宽了收窄折行重排，图宽落回版心内', () => {
+  // 🔴 2026-10-30（属主："折行上限可否不固定，交给排版处的版面自适应"）：带 fitWidth 时按栏宽重排；
+  //   这里验"超宽必然收敛到栏宽内 + 确实发生重排"，版式统一右支。
+  it('按栏宽重排：宽了收窄折行重排，图宽落回栏宽内', () => {
     const deep = {
       type: 'mindmap',
       title: '知识梳理',
       children: [{
-        title: '一级要点内容',
+        title: '一级要点内容较长的一句话说明',
         children: [{
-          title: '二级要点内容',
-          children: [{ title: '三级要点内容', children: [{ title: '四级要点内容' }] }],
+          title: '二级要点内容同样较长的一句话说明',
+          children: [{ title: '三级要点内容还是长句子说明', children: [{ title: '四级要点内容同样长句' }] }],
         }],
       }],
     };
-    const raw = buildDiagramSvg(deep, { maxLabelWidth: 150, layout: 'balanced' });
-    const fitted = buildDiagramSvg(deep, { maxLabelWidth: 150, fitWidth: PRINT_SAFE_WIDTH });
-    expect(fitted.width, '不得超出版心').toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
+    const raw = buildDiagramSvg(deep, { maxLabelWidth: 400 });
+    const fitted = buildDiagramSvg(deep, { maxLabelWidth: 400, fitWidth: PRINT_SAFE_WIDTH });
+    expect(raw.width, '未约束时应超栏宽（否则本用例没有对比意义）').toBeGreaterThan(PRINT_SAFE_WIDTH);
+    expect(fitted.width, '不得超出栏宽').toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
     expect(fitted.width, '确实发生了重排（不是没生效）').toBeLessThan(raw.width);
     expect(fitted.svg, '仍是完整 SVG').toContain('</svg>');
   });
@@ -210,32 +213,28 @@ describe('diagramBlock · 标记块渲染', () => {
   it('内容一行放得下就不折行：自动改取"折行更少"的版式，且仍不超版心', () => {
     const r = buildDiagramSvg(MINDMAP(), { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
     expect(r.width, '不得超出版心').toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
-    // 折行宽本身有上限（版心×0.38 ≈ 244：单个框不占半页）——超过这个宽的长句折行是**有意的**，不算"多折"。
-    const CAP = Math.round(PRINT_SAFE_WIDTH * 0.38);
+    // 🔴 2026-10-30（属主："超过 A4 版面的时候才换行"）：折行只因**整幅放不下**而收窄，
+    //   短标签（自然宽 ≤ 200px，一整行绰绰有余）在任何情况下都不许被折；原"版心×0.38"硬上限已撤。
     const wrapped = r.nodes
-      .filter((n) => n.lines.length > 1 && m(n.title, n.fs) <= CAP)
+      .filter((n) => n.lines.length > 1 && m(n.title, n.fs) <= 200)
       .map((n) => `${n.title}(${n.lines.length}行，自然宽${Math.round(m(n.title, n.fs))})`);
-    expect(wrapped, '一行放得下的标签不得被折行').toEqual([]);
+    expect(wrapped, '短标签不得被折行').toEqual([]);
   });
 
-  // 🔴 2026-10-23（属主："版式交由模型按内容定"）：模型写了版式就**照办**——折行宽仍按版心自动算，
-  //   但版式不因"另一种也许更宽"而被改掉；只有把一行压到不足 ~7 个字（<100px）才兜底换。
-  it('版式交模型定：指定 right 就按 right 出图（不在没必要时改观感）', () => {
+  // 🔴 2026-10-30（属主定："左右两支这种可否取消？都用右支"）：版式不再由模型/内容决定。
+  it('版式统一向右生长（写 balanced 也一样）', () => {
     const r = buildDiagramSvg({ ...MINDMAP(), layout: 'right' }, { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
-    expect(r.layout, '按模型指定的版式').toBe('right');
+    expect(r.layout).toBe('right');
     expect(r.width).toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
   });
 
-  // 🔴 2026-10-30（属主："导图改为右支后，为啥导图框不是按照内容自适应的"）：
-  //   兜底口径收窄为两件事——**客观溢出**（该版式装不进版心）或**一行读不成句**（<~5 字）。
-  //   其余情况模型写了哪条版式就照办（此前"<100px 就换"几乎对每份内容都成立 ⇒ 写 balanced 也恒变 right）。
-  it('指定 balanced 且内容装得下 ⇒ 照办（不再无谓改成右支）', () => {
+  it('历史内容写着 balanced ⇒ 也按右支出图，且不超栏宽', () => {
     const r = buildDiagramSvg({ ...MINDMAP(), layout: 'balanced' }, { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
-    expect(r.layout, '装得下就按模型指定的版式').toBe('balanced');
+    expect(r.layout, '一律右支').toBe('right');
     expect(r.width).toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
   });
 
-  it('客观溢出（该版式装不进版心）⇒ 兜底换向右生长', () => {
+  it('客观溢出（装不进栏宽）⇒ 收窄折行宽重排，仍不超栏宽', () => {
     const deep = {
       type: 'mindmap',
       title: '知识梳理',
@@ -246,7 +245,7 @@ describe('diagramBlock · 标记块渲染', () => {
       ] }],
     };
     const r = buildDiagramSvg({ ...deep, layout: 'balanced' }, { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
-    expect(r.layout, '超版心 ⇒ 兜底换向右生长').toBe('right');
+    expect(r.layout).toBe('right');
     expect(r.width).toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
   });
 

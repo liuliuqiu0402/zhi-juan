@@ -53,13 +53,15 @@ describe('导图 · 富文本编辑器（排版模块的编辑器）存活', () 
     expect(twice).toContain(SPEC_ATTR);
   });
 
-  it('规格是唯一事实源：改规格即可重画（换版式不必重新调模型）', () => {
-    const mk = (layout) => renderDiagramBlocks(
-      '<p>正文</p><div class="k-diagram" data-type="mindmap" data-layout="' + layout + '">'
-      + '{"title":"函数","children":[{"title":"定义域"},{"title":"值域"}]}</div>',
+  // 🔴 2026-10-30（属主定："左右两支这种可否取消？都用右支"）：版式不再是可变量——
+  //   于是这条改验"规格是唯一事实源"的另一半：改**内容**即重画（不必重新调模型）。
+  it('规格是唯一事实源：改规格里的文字即可重画（不必重新调模型）', () => {
+    const mk = (title) => renderDiagramBlocks(
+      '<p>正文</p><div class="k-diagram" data-type="mindmap" data-layout="right">'
+      + `{"title":"函数","children":[{"title":"${title}"},{"title":"值域"}]}</div>`,
     ).html;
-    const a = makeEditor(mk('balanced'));
-    const b = makeEditor(mk('right'));
+    const a = makeEditor(mk('定义域'));
+    const b = makeEditor(mk('定义域与对应法则的取值范围'));
     const wh = (s) => (s.match(/viewBox="0 0 (\d+) (\d+)"/) || []).slice(1).join('x');
     expect(wh(a.getHTML())).not.toBe(wh(b.getHTML()));
     a.destroy();
