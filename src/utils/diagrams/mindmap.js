@@ -93,7 +93,7 @@ const layoutSide = (nodes, gapY, geo) => {
 export const layoutMindmap = (tree, opts = {}) => {
   const {
     rootTitle = '知识梳理',
-    layout = 'balanced',
+    layout = 'right',
     fontSize = 13,
     rootFontSize = 15,
     maxLabelWidth = 150,

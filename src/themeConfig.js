@@ -2434,8 +2434,16 @@ export const buildExamShell = (sections, stage) => {
  *   - 旧固定件去重仍只清"第一个大题行之前"的残留（保守边界，见 beforeAnchor），不改动大题之后的正文；
  *   无大题结构的普通文档不注入
  */
-export const injectExamShell = (html, stage) => {
+export const injectExamShell = (html, stage, genType = '') => {
   if (!html || typeof html !== 'string') return html || '';
+  // 🔴 2026-10-30（真机："注意事项、得分框泄露到知识点总结等非试卷资料"）：
+  //    只有试卷类资料（genType === 'exam'）才注入注意事项+得分框。
+  //    教辅类（practice/special/summary 等）即使有"一、二、三…"结构的栏目（如"一、知识框架"），
+  //    也不能被认成大题然后给固定件。内容结构信号≠资料类型信号——必须双门控。
+  //    wrapContentForTheme 的四个 exam 主题分支不传 genType（默认 '') 也能过，因为它们
+  //    本身就是按"选了试卷主题"走的路径（用户显式选了主题 = 就是试卷）。
+  //    但 TypesetModule 的 withExamShell 无密封特征分支没有主题门控 → 必须把 genType 传下来。
+  if (genType && genType !== 'exam') return html;
   const sections = parseExamSections(html);
   if (!sections.length) return html;
   const tpl = document.createElement('template');

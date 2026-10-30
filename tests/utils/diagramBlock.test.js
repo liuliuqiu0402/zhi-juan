@@ -156,6 +156,8 @@ describe('diagramBlock · 标记块渲染', () => {
 
   // 🔴 2026-10-22（属主定：A4 版心取 643，且要"按 A4 排版"而不是事后整体缩放）：
   //   超宽时应收窄折行宽度**重排**（字号不变），图宽落回版心内。
+  // 🔴 2026-10-30（默认 layout 改为 right）：显式给 raw 指定 balanced——balanced 左右分布会更宽，
+  //   这样 fitted（带 fitWidth 版心约束）重排后才会明显收窄、有对比效果。
   it('按 A4 版心（643）重排：宽了收窄折行重排，图宽落回版心内', () => {
     const deep = {
       type: 'mindmap',
@@ -168,7 +170,7 @@ describe('diagramBlock · 标记块渲染', () => {
         }],
       }],
     };
-    const raw = buildDiagramSvg(deep, { maxLabelWidth: 150 });
+    const raw = buildDiagramSvg(deep, { maxLabelWidth: 150, layout: 'balanced' });
     const fitted = buildDiagramSvg(deep, { maxLabelWidth: 150, fitWidth: PRINT_SAFE_WIDTH });
     expect(fitted.width, '不得超出版心').toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
     expect(fitted.width, '确实发生了重排（不是没生效）').toBeLessThan(raw.width);

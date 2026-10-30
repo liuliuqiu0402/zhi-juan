@@ -63,7 +63,7 @@ export const buildDiagramSvg = (spec, opts = {}) => {
   //   折行与版式**解耦**：版式决定"宽往哪儿长"，折行宽仍按 643 版心自动算（一行放得下就不折）。
   const specifiedLayout = type === 'mindmap' ? String(body.layout || opts.layout || '') : '';
   // 思维导图的版式从 spec.layout 取（balanced | right），其余图种忽略
-  const merged = type === 'mindmap' ? { ...opts, layout: specifiedLayout || 'balanced' } : opts;
+  const merged = type === 'mindmap' ? { ...opts, layout: specifiedLayout || 'right' } : opts;
   let r = BUILDERS[type](body, merged);
   // 🔴 2026-10-22（属主："按 A4 尺寸排版"·取 643 版心）：**先排版、再整体缩放**会让字号跟着变小。
   //   这里加一步"**按版心宽度重排**"：宽了先收窄折行宽度（maxLabelWidth）再排，最多 8 轮，字号保持不变；

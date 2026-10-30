@@ -118,9 +118,9 @@ describe('diagrams · 类型分发', () => {
     const a = buildDiagramSvg({ ...SPECS.mindmap, layout: 'balanced' });
     const b = buildDiagramSvg({ ...SPECS.mindmap, layout: 'right' });
     expect(`${a.width}x${a.height}`).not.toBe(`${b.width}x${b.height}`);
-    // 不传 layout 时默认左右分布
+    // 🔴 2026-10-30（属主："全部改为右支"）：不传 layout 时默认 right 布局
     expect(`${buildDiagramSvg(SPECS.mindmap).width}x${buildDiagramSvg(SPECS.mindmap).height}`)
-      .toBe(`${a.width}x${a.height}`);
+      .toBe(`${b.width}x${b.height}`);
   });
 
   it('可以直接把树传给 mindmap（允许 spec 不带 root 包裹）', () => {

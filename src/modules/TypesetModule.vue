@@ -1460,7 +1460,7 @@ const effectiveThemeFor = (src) => (src && sealMarkRegex.test(src) ? 'sealed_exa
 // 🔧 编辑内容注入卷面固定件 + 密封线包装：与导出（wrapContentForTheme）同路径，
 //    内容含密封特征时按 sealed_exam 完整包装（密封线 + 注意事项 + 得分表），
 //    编辑区所见即所得 = 导出 Word 效果；保存回写时剥离固定件（由导出端重新注入）
-const withExamShell = (html, stage) => {
+const withExamShell = (html, stage, genType = '') => {
   if (!html || typeof html !== 'string') return html || '';
   try {
     const normalized = normalizeSealStructure(html);
@@ -1468,8 +1468,9 @@ const withExamShell = (html, stage) => {
       // 含密封特征：完整包装（内部含 normalizeSealStructure + injectExamShell，幂等）
       return wrapContentForTheme(normalized, 'sealed_exam');
     }
-    // 无密封特征：仍注入题号得分表（若有正式大题结构）
-    return injectExamShell(normalized, stage || 'primary');
+    // 🔴 2026-10-30：无密封特征时，必须用 genType 门控——只有试卷资料才注入题号得分表。
+    //    教辅类（知识点总结/课时练等）即使有"一、二、三…"栏目结构也绝不注入固定件。
+    return injectExamShell(normalized, stage || 'primary', genType);
   } catch (e) {
     // 🔧 防御：包装失败时回退原始内容，确保编辑器始终可加载
     console.warn('卷面包装失败，使用原始内容:', e);
@@ -1477,7 +1478,7 @@ const withExamShell = (html, stage) => {
   }
 };
 
-const loadContentSilent = (content, stage = '') => {
+const loadContentSilent = (content, stage = '', genType = '') => {
   if (!content || typeof content !== 'string') return;
   applyDocStage(stage || sniffCarrierStage(content)); // 文档学段：记录字段优先，无则按载体推断（作文格/书写格/导出口径）
   // 🔧 行首页签"项目符号+序号"在此统一剥离（幂等）：历史/旧内容首次载入排版即规范，与生成端/编辑器同口径，
@@ -1485,7 +1486,7 @@ const loadContentSilent = (content, stage = '') => {
   content = normalizeMathCircleBlanks(normalizeLeadingMarkers(content));
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   // 🔧 HTML 内容统一做密封线结构归一化 + 注入卷面固定件（编辑区所见即所得），幂等
-  if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = withExamShell(content); currentContent.value = ''; }
+  if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = withExamShell(content, stage, genType); currentContent.value = ''; }
   else { isHtmlContent.value = false; rawHtmlContent.value = ''; currentContent.value = content; }
 };
 
@@ -1501,7 +1502,8 @@ const loadFromGenerate = async (payload) => {
   
   // 🔧 直接保存原始 HTML（不再走 Tiptap 预处理，contentEditable 原样保留所有 class）
   // 🔧 密封线结构归一化 + 注入卷面固定件（编辑区所见即所得，幂等）
-  content = withExamShell(content, meta.stage);
+  // 🔴 2026-10-30：genType 门控——只有试卷资料才注入注意事项+得分表，教辅类绝不泄露
+  content = withExamShell(content, meta.stage, meta.genType || '');
   pristineHtmlForExport.value = content;
   
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);

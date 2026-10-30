@@ -8460,8 +8460,10 @@ const generate = async (mode) => {
   // 获取生成份数
   const batches = batchCount.value || 1;
   
-  // 🔧 范围确认弹窗：根据勾选内容提取候选，用户确认后定范围名（仅有多候选时弹出）
-  {
+  // 🔧 范围确认弹窗：**仅试卷类资料（genType === 'exam'）**弹出——候选是"期中/期末/月考/综合"
+  //  这类考试维度词，对教辅类资料（知识点总结/课时练等）完全没有语义。非 exam 时跳过，
+  //  scopeOverride 留在下面统一按推断名走（inferPaperScope 的自动命名对教辅也合理）。
+  if (types[0] === 'exam') {
     const scopeSource = selectedBooks.find(b => (b.selectedChapters || []).length > 0) || selectedBooks[0];
     const chapters = selectedChaptersOf(scopeSource);
     if (chapters.length > 0) {
