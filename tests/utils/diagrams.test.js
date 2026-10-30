@@ -118,9 +118,14 @@ describe('diagrams · 类型分发', () => {
     const a = buildDiagramSvg({ ...SPECS.mindmap, layout: 'balanced' });
     const b = buildDiagramSvg({ ...SPECS.mindmap, layout: 'right' });
     expect(`${a.width}x${a.height}`).not.toBe(`${b.width}x${b.height}`);
-    // 🔴 2026-10-30（属主："全部改为右支"）：不传 layout 时默认 right 布局
-    expect(`${buildDiagramSvg(SPECS.mindmap).width}x${buildDiagramSvg(SPECS.mindmap).height}`)
-      .toBe(`${b.width}x${b.height}`);
+    // 🔴 2026-10-30（属主："导图改为右支后，为啥导图框不是按照内容自适应的"）：
+    //   默认不再写死 right：不传 layout 时**按内容自动择一**（balanced/right 中折行更少者）。
+    const auto = buildDiagramSvg(SPECS.mindmap);
+    expect(['balanced', 'right']).toContain(auto.layout);
+    expect([`${a.width}x${a.height}`, `${b.width}x${b.height}`]).toContain(`${auto.width}x${auto.height}`);
+    // 模型显式给了版式就必须照办（不得被程序悄悄改成另一版式）
+    expect(buildDiagramSvg({ ...SPECS.mindmap, layout: 'balanced' }, { fitWidth: 643 }).layout).toBe('balanced');
+    expect(buildDiagramSvg({ ...SPECS.mindmap, layout: 'right' }, { fitWidth: 643 }).layout).toBe('right');
   });
 
   it('可以直接把树传给 mindmap（允许 spec 不带 root 包裹）', () => {

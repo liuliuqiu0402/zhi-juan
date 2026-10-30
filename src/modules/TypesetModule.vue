@@ -488,6 +488,7 @@ import {
 } from '../themeConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
 import { PAPER_PRESETS } from '../config/paperPresets.js';
+import { normalizeGenType } from '../config/expertKnowledge.js'; // 资料类型 key 归一（门控唯一判据：key/显示名两值域）
 import { getMergedSpec, normalizeStage3, blankWriteScale } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）＋ 空位手写系数
 import RichTextEditor from '../components/RichTextEditor.vue';
 import { normalizeRubyTags } from '../utils/rubyNormalizer.js';
@@ -508,6 +509,7 @@ defineOptions({ name: 'TypesetModule' });
 
 // ==================== 状态 ====================
 const selectedThemeId = ref(null);  // 🔧 默认无选中样式
+const currentGenType = ref('');     // 🔧 当前加载资料的类型 **key**（exam/practice/summary…，由 normalizeGenType 归一），用于 sealMarkRegex 门控
 const currentContent = ref('');
 const previewContent = ref('');
 const customFileName = ref('');
@@ -753,8 +755,9 @@ const themeCSS = computed(() => {
     //    回退用 sealed_exam 提供密封线样式——否则编辑器走无样式 fallback，
     //    密封线丢失左右 2.5cm 边距与边距外侧布局
     const raw = rawHtmlContent.value || '';
+    const hasExamStructure = /sealed-wrapper|seal-zone|seal-note/.test(raw);  // 程序已注入的密封线结构
     const cssThemeId = selectedThemeId.value
-      || (raw && (sealMarkRegex.test(raw) || /sealed-wrapper|seal-zone|seal-note/.test(raw)) ? 'sealed_exam' : null);
+      || (hasExamStructure || isExamContentByDualGate(raw) ? 'sealed_exam' : null);
     const fullHtml = applyThemeToContent('<div></div>', cssThemeId, { 
       isHtmlContent: true, 
       forceImportant: true, // 确保标题/字体等主题样式不被覆盖
@@ -1456,7 +1459,16 @@ const closeDoc = (docId) => {
 // 编辑器即为完整预览：内容加载时注入卷面固定件（注意事项 + 题号得分表），
 // 编辑区所见即所得（含密封线/注意事项/得分表），导出时 wrapContentForTheme 幂等复用。
 const sealMarkRegex = /密封线|学校[:：]|班级[:：]|姓名[:：]|学号[:：]|考生[:：]|考号[:：]/;
-const effectiveThemeFor = (src) => (src && sealMarkRegex.test(src) ? 'sealed_exam' : selectedThemeId.value);
+// 🔧 sealMarkRegex 的双门控辅助：内容有密封特征 且 资料类型是试卷 → 可信；
+//    否则教辅封面碰巧有"学校："等字段也会被误判为试卷主题。
+//    🔴 2026-10-30：判据一律走 normalizeGenType（`genType` 在此链路上可能是显示名『📝 正式考卷』，
+//    直接写 `=== 'exam'` 会恒判不中 → 试卷的密封线/固定件门控形同失效）。
+const isExamContentByDualGate = (src) =>
+  src && normalizeGenType(currentGenType.value) === 'exam' && sealMarkRegex.test(src);
+
+const effectiveThemeFor = (src) =>
+  selectedThemeId.value
+  || (isExamContentByDualGate(src) ? 'sealed_exam' : null);
 // 🔧 编辑内容注入卷面固定件 + 密封线包装：与导出（wrapContentForTheme）同路径，
 //    内容含密封特征时按 sealed_exam 完整包装（密封线 + 注意事项 + 得分表），
 //    编辑区所见即所得 = 导出 Word 效果；保存回写时剥离固定件（由导出端重新注入）
@@ -1464,12 +1476,17 @@ const withExamShell = (html, stage, genType = '') => {
   if (!html || typeof html !== 'string') return html || '';
   try {
     const normalized = normalizeSealStructure(html);
-    if (sealMarkRegex.test(normalized) || /sealed-wrapper|seal-zone|seal-note/.test(normalized)) {
-      // 含密封特征：完整包装（内部含 normalizeSealStructure + injectExamShell，幂等）
+    // 🔴 双门控：内容特征（密封线/学校/班级等）+ 资料类型（试卷类）。
+    //    sealMarkRegex 是"有密封线内容"信号，但教辅封面也可能有"学校：____"填写项——
+    //    必须再叠加资料类型门控才可信。sealed-wrapper/seal-zone/seal-note 是程序注入的
+    //    已包裹特征（非模型生成），这些意味着已经是密封线包装过的试卷，直接放行。
+    //    ⚠️ 资料类型一律先归一（key / 显示名两值域）：落库与传参可能是『📝 正式考卷』。
+    const hasSealedWrapper = /sealed-wrapper|seal-zone|seal-note/.test(normalized);
+    const hasSealMark = sealMarkRegex.test(normalized) && normalizeGenType(genType) === 'exam';
+    if (hasSealedWrapper || hasSealMark) {
       return wrapContentForTheme(normalized, 'sealed_exam');
     }
-    // 🔴 2026-10-30：无密封特征时，必须用 genType 门控——只有试卷资料才注入题号得分表。
-    //    教辅类（知识点总结/课时练等）即使有"一、二、三…"栏目结构也绝不注入固定件。
+    // 🔴 无密封特征：genType 门控——只有试卷资料才注入题号得分表。
     return injectExamShell(normalized, stage || 'primary', genType);
   } catch (e) {
     // 🔧 防御：包装失败时回退原始内容，确保编辑器始终可加载
@@ -1480,6 +1497,7 @@ const withExamShell = (html, stage, genType = '') => {
 
 const loadContentSilent = (content, stage = '', genType = '') => {
   if (!content || typeof content !== 'string') return;
+  currentGenType.value = normalizeGenType(genType);  // 🔴 归一成 key，供 sealMarkRegex 双门控使用（可能收到显示名）
   applyDocStage(stage || sniffCarrierStage(content)); // 文档学段：记录字段优先，无则按载体推断（作文格/书写格/导出口径）
   // 🔧 行首页签"项目符号+序号"在此统一剥离（幂等）：历史/旧内容首次载入排版即规范，与生成端/编辑器同口径，
   //    避免"第二遍才剥"——排版/导出直接读取本入口产出的 rawHtmlContent，必须先归一再装卷面
@@ -1494,6 +1512,7 @@ const loadFromGenerate = async (payload) => {
   let content = typeof payload === 'string' ? payload : payload?.content || '';
   const meta = (typeof payload === 'object' && payload.meta) ? payload.meta : {};
   if (!content || typeof content !== 'string') return;
+  currentGenType.value = normalizeGenType(meta.genType);  // 🔴 归一成 key（生成记录/历史里存的是显示名『📝 正式考卷』）
   // 🔧 生成/载入统一规范：行首页签"项目符号+序号"剥离 + 算式 ○→填空圈（幂等，与生成端/编辑器同口径），确保排版/导出首次即规范
   content = normalizeMathCircleBlanks(normalizeLeadingMarkers(content));
   // 🔧 文档学段（作文格/书写格/导出按学段走排版规格库）：生成参数五档 stageKey 优先，

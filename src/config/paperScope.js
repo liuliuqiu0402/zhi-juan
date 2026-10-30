@@ -19,6 +19,7 @@
  *       跨单元多选 / 无公共祖先 → 默认标签词（综合检测）
  */
 import { getSelected } from '../utils/outlineTree.js';
+import { isExamGenType } from './expertKnowledge.js'; // 资料类型 key 归一／是否为试卷（标题门控唯一判据）
 
 /** 范围标签词池（显式范围类型使用）。词条自带类型语义（…测试/测评/卷/检测） */
 export const SCOPE_LABEL_POOLS = {
@@ -77,6 +78,78 @@ export const applyPaperTitleToContent = (html, title) => {
   }
   return `<h1 class="main-title">${title}</h1>\n\n${src}`;
 };
+
+/**
+ * 资料标题（卷首 h1 ＋ 文档名）的**唯一拼装入口**。
+ *
+ * 原设计（2026-09 定稿，见提交 572ef24 / 90b5929 / b3eedeb）：
+ *   · 普通型（课/单元范围）＝ 年级 + 学科 + 册别 + 范围名 + 类型名（类型名从该类型的名称池轮换）
+ *   · 考试型（期中/期末/月考/专题/升学卷别）＝ 学年度学期 + 年级 + 学科 + 范围标签词
+ *     （不带册别、**不拼类型名**）
+ *
+ * 🔴 2026-10-30（属主实证："2026-2027学年度第一学期六年级语文期末质量检测"出现在了知识点总结里）：
+ *   考试型标题**只属于正式考卷**。此前判据只看"范围是不是考试维度标签"、不看资料类型 ⇒
+ *   教辅只要跨单元勾选（推断出期末/期中/综合）或选了考试范围类型，就会被拼成考试卷名——
+ *   连册别、类型名都一起丢掉，标题与资料类型完全对不上。
+ *   本函数把这条门控收成**一处**（两个调用点共用），教辅一律走普通型标题。
+ *
+ * @param {object} o
+ * @param {string} o.genType        资料类型（key 或显示名，内部归一）
+ * @param {object} o.scopeInfo      resolveScopeName 的返回（{ name, isScopeLabel, category }）
+ * @param {string} [o.scopeType]    用户选的范围类型（midterm/final/monthly/topic/升学卷别…）
+ * @param {string} [o.labelStyle]   名称样式（用户固定选择；空＝按名称池轮换）
+ * @param {Function} [o.pickLabel]  (genType, key) => 名称池词
+ * @param {Function} [o.getPool]    (genType) => 名称池
+ * @param {string} [o.academic]     学年度学期文案（inferAcademicTerm()；仅考试型使用）
+ * @returns {{title:string, typeLabel:string, scopeName:string, isLabelScope:boolean,
+ *            academic:string, semesterUsed:string, isExam:boolean}}
+ */
+export const composeDocTitle = ({
+  genType = '',
+  scopeInfo = null,
+  scopeType = '',
+  labelStyle = '',
+  pickLabel = null,
+  getPool = null,
+  grade = '',
+  subject = '',
+  semester = '',
+  academic = '',
+} = {}) => {
+  const isExam = isExamGenType(genType);
+  const scopeName0 = scopeInfo?.name || '';
+  const scopeIsLabel = !!scopeInfo?.isScopeLabel;
+  // 考试型标题：**只有正式考卷**才有资格（其余类型即使范围被推断成考试维度，也走普通型）
+  const isLabelScope = isExam && scopeIsLabel
+    && (EXAM_LABEL_CATS.includes(scopeType || '') || EXAM_LABEL_CATS.includes(scopeInfo?.category || ''));
+  // 教辅不吃"考试卷名"当范围名（综合检测/期末质量检测…对教辅没有语义）：
+  //   · 用户**显式**选了期中/期末/月考/专题 → 用维度词本身当范围名（"六年级语文上册期末知识梳理"，读得通）；
+  //   · 只是跨单元**推断**出来的卷名 → 整段不进标题（"六年级语文上册知识梳理"）。
+  const dimWord = Object.prototype.hasOwnProperty.call(SCOPE_DIMENSION_LABELS, scopeType || '') && scopeType !== 'default'
+    ? SCOPE_DIMENSION_LABELS[scopeType]
+    : '';
+  const scopeName = (scopeIsLabel && !isLabelScope) ? dimWord : scopeName0;
+  let typeLabel = isLabelScope ? '' : (labelStyle || (pickLabel ? pickLabel(genType, scopeName0 || '_all_') : ''));
+  // 避重：范围名含"单元"时，类型名不用含"单元"的词（防"第二单元单元测试卷"病句）
+  if (typeLabel && /单元/.test(typeLabel) && /单元/.test(scopeName0)) {
+    typeLabel = (getPool ? getPool(genType) : [])?.find((w) => !/单元/.test(w)) || typeLabel;
+  }
+  const academicUsed = isLabelScope ? (academic || inferAcademicTerm()) : '';
+  const semesterUsed = isLabelScope ? '' : (semester || '');
+  const title = buildPaperTitle({
+    grade,
+    subject,
+    semester: semesterUsed,
+    scopeName,
+    typeLabel,
+    academic: academicUsed,
+    isExam: isLabelScope,
+  });
+  return { title, typeLabel, scopeName, isLabelScope, academic: academicUsed, semesterUsed, isExam };
+};
+
+/** 考试型标题可用的范围类别（期中/期末/月考/专题/升学卷别）——composeDocTitle 单源使用 */
+export const EXAM_LABEL_CATS = ['midterm', 'final', 'monthly', 'topic', ...EXAM_GRADUATION_TYPES];
 
 /**
  * 计算勾选节点最近公共祖先（LCA）。

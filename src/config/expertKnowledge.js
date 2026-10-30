@@ -180,6 +180,40 @@ export const genTypeTemplates = {
   }
 };
 
+// ==================== 资料类型 key 归一（门控判据的唯一入口）====================
+// 🔴 2026-10-30（属主："上两轮修改的三维度的门控，是不是有些地方改错了？资料标题名称和资料类型不对应了"）：
+//   根因＝**同一个字段有两个值域**——生成端记的是 key（`exam`），落库/传参记的是显示名
+//   （`📝 正式考卷`，见 GenerateModule 的 `genType: genTypeName`）。门控写成 `genType === 'exam'`
+//   时，凡是从历史/生成页进来的记录**一律判不中**：试卷不再补注意事项与得分框（且保存时已把旧固定件
+//   剥掉 → 不可逆丢失），教辅反而可能漏判。故凡"按资料类型门控"处，**先归一成 key 再判**，不再各写一份比较。
+export const GEN_TYPE_KEYS = ['exam', 'practice', 'special', 'preview', 'reading', 'summary', 'dictation', 'errorbook', 'review'];
+
+/** 去掉 emoji/变体选择符/空白后的纯文本（显示名 → 纯名：'📝 正式考卷' → '正式考卷'） */
+const plainGenTypeName = (s) => String(s == null ? '' : s)
+  .replace(/[\p{Extended_Pictographic}\uFE0F\u20E3]/gu, '')
+  .replace(/\s+/g, '');
+
+/**
+ * 资料类型归一：key（'exam'）或显示名（'📝 正式考卷'）/纯名（'正式考卷'）→ key；认不出返回 ''。
+ * 生成端与排版端、历史记录、标题拼装**都用这一个**判据（不再各写一份 `=== 'exam'`）。
+ */
+export function normalizeGenType(value) {
+  const raw = String(value == null ? '' : value).trim();
+  if (!raw) return '';
+  if (GEN_TYPE_KEYS.includes(raw)) return raw;
+  const plain = plainGenTypeName(raw);
+  for (const key of GEN_TYPE_KEYS) {
+    if (plainGenTypeName(genTypeTemplates[key]?.name) === plain) return key;
+  }
+  for (const opt of genTypeOptions) {
+    if (plainGenTypeName(opt.label) === plain) return opt.value;
+  }
+  return '';
+}
+
+/** 是否试卷类资料（**唯一判据**：先归一，再比 key） */
+export const isExamGenType = (value) => normalizeGenType(value) === 'exam';
+
 // ==================== 资料类型选项 ====================
 export const genTypeOptions = [
   { value: 'exam', label: '📝 正式考卷', desc: '正式考试试卷' },
@@ -327,12 +361,15 @@ export const styleInstructions = {
   // 2026-09-24：导图式从"用嵌套列表模拟"升级为**真图**。分工：模型只出结构化 JSON，
   //    几何由 utils/diagrams 算（模型手写 SVG 必然歪、还会被清洗器改坏）；
   //    约定与容错见 utils/diagramBlock.js（解析失败会原样保留那块文字，不会丢内容）。
-  'mindmap': '以「导图块」真实呈现知识结构（本风格的核心交付物）：'
-    + '<div class="k-diagram" data-type="mindmap" data-layout="right">{"title":"中心主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
+  'mindmap': '以「导图块」真实呈现知识结构（本风格的核心交付物；**全篇一张总览导图**，不是每栏一块）：'
+    + '<div class="k-diagram" data-type="mindmap" data-layout="balanced">{"title":"中心主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
     // 🔴 2026-10-23（属主："左右分布、还是单独往右，这个不人为定，交由模型按内容定"）：
     //   版式（data-layout）是**内容判断**，交给模型；判据绑在可自判的结果上——标签能否一行放下、图幅是否超版心。
     //   几何侧不抢这个决定：模型写了就照办，程序只在"没写"或"已把一行压到不足 7 字"时兜底。
-    + 'data-type 选 mindmap(概念层级，统一用 right 布局)、'
+    // 🔴 2026-10-30（属主："导图改为右支后，为啥导图框不是按照内容自适应的"）：上一轮把这里写成
+    //   "统一用 right 布局"——版式被**写死**，宽扁的浅树也被拉成一条阶梯长条，"框的宽高不跟内容走"由此而来。
+    //   现恢复**按内容选版式**（当年属主原话），仍以"标签不折行、图幅不超 A4 版心"为自判判据。
+    + 'data-type 与 data-layout 都按内容自选：mindmap(概念层级；**版式由你按内容定**——"balanced" 左右分布／"right" 向右生长，以"**标签不折行、图幅不超 A4 版心**"为准)、'
     + 'brace(整体与部分：title,children)、flow(步骤与判定：steps[{text,kind:"start|process|decision|end",branches:[{label,steps:[…]}]}])、'
     + 'timeline(时间顺序：items[{when,text,detail}])、fishbone(因果：effect,categories[{name,causes:[…]}])、'
     + 'concept(带关系标注：nodes[{id,text}],links[{from,to,label}])。'
@@ -349,7 +386,11 @@ export const styleInstructions = {
     //   全篇导图式写了"按内容选最优"，导图式没写 ⇒ 模型可能退回"一张图 + 通篇段落"。
     //   现补齐同一条：**结构必须由导图承载**（不以段落罗列代替），**图外形态不设限**（段落合法），
     //   唯一的形态纪律是"同一内容不重复两种形态"。
-    + '**知识结构由导图承载，不以段落罗列代替**；**导图之外的呈现形态按内容选最优**：需要成句讲清的用段落——**形态不限，只求这一处最清楚**；**同一内容不重复两种形态**；**导图之外不重复图中已有的要点、不另起条目清单**。'
+    // 🔴 2026-10-30（属主："全篇导图式这个组织风格，为啥跟导图式的组织风格一样"）：
+    //   2026-10-23 那次把"每处结构都要图"的句子同时写进了两套风格 ⇒ **两套读起来一样**（本轮实证）。
+    //   按属主本轮口径重新分工：**导图式＝一张总览导图**（全篇结构由这张图承载）＋ 各栏目按要点分条展开；
+    //   **全篇导图式＝每个栏目各一块**（见其条目）。差别就落在"块数"，故此处不再要求"每处都进图"。
+    + '**整体知识结构由这一张总览导图承载，不以段落罗列代替**；各栏目按要点分条展开即可（条目清单合法）；**导图之外的呈现形态按内容选最优**：需要成句讲清的用段落——**形态不限，只求这一处最清楚**；**同一内容不重复两种形态**；**总览图里已有的要点，正文不再重复罗列**。'
     // 🔴 2026-10-22（属主："导图的连接线…有的跟内容不太合适，可否要求跟内容自洽"）：
     //   连线几何由程序画，**连谁只由你给的层级决定** ⇒ 把"连线＝从属"写成可自判的判据：
     //   每个节点只挂在它的上位概念下；并列的同类项必须同级并列、不得互相嵌套；
@@ -372,8 +413,13 @@ export const styleInstructions = {
     // 🔴 2026-10-22（属主："全篇导图式，对于能够用导图的，会不会偷懒不用导图啊？"）：
     //   把"偷懒"的两条退路直接堵死：**有板块就必须有图**（零块即不合规）、**能进图的一律进图**（不得退回条目清单）。
     + '；**有板块就必须有图——整份资料一块导图都没有即不合规**；**能在导图里承载的一律进图，不得以条目清单代替导图**：'
-    + '<div class="k-diagram" data-type="mindmap" data-layout="right">{"title":"该板块主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
-    + 'data-type 选 mindmap(概念层级，统一用 right 布局)、'
+    // 🔴 2026-10-30（属主："全篇导图式…跟导图式一样，只有开头有导图"·根因二）：
+    //   栏目文本里只有「知识框架」那一栏写了"选用导图式时改用导图块"，其余栏目没有口径 ⇒ 模型只在首栏出图。
+    //   这不是"模型偷懒"，是**判据只覆盖了一栏**。现按栏目写清：**每一个知识型栏目都要出图**（不只首栏），
+    //   只有纯题目类栏目（典型例题/自测/练习）仍按题的形态照常给。
+    + '；**每一个栏目都要出图，不只「知识框架」那一栏**——凡栏目内容是知识、方法、规律、易混点或分类，都用该板块的导图承载；只有纯题目类栏目（典型例题、自测、练习）按题的形态照常给'
+    + '<div class="k-diagram" data-type="mindmap" data-layout="balanced">{"title":"该板块主题","children":[{"title":"分支","children":[{"title":"要点"}]}]}</div>；'
+    + 'data-type 与 data-layout 都按该板块内容自选：mindmap(概念层级；**版式由你按内容定**——"balanced" 左右分布／"right" 向右生长，以"**标签不折行、图幅不超 A4 版心**"为准)、'
     + 'brace(整体与部分：title,children)、flow(步骤与判定：steps[{text,kind:"start|process|decision|end",branches:[{label,steps:[…]}]}])、'
     + 'timeline(时间顺序：items[{when,text,detail}])、fishbone(因果：effect,categories[{name,causes:[…]}])、'
     + 'concept(带关系标注：nodes[{id,text}],links[{from,to,label}])。'
@@ -415,17 +461,24 @@ export function buildStyleAppend(style = '') {
 }
 
 // ==================== 范围选项 ====================
+// 🔴 2026-10-30（属主："期中/期末/月考不是专给试卷用的吗"）：`examOnly: true` ＝**只对正式考卷成立**的
+//   范围类型。它们表达的是"考试场次/卷别"，教辅（知识总结/同步练习…）没有这个语义——此前只有升学卷别
+//   做了展示门控，期中/期末/月考却对教辅外显，选了也不会变成卷名、只会让范围名变成一句考试话。
+//   展示与生效的**唯一判据**＝本字段（GenerateModule 只按 `!o.examOnly` 过滤，别处不得各写一份白名单）。
 export const scopeOptions = [
   { value: 'default', label: '默认', desc: '按章节默认范围（选课→课名，整单元→单元名，跨单元→综合检测）' },
-  { value: 'midterm', label: '期中', desc: '期中考试范围' },
-  { value: 'final', label: '期末', desc: '期末考试范围' },
-  { value: 'monthly', label: '月考', desc: '月考范围' },
+  { value: 'midterm', label: '期中', desc: '期中考试范围（仅正式考卷）', examOnly: true },
+  { value: 'final', label: '期末', desc: '期末考试范围（仅正式考卷）', examOnly: true },
+  { value: 'monthly', label: '月考', desc: '月考范围（仅正式考卷）', examOnly: true },
   { value: 'topic', label: '专题', desc: '专题复习范围' },
-  // 升学考卷别（仅对"正式考卷"销售展示与生效；卷面结构由蓝本按卷别解析，见 blueprintProvider）
-  { value: 'xiaoshengchu', label: '小升初', desc: '小学毕业升学衔接卷（毕业检测结构，仅正式考卷）' },
-  { value: 'zhongkao', label: '中考', desc: '初中毕业升学考卷（中考结构，仅正式考卷）' },
-  { value: 'gaokao', label: '高考', desc: '高中毕业升学考卷（新高考结构，仅正式考卷）' }
+  // 升学考卷别（仅对"正式考卷"展示与生效；卷面结构由蓝本按卷别解析，见 blueprintProvider）
+  { value: 'xiaoshengchu', label: '小升初', desc: '小学毕业升学衔接卷（毕业检测结构，仅正式考卷）', examOnly: true },
+  { value: 'zhongkao', label: '中考', desc: '初中毕业升学考卷（中考结构，仅正式考卷）', examOnly: true },
+  { value: 'gaokao', label: '高考', desc: '高中毕业升学考卷（新高考结构，仅正式考卷）', examOnly: true }
 ];
+
+/** 某范围类型是否"仅正式考卷可用"（展示门控与切换类型时的重置都读这里） */
+export const isExamOnlyScopeType = (value) => !!scopeOptions.find((o) => o.value === value)?.examOnly;
 
 // 🔧 学科名称别名映射（统一为 2022 新课标标准名）
 // 🔗 命名双轨·别名：别名最终归一化的目标名，必须落在上方 subjects canonical 清单内（并与指令库/载体键同名）；

@@ -11,6 +11,7 @@ import { CARRIER_CSS } from './styles/carrierCss.js'; // 作答载体 CSS 单一
 //    否则自定义形式（（1）/一、/①）无原生 type 可依 → 浏览器退化成阿拉伯数字。
 import { LIST_NUMBER_CSS } from './utils/listNumberStyle.js';
 import { markExamBigCategory } from './utils/contentCleaner.js'; // 大类行居中兜底（J2：收口到 wrapContentForTheme 单源，预览与导出一致）
+import { normalizeGenType } from './config/expertKnowledge.js'; // 资料类型 key 归一（门控判据唯一入口，防 key/显示名两值域各写一份比较）
 
 export const themes = [
   // 我的样式
@@ -2437,13 +2438,17 @@ export const buildExamShell = (sections, stage) => {
 export const injectExamShell = (html, stage, genType = '') => {
   if (!html || typeof html !== 'string') return html || '';
   // 🔴 2026-10-30（真机："注意事项、得分框泄露到知识点总结等非试卷资料"）：
-  //    只有试卷类资料（genType === 'exam'）才注入注意事项+得分框。
+  //    只有试卷类资料才注入注意事项+得分框。
   //    教辅类（practice/special/summary 等）即使有"一、二、三…"结构的栏目（如"一、知识框架"），
   //    也不能被认成大题然后给固定件。内容结构信号≠资料类型信号——必须双门控。
   //    wrapContentForTheme 的四个 exam 主题分支不传 genType（默认 '') 也能过，因为它们
   //    本身就是按"选了试卷主题"走的路径（用户显式选了主题 = 就是试卷）。
   //    但 TypesetModule 的 withExamShell 无密封特征分支没有主题门控 → 必须把 genType 传下来。
-  if (genType && genType !== 'exam') return html;
+  //    🔴 2026-10-30 二次（属主："门控是不是有些地方改错了"）：入参可能是**显示名**（『📝 正式考卷』，
+  //    生成记录/历史落库的就是它）——直接 `!== 'exam'` 会把真试卷判成教辅，导致固定件不再补、
+  //    保存时又被剥掉（不可逆）。故一律先 normalizeGenType 归一，再判 key。
+  const genTypeKey = normalizeGenType(genType);
+  if (genTypeKey && genTypeKey !== 'exam') return html;
   const sections = parseExamSections(html);
   if (!sections.length) return html;
   const tpl = document.createElement('template');

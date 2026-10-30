@@ -63,7 +63,10 @@ export const buildDiagramSvg = (spec, opts = {}) => {
   //   折行与版式**解耦**：版式决定"宽往哪儿长"，折行宽仍按 643 版心自动算（一行放得下就不折）。
   const specifiedLayout = type === 'mindmap' ? String(body.layout || opts.layout || '') : '';
   // 思维导图的版式从 spec.layout 取（balanced | right），其余图种忽略
-  const merged = type === 'mindmap' ? { ...opts, layout: specifiedLayout || 'right' } : opts;
+  // 🔴 2026-10-30（属主："导图改为右支后，为啥导图框不是按照内容自适应的"）：
+  //   默认值回到 balanced（与"模型没写版式时按折行择优"配套）；不再把 right 写死成默认——
+  //   写死会让宽扁的浅树也被拉成长条阶梯，看起来"框的宽高不跟内容走"。
+  const merged = type === 'mindmap' ? { ...opts, layout: specifiedLayout || 'balanced' } : opts;
   let r = BUILDERS[type](body, merged);
   // 🔴 2026-10-22（属主："按 A4 尺寸排版"·取 643 版心）：**先排版、再整体缩放**会让字号跟着变小。
   //   这里加一步"**按版心宽度重排**"：宽了先收窄折行宽度（maxLabelWidth）再排，最多 8 轮，字号保持不变；
@@ -101,16 +104,23 @@ export const buildDiagramSvg = (spec, opts = {}) => {
     //   自然宽 100–170 的标签全被折成 2–5 行（实测框宽 89、最长那条 5 行）；同一内容换成"向右生长"只用一次
     //   版心宽，折行宽能取到 244、**全部保持一行**。
     //   处置分两档（见上方 specifiedLayout 的口径）：模型没写版式才按"折行更少"自动选；写了就以它为准，
-    //   只有当它把一行压到不足 ~7 个字、而另一版式能放宽 1.6 倍以上时，才兜底换（这是"可读性下限"，不是改观感）。
-    const WRAP_READABLE_MIN = 100;
+    //   只有当它把一行压到不足 ~5 个字、而另一版式能放宽一倍以上时，才兜底换（这是"可读性下限"，不是改观感）。
+    // 🔴 2026-10-30（属主："导图改为右支后，为啥导图框不是按照内容自适应的"）：
+    //   原阈值（不足 100px ≈ 7.7 字/行 就换版式）**几乎对每份内容都成立** ⇒ 模型写 balanced 也会被
+    //   程序悄悄改成 right（实证：典型知识树恒出 `layout=right`）。版式是**内容判断**，归模型；
+    //   程序只保留"改到还能读"的**可读性下限**：一行不足 ~5 字（<72px）且另一版式能放宽一倍以上，才接手。
+    const WRAP_READABLE_FLOOR = 72;
     let best = primary;
     if (type === 'mindmap') {
       const altLayout = merged.layout === 'right' ? 'balanced' : 'right';
       const alt = narrowTo({ ...merged, layout: altLayout });
       const altFits = alt.width <= fit;
       if (!specifiedLayout) {
+        // 模型没写版式：按"哪种折行更少"自动择一（这才是"按内容自适应"）
         if (altFits && alt.__wrap >= primary.__wrap * 1.25) { best = alt; layoutUsed = altLayout; }
-      } else if (altFits && primary.__wrap < WRAP_READABLE_MIN && alt.__wrap >= primary.__wrap * 1.6) {
+      } else if (altFits && (primary.width > fit
+        || (primary.__wrap < WRAP_READABLE_FLOOR && alt.__wrap >= primary.__wrap * 2))) {
+        // 只有两件事值得接手：①这条版式**真的装不进版心**（客观溢出）；②一行被压到读不成句（<~5 字）。
         best = alt;
         layoutUsed = altLayout;
       }

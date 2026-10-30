@@ -93,7 +93,10 @@ const layoutSide = (nodes, gapY, geo) => {
 export const layoutMindmap = (tree, opts = {}) => {
   const {
     rootTitle = '知识梳理',
-    layout = 'right',
+    // 🔴 2026-10-30（属主："导图改为右支后，为啥导图框不是按照内容自适应的"）：
+    //   默认回到 balanced（左右分布）——版式由模型按内容给（`data-layout`），此处只是"没给时"的兜底；
+    //   总装层（diagrams/index.js）会在"没指定版式"时按"哪种折行更少"自动择一。
+    layout = 'balanced',
     fontSize = 13,
     rootFontSize = 15,
     maxLabelWidth = 150,

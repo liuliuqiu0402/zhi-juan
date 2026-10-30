@@ -3239,7 +3239,8 @@ import {
   genTypeTemplates,
   scopeOptions,
   normalizeSubjectName,
-  buildStyleAppend
+  buildStyleAppend,
+  isExamOnlyScopeType
 } from '../config/expertKnowledge.js';
 import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables/useAiGenerator.js';
 // 🎧 听力工作台（2026-09-20）：听力配音已抽为独立功能（左侧导航「工具 → 🎧 听力配音」），
@@ -3247,7 +3248,7 @@ import { useAiGenerator, lastInjectSnapshot, chapterSigOf } from '../composables
 import ListeningWorkbench from '../components/listening/ListeningWorkbench.vue';
 import { resolveStageKey, resolveCompetency, gradeDisplayLabel } from '../utils/gradeStage.js';
 import { checkMetaCompleteness, metaMissingMessage } from '../utils/libraryMetaEdit.js'; // 2026-09-28：生成前三维度（学段×学科）完整性判据——硬拦"真空"，引导去教材库补标
-import { resolveScopeName, selectedChaptersOf, buildScopeCandidates, inferAcademicTerm, buildPaperTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
+import { resolveScopeName, selectedChaptersOf, buildScopeCandidates, composeDocTitle, applyPaperTitleToContent, SCOPE_LABEL_POOLS, EXAM_GRADUATION_TYPES } from '../config/paperScope.js';
 import { buildPaperKindHint } from '../config/levelMapping.js'; // 2026-09-28：高中正式卷「范围/卷别」处的卷别→水平提示（单源）
 
 // 📐 范围类型与自动判定的中文标签（用于"生成方案"摘要回显）
@@ -3348,10 +3349,14 @@ const propositionStyle = ref('');
 const styleManuallySet = ref(false);  // 追踪用户是否手动选过命题风格——false 时切换 genType 自动覆盖
 const styleConfirmed = ref(false);    // 必选风格是否已确认（生成前弹窗确认；换类型时重置）
 const genTypes = ref([]);
-// 升学考卷别（小升初/中考/高考）仅对"正式考卷"展示生效；其余资料类型不外显，且已选卷别在切换类型时重置
+// 🔴 2026-10-30（属主："期中/期末/月考不是专给试卷用的吗"＋"这弹窗上写的是『本卷』"）：
+//   范围类型本就是**卷**上的概念——期中/期末/月考是"考试场次"，小升初/中考/高考是"卷别"
+//   （决定蓝本学段档与学业质量水平，见 blueprintProvider / levelMapping），教辅没有这个语义。
+//   故展示与生效统一读 `scopeOptions[].examOnly`（单一判据，不再各写一份白名单）；
+//   "专题/默认"两类不是考试场次，教辅仍可用（专题复习、按勾选范围）。
 const visibleScopeOptions = computed(() =>
-  (genTypes.value?.includes('exam')) ? scopeOptions : scopeOptions.filter(o => !EXAM_GRADUATION_TYPES.includes(o.value)));
-watch(genTypes, (v) => { if (!v?.includes('exam') && EXAM_GRADUATION_TYPES.includes(scopeType.value)) scopeType.value = ''; });
+  (genTypes.value?.includes('exam')) ? scopeOptions : scopeOptions.filter(o => !o.examOnly));
+watch(genTypes, (v) => { if (!v?.includes('exam') && isExamOnlyScopeType(scopeType.value)) scopeType.value = ''; });
 // 新架构：生成前置条件 = 已选教材章节（不再依赖指令文本）
 const hasSelectedChapters = computed(() => textbookStore.selectedChapterCount > 0);
 const specialSubType = ref([]);  // 🎯 专项子类型（**多选**，仅 genType=special 时生效；上限 SPECIAL_DOMAIN_MAX；空数组＝通用专项）
@@ -6429,7 +6434,6 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
   // 2026-09-24 根治：范围名**唯一出口** resolveScopeName——「组装指令」与「卷首标题」必须同一函数，
   //    否则用户确认过的范围（scopeOverride）只在指令里生效、标题里不体现（两个出口各算一套）。
   //    （范围维度→名称池类型的映射也已上收 paperScope.SCOPE_DIM_TO_TYPE，不再各写一份）
-  let unit = '';
   let scopeInfo = null;
   try {
     const scopeSource = selectedBooks.find(b => (b.selectedChapters || []).length > 0) || selectedBooks[0];
@@ -6440,32 +6444,40 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
         scopeOverride: scopeOverride.value || '',
         pickScope: pickScopeFromPool,
       });
-      unit = scopeInfo.name || '';
     }
   } catch { /* 范围推断失败不影响 */ }
 
   // 组装注入指令（任务行 + 模板正文 + 用户附加）
   const genTypeLabel = genTypeTemplates[genType]?.name || genType;
-  // ✏️ 标题组成（命名规范）：年级(去学段) + 学科 + 册别 + 范围名 + 类型名；
-  //    期中/期末/月考（范围名即考试标签，含跨单元推断出的考试类）：前缀加学年度学期、不带册别（学期已隐含上下册）、不拼类型名
-  const examLabelCats = ['midterm', 'final', 'monthly', 'topic', ...EXAM_GRADUATION_TYPES];
-  const isLabelScope = !!scopeInfo?.isScopeLabel
-    && (examLabelCats.includes(scopeType.value || '') || examLabelCats.includes(scopeInfo.category || ''));
-  // ✏️ 自定义范围名避重：范围名含"单元"时，类型名不用含"单元"的词（防"第二单元单元测试卷"病句；名称池已无"单元"词，此为兜底）
-  let label = scopeInfo?.isScopeLabel ? '' : (labelStyle.value || pickLabelFromPool(genType, unit || '_all_'));
-  if (label && /单元/.test(label) && /单元/.test(unit || '')) {
-    label = (getLabelPool(genType) || []).find(w => !/单元/.test(w)) || label;
-  }
-  const academic = isLabelScope ? inferAcademicTerm() : '';
-  const semester = isLabelScope ? '' : (book.semester || '');
   // 年级标签：高中给册次（教材按必修/选择性必修分册、不绑定年级，写"高一"既不准确也误导模型）
   const gradeLabel = gradeDisplayLabel(book.stage, book.grade, book.volume);
+  // ✏️ 标题组成（命名规范）：年级(去学段) + 学科 + 册别 + 范围名 + 类型名；
+  //    期中/期末/月考（范围名即考试标签，含跨单元推断出的考试类）：前缀加学年度学期、不带册别（学期已隐含上下册）、不拼类型名
+  // 🔴 2026-10-30（属主实证："2026-2027学年度第一学期六年级语文期末质量检测"出现在知识点总结里）：
+  //   这条拼装**收成单源 `composeDocTitle`**（与「卷首标题/文档名」同一实现、同一条判据）——
+  //   考试型标题只属于正式考卷；教辅跨单元不把考试维度标签带进标题与指令。
+  const {
+    typeLabel: label,
+    academic,
+    semesterUsed: semester,
+    scopeName: scopeNameForTitle,
+  } = composeDocTitle({
+    genType,
+    scopeInfo,
+    scopeType: scopeType.value || '',
+    labelStyle: labelStyle.value || '',
+    pickLabel: pickLabelFromPool,
+    getPool: getLabelPool,
+    grade: gradeLabel,
+    subject,
+    semester: book.semester || '',
+  });
   instructionDraft.value = buildInjectionInstruction({
     template: tpl.template,
     grade: gradeLabel,
     stage: stageKey,
     subject,
-    unit,
+    unit: scopeNameForTitle,        // 教辅跨单元不把考试维度标签带进指令（见 scopeNameForTitle）
     genTypeLabel,
     label,
     semester,
@@ -8460,9 +8472,11 @@ const generate = async (mode) => {
   // 获取生成份数
   const batches = batchCount.value || 1;
   
-  // 🔧 范围确认弹窗：**仅试卷类资料（genType === 'exam'）**弹出——候选是"期中/期末/月考/综合"
-  //  这类考试维度词，对教辅类资料（知识点总结/课时练等）完全没有语义。非 exam 时跳过，
-  //  scopeOverride 留在下面统一按推断名走（inferPaperScope 的自动命名对教辅也合理）。
+  // 🔧 范围确认弹窗：**仅试卷类资料弹出**——候选是"期中/期末/月考/综合"这类**考试维度**词，
+  //   对教辅（知识点总结/同步练习等）没有语义。
+  //  🔴 2026-10-30（属主："资料标题名称和资料类型不对应了…能恢复到原来的设计吗"）：
+  //     教辅不弹窗是正确的，但**标题侧必须同时兜住**——否则跨单元勾选会落到考试维度标签，
+  //     知识总结被命名成"…期末综合测试"（见下方 isLabelScope / scopeNameForTitle 的资料类型门控）。
   if (types[0] === 'exam') {
     const scopeSource = selectedBooks.find(b => (b.selectedChapters || []).length > 0) || selectedBooks[0];
     const chapters = selectedChaptersOf(scopeSource);
@@ -8715,11 +8729,10 @@ const finalizeGeneration = async (result, genType) => {
     const book = pickPrimaryBook(ctxBooks);
     const gradeLabel = book?.grade || '';
     const subjectLabel = book?.subject || '';
-    // 卷首大标题命名规范唯一实现（buildPaperTitle，与指令注入侧同一套语义）：
+    // 卷首大标题命名规范唯一实现（**composeDocTitle**，与「组装指令」同一函数、同一条判据）：
     //    普通型（课/单元范围）= 年级 + 学科 + 册别 + 范围名 + 类型名（类型名从名称池轮换）
-    //    考试型（期中/期末/月考/专题）= 学年度学期 + 年级 + 学科 + 范围标签词（从名称池轮换）
+    //    考试型（期中/期末/月考/专题，**仅正式考卷**）= 学年度学期 + 年级 + 学科 + 范围标签词
     //    ——标题命名是确定性拼装（程序职责），不再采信 AI 生成的 h1（此前 AI 自由发挥导致命名规则从未生效）
-    const examLabelCats = ['midterm', 'final', 'monthly', 'topic', ...EXAM_GRADUATION_TYPES];
     // 2026-09-24 根治：范围名**唯一出口**（与「组装指令」同一函数）——
     //    ① 取数：从 outline 的勾选标志现推（裸记录没有派生字段 selectedChapters，此前恒为空）；
     //    ② 来源：用户确认过的范围（scopeOverride）在这里同样生效，不再"指令认、标题不认"。
@@ -8729,25 +8742,20 @@ const finalizeGeneration = async (result, genType) => {
       scopeOverride: scopeOverride.value || '',
       pickScope: pickScopeFromPool,
     });
-    const chapterName = scopeInfo.name;
-    const isLabelScope = !!scopeInfo?.isScopeLabel
-      && (examLabelCats.includes(scopeType.value || '') || examLabelCats.includes(scopeInfo.category || ''));
-    let label = scopeInfo?.isScopeLabel ? '' : (labelStyle.value || pickLabelFromPool(genType, chapterName || '_all_'));
-    if (label && /单元/.test(label) && /单元/.test(chapterName || '')) {
-      label = (getLabelPool(genType) || []).find(w => !/单元/.test(w)) || label;
-    }
-    const paperTitle = buildPaperTitle({
+    const paperTitle = composeDocTitle({
+      genType,
+      scopeInfo,
+      scopeType: scopeType.value || '',
+      labelStyle: labelStyle.value || '',
+      pickLabel: pickLabelFromPool,
+      getPool: getLabelPool,
       grade: gradeLabel,
       subject: subjectLabel,
       // 册别槽位：非高中用"上/下册"；高中用**册次**（"必修1""选择性必修2"）——
       //    高中教材按册分、不按年级，grade 恒空（见 gradeDisplayLabel），册别槽再空着，
       //    卷首标题就只剩"英语 单元一 测试卷"，无法区分是哪一册。
-      semester: isLabelScope ? '' : (book.semester || book.volume || ''),
-      scopeName: chapterName,
-      typeLabel: label,
-      academic: isLabelScope ? inferAcademicTerm() : '',
-      isExam: isLabelScope,
-    });
+      semester: book?.semester || book?.volume || '',
+    }).title;
     // 卷首 h1 与文档标题统一为规范命名（AI 生成的 h1 一律替换为程序拼装的规范标题）
     const titledContent = applyPaperTitleToContent(safeContent, paperTitle);
     const now = new Date();

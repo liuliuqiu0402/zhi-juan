@@ -75,7 +75,9 @@ export const anchorsFor = ({ genType, subject, stage, hasStructure }) => ([
   // T11 蓝图·栏目（命名·组织·覆盖·换肤）—— 教辅锚按 genType 计（exam 不注入教辅结构块）
   { name: 'T11·G24 块头语义锚（内容归属参考…非分类标准）', re: /栏目的\*\*内容归属参考\*\*/g, expect: (genType === 'exam' || genType === 'errorbook') ? 0 : 1 },
   { name: 'T11·G24 清零（"活动类型与素养划分"旧称谓）', re: /的活动类型与素养划分/g, expect: 0 },
-  { name: 'T11·G34 知识框架分工（选用导图式时改用导图块）', re: /选用「导图式」呈现风格时改用导图块/g, expect: genType === 'summary' ? 1 : 0 },
+  // 🔴 2026-10-30：措辞改准为"导图类风格（导图式／全篇导图式）都用导图块"——原来只写「导图式」，
+  //   模型据此只在「知识框架」一栏出图（全篇导图式"只有开头有导图"根因）。
+  { name: 'T11·G34 知识框架分工（选用导图类风格时改用导图块）', re: /选用「导图式」或「全篇导图式」呈现风格时改用导图块/g, expect: genType === 'summary' ? 1 : 0 },
   { name: 'T11·G35 清零（errorbook"按…错因分类"）', re: /按知识点或错因分类/g, expect: 0 },
   { name: 'T11·G35 正句（按知识点或易错点分块）', re: /按\*\*知识点或易错点分块\*\*/g, expect: genType === 'errorbook' ? 1 : 0 },
   { name: 'T11·G36 设题判据同源（不可直接在原文找到原句答案）', re: /不可直接在原文找到原句答案/g, expect: genType === 'reading' ? 1 : 0 },

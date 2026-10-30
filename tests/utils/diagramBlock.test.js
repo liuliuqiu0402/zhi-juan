@@ -226,9 +226,27 @@ describe('diagramBlock · 标记块渲染', () => {
     expect(r.width).toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
   });
 
-  it('可读性兜底：指定 balanced 会把一行压到 <100px 时才换版式', () => {
+  // 🔴 2026-10-30（属主："导图改为右支后，为啥导图框不是按照内容自适应的"）：
+  //   兜底口径收窄为两件事——**客观溢出**（该版式装不进版心）或**一行读不成句**（<~5 字）。
+  //   其余情况模型写了哪条版式就照办（此前"<100px 就换"几乎对每份内容都成立 ⇒ 写 balanced 也恒变 right）。
+  it('指定 balanced 且内容装得下 ⇒ 照办（不再无谓改成右支）', () => {
     const r = buildDiagramSvg({ ...MINDMAP(), layout: 'balanced' }, { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
-    expect(r.layout, '压成窄柱 ⇒ 兜底换向右生长').toBe('right');
+    expect(r.layout, '装得下就按模型指定的版式').toBe('balanced');
+    expect(r.width).toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
+  });
+
+  it('客观溢出（该版式装不进版心）⇒ 兜底换向右生长', () => {
+    const deep = {
+      type: 'mindmap',
+      title: '知识梳理',
+      children: [{ title: '一级要点内容很长很长的一句话', children: [
+        { title: '二级要点内容也很长很长的一句话', children: [
+          { title: '三级要点内容还是长句子', children: [{ title: '四级要点内容同样长' }] },
+        ] },
+      ] }],
+    };
+    const r = buildDiagramSvg({ ...deep, layout: 'balanced' }, { measurer: m, fitWidth: PRINT_SAFE_WIDTH });
+    expect(r.layout, '超版心 ⇒ 兜底换向右生长').toBe('right');
     expect(r.width).toBeLessThanOrEqual(PRINT_SAFE_WIDTH);
   });
 
