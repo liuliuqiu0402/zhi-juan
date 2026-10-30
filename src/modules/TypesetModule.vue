@@ -313,6 +313,7 @@
           class="paper-preview-area"
         >
           <div
+            ref="paperPageRef"
             class="paper-page"
             :style="zwgCssVars"
           >
@@ -489,7 +490,7 @@ import {
 import { APP_EVENTS } from '../constants/events.js';
 import { PAPER_PRESETS } from '../config/paperPresets.js';
 import { contentWidthPx } from '../config/paperPresets.js';
-import { rerenderDiagramsForWidth } from '../utils/diagramBlock.js'; // 导图按纸张栏宽重排（折行上限交给排版版面）
+import { rerenderDiagramsForWidth, rerenderDiagramFiguresInElement } from '../utils/diagramBlock.js'; // 导图按纸张栏宽重排（折行上限交给排版版面）
 import { normalizeGenType } from '../config/expertKnowledge.js'; // 资料类型 key 归一（门控唯一判据：key/显示名两值域）
 import { getMergedSpec, normalizeStage3, blankWriteScale } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）＋ 空位手写系数
 import RichTextEditor from '../components/RichTextEditor.vue';
@@ -651,7 +652,18 @@ const exportBaseName = computed(() => {
 });
 
 const contentEditor = ref(null);
+const paperPageRef = ref(null);
 const { showConfirmDialogFn, showAlertDialogFn } = useDialog();
+
+// 🔴 2026-10-30（属主："排版模块看啊，这里是有纸张的尺寸的"）：
+//   切换纸张（A4/A3/8K、单栏/多栏）时**立刻**按新栏宽重画页面里的导图——
+//   只重排显示（重画 figure 的 SVG），不动正文、不进历史；导出前另有整份重排（在 clone 上做）。
+watch(paperLayout, async () => {
+  await nextTick();
+  const el = paperPageRef.value;
+  if (!el) return;
+  rerenderDiagramFiguresInElement(el, contentWidthPx(paperLayout.value));
+});
 
 const { selectFiles, parseWord } = useFileHandler();
 
