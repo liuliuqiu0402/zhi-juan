@@ -71,8 +71,39 @@ export const getCanvasMeasurer = () => {
   return _measurerCache;
 };
 
+/**
+ * 🔴 2026-10-30（属主："导图的字体大小不随排版模板吗？"）：
+ *   排版模板正文字号（pt）→ 导图字号（px）。锚点 **12pt ↔ 13px**（历史出图口径），
+ *   其余字号等比放大/缩小 —— 主题 12pt 时出图与从前完全一致（不因改这条而集体重排），
+ *   小学 14pt → 15px、高中 10.5pt → 11px，导图与正文的**大小关系**保持不变。
+ *   夹在 10–22px：低于 10px 印不清，高于 22px 一条分支就吃掉整幅版心。
+ */
+export const diagramFontPxFromPt = (pt) => {
+  const n = Number(pt);
+  const base = Number.isFinite(n) && n > 0 ? n : 12;
+  return Math.min(22, Math.max(10, Math.round((13 * base) / 12)));
+};
+
+/**
+ * 出图口径（栏宽 + 字号）的**当前值**——编辑器/导出会从规格重画（tiptapDiagramFigure.renderHTML，
+ *   见 utils/tiptapDiagramFigure.js），那条路拿不到调用方参数，只能读这里。
+ * 为什么不每次显式传：renderHTML 是 tiptap 内部回调（打字、选中、序列化都会触发），
+ *   只要它按 643/13px 出图，排版模块"按纸张重排"的结果就会被下一次事务抹掉——
+ *   这就是"排版模块里预览还是旧的"的成因之一。
+ */
+const RENDER_OPTS = { fitWidth: 0, fontSize: 0 };
+export const setDiagramRenderOptions = (opts = {}) => {
+  const w = Number(opts.fitWidth);
+  if (w > 0) RENDER_OPTS.fitWidth = w;
+  if (opts.fontSize !== undefined) {
+    const f = Number(opts.fontSize);
+    RENDER_OPTS.fontSize = f > 0 ? f : 0;
+  }
+};
+export const getDiagramRenderOptions = () => ({ ...RENDER_OPTS });
+
 /** 规格属性 → SVG（属性里的 JSON 坏了也不抛错：返回空串并告警，规格本身仍在图上可重画） */
-export const svgFromSpecAttr = (raw, { fitWidth = PRINT_SAFE_WIDTH } = {}) => {
+export const svgFromSpecAttr = (raw, { fitWidth, fontSize } = {}) => {
   const spec = readSpecAttr(raw);
   if (!spec) return '';
   try {
@@ -82,8 +113,15 @@ export const svgFromSpecAttr = (raw, { fitWidth = PRINT_SAFE_WIDTH } = {}) => {
     //   这里与生成侧用**同一个** canvas 实测（无 canvas 时自动退回估算）。
     // 🔴 2026-10-30（属主："折行上限可否不固定，交给排版处的版面自适应"）：折行上限由调用方按纸张栏宽传入。
     const m = getCanvasMeasurer();
-    const width = Number(fitWidth) > 0 ? Number(fitWidth) : PRINT_SAFE_WIDTH;
-    return buildDiagramSvg(spec, { ...(m ? { measurer: m } : {}), fitWidth: width }).svg || '';
+    const width = Number(fitWidth) > 0 ? Number(fitWidth) : (RENDER_OPTS.fitWidth || PRINT_SAFE_WIDTH);
+    const fontPx = Number(fontSize) > 0 ? Number(fontSize) : RENDER_OPTS.fontSize;
+    const opts = { ...(m ? { measurer: m } : {}), fitWidth: width };
+    // 字号随排版模板（0 = 用各图种自己的默认 13/15px，生成期足矣）
+    if (fontPx > 0) {
+      opts.fontSize = fontPx;
+      opts.rootFontSize = Math.round((fontPx * 15) / 13);
+    }
+    return buildDiagramSvg(spec, opts).svg || '';
   } catch (e) {
     console.warn('⚠️ 导图规格重绘失败：', e?.message || e);
     return '';
@@ -96,8 +134,9 @@ export const svgFromSpecAttr = (raw, { fitWidth = PRINT_SAFE_WIDTH } = {}) => {
  *   换成 A3 两栏或 8K 两栏后栏宽不同，直接沿用会白缩或白折。
  * @param {string} html 载入态 HTML（本函数返回同样形态的新 HTML）
  * @param {number} fitWidth 目标栏宽（px）
+ * @param {number} [fontSize] 导图字号（px，来自排版模板正文字号；省略则用各图种默认）
  */
-export const rerenderDiagramsForWidth = (html, fitWidth) => {
+export const rerenderDiagramsForWidth = (html, fitWidth, fontSize) => {
   const src = String(html == null ? '' : html);
   const width = Number(fitWidth);
   if (!src || !(width > 0) || typeof DOMParser === 'undefined') return src;
@@ -107,7 +146,7 @@ export const rerenderDiagramsForWidth = (html, fitWidth) => {
     const figs = Array.from(root?.querySelectorAll?.(`figure.${FIGURE_CLASS}`) || []);
     if (!figs.length) return src;
     for (const fig of figs) {
-      const svg = svgFromSpecAttr(fig.getAttribute(SPEC_ATTR), { fitWidth: width });
+      const svg = svgFromSpecAttr(fig.getAttribute(SPEC_ATTR), { fitWidth: width, fontSize });
       if (svg) fig.innerHTML = toResponsiveSvg(svg);
     }
     return root.innerHTML;
@@ -117,13 +156,13 @@ export const rerenderDiagramsForWidth = (html, fitWidth) => {
 };
 
 /** 同上，但作用在**真实 DOM**（导出前对 clone 调用，避免改动屏幕上的编辑器） */
-export const rerenderDiagramFiguresInElement = (el, fitWidth) => {
+export const rerenderDiagramFiguresInElement = (el, fitWidth, fontSize) => {
   const width = Number(fitWidth);
   if (!el || !(width > 0)) return 0;
   const figs = Array.from(el.querySelectorAll?.(`figure.${FIGURE_CLASS}`) || []);
   let done = 0;
   for (const fig of figs) {
-    const svg = svgFromSpecAttr(fig.getAttribute(SPEC_ATTR), { fitWidth: width });
+    const svg = svgFromSpecAttr(fig.getAttribute(SPEC_ATTR), { fitWidth: width, fontSize });
     if (svg) { fig.innerHTML = toResponsiveSvg(svg); done++; }
   }
   return done;

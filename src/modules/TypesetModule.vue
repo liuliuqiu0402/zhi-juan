@@ -490,7 +490,7 @@ import {
 import { APP_EVENTS } from '../constants/events.js';
 import { PAPER_PRESETS } from '../config/paperPresets.js';
 import { contentWidthPx } from '../config/paperPresets.js';
-import { rerenderDiagramsForWidth, rerenderDiagramFiguresInElement } from '../utils/diagramBlock.js'; // 导图按纸张栏宽重排（折行上限交给排版版面）
+import { rerenderDiagramsForWidth, rerenderDiagramFiguresInElement, setDiagramRenderOptions, diagramFontPxFromPt } from '../utils/diagramBlock.js'; // 导图按纸张栏宽/模板字号重排（折行上限交给排版版面）
 import { normalizeGenType } from '../config/expertKnowledge.js'; // 资料类型 key 归一（门控唯一判据：key/显示名两值域）
 import { getMergedSpec, normalizeStage3, blankWriteScale } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）＋ 空位手写系数
 import RichTextEditor from '../components/RichTextEditor.vue';
@@ -655,16 +655,6 @@ const contentEditor = ref(null);
 const paperPageRef = ref(null);
 const { showConfirmDialogFn, showAlertDialogFn } = useDialog();
 
-// 🔴 2026-10-30（属主："排版模块看啊，这里是有纸张的尺寸的"）：
-//   切换纸张（A4/A3/8K、单栏/多栏）时**立刻**按新栏宽重画页面里的导图——
-//   只重排显示（重画 figure 的 SVG），不动正文、不进历史；导出前另有整份重排（在 clone 上做）。
-watch(paperLayout, async () => {
-  await nextTick();
-  const el = paperPageRef.value;
-  if (!el) return;
-  rerenderDiagramFiguresInElement(el, contentWidthPx(paperLayout.value));
-});
-
 const { selectFiles, parseWord } = useFileHandler();
 
 // 主题表单
@@ -678,6 +668,23 @@ const themeForm = ref({
 
 // ==================== 计算属性 ====================
 const selectedTheme = computed(() => getThemeById(selectedThemeId.value));
+
+// 🔴 2026-10-30（属主两问：①"预览里还有不该折行的折行" ②"导图字号不随排版模板吗"）：
+//   把"纸张栏宽 ＋ 模板字号"合成为**导图出图口径**，四个入口共用这一份——
+//     · 载入资料时重排 ／ 切纸张或换模板时重排 ／ 导出前（在 clone 上）重排
+//     · 编辑器从规格重画（tiptapDiagramFigure.renderHTML 读同一份，否则打字一次就把重排结果抹回 643/13px）
+//   字号锚点 12pt ↔ 13px：没选模板、模板为 12pt 时与历史出图**完全一致**，小学 14pt→15px、高中 10.5pt→11px。
+const diagramFontPx = computed(() => diagramFontPxFromPt(selectedTheme.value?.bodySize || 12));
+const syncDiagramRenderOptions = () => setDiagramRenderOptions({
+  fitWidth: contentWidthPx(paperLayout.value),
+  fontSize: diagramFontPx.value,
+});
+watch([paperLayout, diagramFontPx], async () => {
+  syncDiagramRenderOptions();
+  await nextTick();
+  const el = paperPageRef.value;
+  if (el) rerenderDiagramFiguresInElement(el, contentWidthPx(paperLayout.value), diagramFontPx.value);
+}, { immediate: true });
 
 // ==================== 学段语义（2026-09：不默认、不冒充，选择才生效） ====================
 //  - 文档学段 docOriginStage：从生成/历史记录 meta.stage 带入（单一事实），每次打开文档恢复为"自动跟随"。
@@ -1322,7 +1329,8 @@ const exportDocument = async () => {
       try {
         const { rerenderDiagramFiguresInElement } = await import('../utils/diagramBlock.js');
         const { contentWidthPx } = await import('../config/paperPresets.js');
-        rerenderDiagramFiguresInElement(clone, contentWidthPx(paperLayout.value));
+        syncDiagramRenderOptions();
+        rerenderDiagramFiguresInElement(clone, contentWidthPx(paperLayout.value), diagramFontPx.value);
       } catch (e) { console.warn('导图按纸张栏宽重排失败（沿用原图）:', e?.message || e); }
 
       // 🔑 注入主题 CSS <style> 标签到 wrapper（不在 clone 内部），
@@ -1525,7 +1533,7 @@ const loadContentSilent = (content, stage = '', genType = '') => {
   content = normalizeMathCircleBlanks(normalizeLeadingMarkers(content));
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);
   // 🔧 HTML 内容统一做密封线结构归一化 + 注入卷面固定件（编辑区所见即所得），幂等
-  if (isHtml) { isHtmlContent.value = true; rawHtmlContent.value = rerenderDiagramsForWidth(withExamShell(content, stage, genType), contentWidthPx(paperLayout.value)); currentContent.value = ''; }
+  if (isHtml) { isHtmlContent.value = true; syncDiagramRenderOptions(); rawHtmlContent.value = rerenderDiagramsForWidth(withExamShell(content, stage, genType), contentWidthPx(paperLayout.value), diagramFontPx.value); currentContent.value = ''; }
   else { isHtmlContent.value = false; rawHtmlContent.value = ''; currentContent.value = content; }
 };
 
@@ -1545,7 +1553,8 @@ const loadFromGenerate = async (payload) => {
   // 🔴 2026-10-30：genType 门控——只有试卷资料才注入注意事项+得分表，教辅类绝不泄露
   content = withExamShell(content, meta.stage, meta.genType || '');
   // 🔴 2026-10-30（属主："折行上限交给排版处的版面自适应"）：导图按当前所选纸张的栏宽重排（只重排、不改内容）
-  content = rerenderDiagramsForWidth(content, contentWidthPx(paperLayout.value));
+  syncDiagramRenderOptions();
+  content = rerenderDiagramsForWidth(content, contentWidthPx(paperLayout.value), diagramFontPx.value);
   pristineHtmlForExport.value = content;
   
   const isHtml = /<\/[a-zA-Z][^>]*>/i.test(content) && /<(h[1-6]|p|div|table|ul|ol|li|span|img)\b/i.test(content);

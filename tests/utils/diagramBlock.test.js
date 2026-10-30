@@ -5,12 +5,13 @@
  * 模型不按约定输出时，绝不能把内容弄丢 —— 所以这里重点测"失败必须原样保留"。
  * ============================================================
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   renderDiagramBlocks, parseDiagramBlock, toResponsiveSvg, DIAGRAM_BLOCK_CLASS,
   printReadabilityWarning, PRINT_WARN_WIDTH, PRINT_SAFE_WIDTH, PRINT_MIN_SCALE,
+  svgFromSpecAttr, diagramFontPxFromPt, setDiagramRenderOptions, getDiagramRenderOptions,
 } from '../../src/utils/diagramBlock.js';
 import { buildDiagramSvg } from '../../src/utils/diagrams/index.js';
 
@@ -255,5 +256,57 @@ describe('diagramBlock · 标记块渲染', () => {
     const count = (r) => r.nodes.reduce((s, n) => s + n.lines.length, 0);
     expect(count(tiny), '版心窄 ⇒ 折行更多').toBeGreaterThan(count(wide));
     expect(wide.layout, '版式不因版心变窄而改').toBe('right');
+  });
+});
+
+// 🔴 2026-10-30（属主："导图的字体大小不随排版模板吗？"）：
+//   出图口径 = 纸张栏宽 + 模板正文字号；四个入口（载入/切纸张/换模板/导出）与编辑器从规格重画
+//   （tiptapDiagramFigure.renderHTML）必须**读同一份**，否则重排结果会被下一次事务抹回 643/13px。
+describe('diagramBlock · 出图口径（栏宽＋模板字号）单源', () => {
+  const SPEC = JSON.stringify({ type: 'mindmap', title: '根', children: [{ title: '枝' }] });
+
+  afterEach(() => setDiagramRenderOptions({ fitWidth: PRINT_SAFE_WIDTH, fontSize: 0 }));
+
+  it('模板正文字号 → 导图字号：锚点 12pt↔13px，等比放大/缩小，夹在 10–22px', () => {
+    expect(diagramFontPxFromPt(12), '12pt 必须与历史出图一致').toBe(13);
+    expect(diagramFontPxFromPt(14), '小学大字模板').toBe(15);
+    expect(diagramFontPxFromPt(10.5), '高中五号模板').toBe(11);
+    expect(diagramFontPxFromPt(undefined), '无模板 → 按 12pt').toBe(13);
+    expect(diagramFontPxFromPt(0)).toBe(13);
+    expect(diagramFontPxFromPt(1), '下限').toBe(10);
+    expect(diagramFontPxFromPt(60), '上限').toBe(22);
+  });
+
+  it('从规格重画时字号真的进到 SVG（模板 14pt ⇒ 15px，根节点按 15/13 放大到 17px）', () => {
+    const at12 = svgFromSpecAttr(SPEC, { fontSize: 13, fitWidth: PRINT_SAFE_WIDTH });
+    const at14 = svgFromSpecAttr(SPEC, { fontSize: 15, fitWidth: PRINT_SAFE_WIDTH });
+    expect(at12).toContain('font-size="13"');
+    expect(at14).toContain('font-size="15"');
+    expect(at14).not.toContain('font-size="13"');
+    expect(at14, '根节点跟着放大').toContain('font-size="17"');
+  });
+
+  it('不传参时读"当前口径"（编辑器重画/导出都走这条）', () => {
+    setDiagramRenderOptions({ fitWidth: 680, fontSize: 15 });
+    expect(getDiagramRenderOptions()).toEqual({ fitWidth: 680, fontSize: 15 });
+    const svg = svgFromSpecAttr(SPEC);
+    expect(svg, '字号来自当前口径').toContain('font-size="15"');
+    expect(svg, '仍是完整 SVG').toContain('</svg>');
+  });
+
+  it('当前口径改栏宽后重画得更宽/更窄（口径真的生效，不是摆设）', () => {
+    const long = JSON.stringify({
+      type: 'mindmap',
+      title: '根',
+      children: [{ title: '把单位“1”平均分成若干份，表示这样一份或几份的数' }],
+    });
+    setDiagramRenderOptions({ fitWidth: 643 });
+    const wide = svgFromSpecAttr(long);
+    setDiagramRenderOptions({ fitWidth: 320 });
+    const narrow = svgFromSpecAttr(long);
+    const widthOf = (html) => Number((html.match(/<svg[^>]*\bwidth="(\d+)"/) || [])[1]);
+    expect(widthOf(narrow), '窄口径必须更窄').toBeLessThan(widthOf(wide));
+    // 容差 12px：每个框宽都含实测余量（+2% +2px），多行框会在版心边上多出 1–2px（浏览器排版同样如此）
+    expect(widthOf(narrow)).toBeLessThanOrEqual(320 + 12);
   });
 });
