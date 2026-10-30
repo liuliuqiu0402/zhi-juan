@@ -71,7 +71,11 @@ export const buildDiagramSvg = (spec, opts = {}) => {
   //   这跟"二分十几次"是两回事：没有人为阈值，只按"离版心还差多少"按比例收。
   const fit = Number(merged.fitWidth) || 0;
   let r = r0;
-  if (fit && r0.width > fit) {
+  // 🔴 2026-10-30（属主："超过 A4 版面的时候才换行"／浏览器对账实测）：
+  //   超出量在 **12px 容差内**不算"超版心"——浏览器排版也不会为 2px 折行
+  //   （对账实测：分数树自然 645px，被折了两个本来一行放得下的长标签）。
+  //   真超了才按"离版心还差多少"给折行系数（字号不变），最多再排 3 次。
+  if (fit && r0.width > fit + 12) {
     let factor = 1;
     // 目标留 20px 余量：折行是按"整行"跳变的，贴着 0 收会因取整差几像素仍超界
     for (let i = 0; i < 8 && r.width > fit; i += 1) {
