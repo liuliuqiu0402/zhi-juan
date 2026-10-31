@@ -20,7 +20,7 @@
  * ============================================================
  */
 import { GEN_CONST } from '../config/generationConstants.js';
-import { charsToTokens } from './outputQuota.js';
+import { producedToTokens } from './outputQuota.js';
 
 /**
  * 截断判定：finish_reason=length/reasoning_capped（可靠）或尾部非完整句段（启发式兜底）。
@@ -106,7 +106,7 @@ export const ANSWER_CONT_MAX_ROUNDS = 6;
  *   且链条 maxRounds 仍兜总轮数）。
  * @param {number} maxTokens 单次输出帽（token）
  * @param {{totalMult?: number, guaranteedRounds?: number}} [opts]
- * @returns {(ctx:{round:number,producedChars:number}) => number} 本轮 max_tokens（token）
+ * @returns {(ctx:{round:number,producedChars:number,producedHtml?:string}) => number} 本轮 max_tokens（token）
  */
 export const makeBudgetedPlanRound = (maxTokens = 0, { totalMult = 1.2, guaranteedRounds = 1 } = {}) => {
   const singleCap = Math.max(1, Math.floor(Number(maxTokens || 0) * 0.5));
@@ -114,7 +114,8 @@ export const makeBudgetedPlanRound = (maxTokens = 0, { totalMult = 1.2, guarante
   const guaranteed = Math.max(0, Math.floor(Number(guaranteedRounds) || 0));
   return (ctx) => {
     const producedChars = Math.max(0, Number(ctx?.producedChars || 0));
-    const usedTokens = charsToTokens(producedChars);          // 字符 → token（与正文同口径）
+    // 字符 → token：产出是 HTML，按"标签/正文分段"折算（与正文链同一口径）
+    const usedTokens = producedToTokens({ producedChars, producedHtml: ctx?.producedHtml });
     const remaining = totalBudget - usedTokens;
     const round = Math.max(0, Math.floor(Number(ctx?.round) || 0));
     // 余额为负但仍在保底轮内 → 给满额续写（防"首轮写满 → 0 轮续写"瞬停）
@@ -163,7 +164,8 @@ export const runContinuationChain = async ({
 
   while (trunc.truncated) {
     if (rounds >= roundsCap) { stoppedBy = 'rounds'; break; }
-    const budget = typeof planRound === 'function' ? planRound({ round: rounds + 1, producedChars: cur.length }) : null;
+    const ctx = { round: rounds + 1, producedChars: cur.length, producedHtml: cur };
+    const budget = typeof planRound === 'function' ? planRound(ctx) : null;
     if (!(Number(budget) > 0)) { stoppedBy = 'budget'; break; }
     if (typeof onRound === 'function') onRound({ round: rounds + 1, budget, producedChars: cur.length });
 

@@ -18,9 +18,42 @@
 // 设置页可调）。它不是散落在链上的常量，`max_tokens` 也只是"允许量"而非"目标量"，给宽不花钱。
 import { CHARS_PER_TOKEN } from './budgetCalibration.js';
 
-/** 字符 → token（与预算解析同一口径，避免两套换算） */
+/** 字符 → token（纯文本口径；与预算解析同一口径，避免两套换算） */
 export const charsToTokens = (chars = 0) =>
   Math.ceil(Math.max(0, Number(chars) || 0) / CHARS_PER_TOKEN);
+
+// 🔧 HTML 感知的 token 估算（2026-10-31 属主实证修复）：
+//   产出是 HTML，字符数里约 3/4 是标签/属性/空白（ASCII 密度约 4 字符/token），正文才是中文密度（1.3）。
+//   此前一律按 1.3 折算 → 20149 字符被算成 15500 token（实际约 5000–7000），于是"已超预期额度""首轮
+//   已超硬顶"这类告警全是误报，续写余额也被提前判负。此处按"标签/正文分段"折算，与 charsToTokens 同源常量。
+export const TAG_CHARS_PER_TOKEN = 4;
+export const estimateHtmlTokens = (html = '') => {
+  const s = String(html || '');
+  if (!s) return 0;
+  let tagChars = 0;
+  const re = /<[^>]*>/g;
+  let m = null;
+  while ((m = re.exec(s))) tagChars += m[0].length;
+  const textChars = Math.max(0, s.length - tagChars);
+  return Math.ceil(tagChars / TAG_CHARS_PER_TOKEN + textChars / CHARS_PER_TOKEN);
+};
+
+/**
+ * 需求估算（**唯一实现**，生成端只调这里）：need = max(结构基线, 素材字数 × 系数, 下限)
+ * 为什么要有结构基线：一次产出除"素材×系数"项外，还有与素材长短无关的固定骨架（栏目骨架/表格/
+ * 导图规格/逐题答案与解析）。只按素材量估 → 小素材（一课几百字）必然低估、首轮必截断。
+ */
+export const resolveNeedTokens = ({
+  sourceChars = 0, coef = 1, floorTokens = 0, baselineTokens = 0,
+} = {}) => Math.max(0, Math.round(Math.max(
+  Number(floorTokens) || 0,
+  (Number(sourceChars) || 0) * (Number(coef) || 0),
+  Number(baselineTokens) || 0,
+)));
+
+/** 产出体积 → token：优先用 HTML 文本（分段折算），只有数字时退回纯文本口径 */
+export const producedToTokens = ({ producedChars = 0, producedHtml = '' } = {}) =>
+  (typeof producedHtml === 'string' && producedHtml) ? estimateHtmlTokens(producedHtml) : charsToTokens(producedChars);
 
 const finiteOr = (v, fallback = Infinity) =>
   (Number.isFinite(v) && v > 0 ? Math.floor(v) : fallback);
@@ -77,6 +110,7 @@ export const planOutputQuota = ({
 export const nextContinuationBudget = ({
   hardQuota = 0,
   producedChars = 0,
+  producedHtml = '',
   perCall = Infinity,
   thinkingMultiplier = 1,
   engineCeiling = Infinity,
@@ -88,7 +122,7 @@ export const nextContinuationBudget = ({
     const t = Math.ceil(tokens);
     return Math.max(1, Math.min(t, finiteOr(engineCeiling, t)));
   };
-  const remaining = Math.round(hardQuota) - charsToTokens(producedChars);
+  const remaining = Math.round(hardQuota) - producedToTokens({ producedChars, producedHtml });
   if (remaining <= 0) {
     // 余额已尽：仅当仍有保底轮可用时给满一轮（受"单次帽 + 引擎闸门"双重钳制）
     const used = Math.max(0, Math.floor(roundsUsed) || 0);
@@ -101,5 +135,5 @@ export const nextContinuationBudget = ({
 };
 
 /** 是否已超**预期**额度（用于"超支可见"的告警；不用于停止） */
-export const isOverQuota = ({ quota = 0, producedChars = 0 } = {}) =>
-  charsToTokens(producedChars) > Math.round(quota);
+export const isOverQuota = ({ quota = 0, producedChars = 0, producedHtml = '' } = {}) =>
+  producedToTokens({ producedChars, producedHtml }) > Math.round(quota);

@@ -189,16 +189,24 @@ const sanitizeApiKey = (k) => {
 //    → normalize 漏出兜底字面量 {精简1/均衡1/充分1.3/上限20000}"这类"精简=均衡=1"塌档问题。
 //    三档系数（精简/均衡/充分）为内置常量：设置页只允许选档位或手填 custom，不允许改这三档数字，
 //    故一律随本权威默认；用户可编辑项 custom（手填）/cap（上限）/mode（路径）/tier（档位）按存档保留。
+// 🔧 每类型动态输出预算·单一权威默认：设置页/生成端/校验统一从 DEFAULT_BUDGET_BY_TYPE 播种。
+//    baseline = 该槽的「结构基线」（token，与素材量无关的固定开销）：
+//      一次产出除了"素材×系数"那一项，还有与课文长短无关的固定骨架——栏目骨架、表格、导图规格、
+//      逐题答案与解析。公式为 need = max(baseline, 素材字数 × 系数)。
+//      实证（2026-10-31）：一课 550 字的 knowledge 归纳，need 只按 550×3.6=1980 算 → 单次帽 2475，
+//      而实际产出 HTML 约 7000–8000 token → 首轮必截断、进续写链。素材 ≥ 约 2000 字时系数项压过基线，
+//      行为与改前完全一致（大范围不涨价）。
+//    基线为程序常量（非用户可调），随代码播种；cap 仍是硬顶。
 export const DEFAULT_BUDGET_BY_TYPE = {
-  exam:     { mode: 'auto', tier: 'balanced', body: { economy: 1.17, balanced: 1.7, full: 2.13, cap: 32768, custom: null }, answer: { economy: 0.64, balanced: 0.9, full: 1.16, cap: 16384, custom: null }, once: { economy: 1.7, balanced: 2.8, full: 4.0, cap: 49152, custom: null } },
-  practice: { mode: 'auto', tier: 'balanced', body: { economy: 1.1, balanced: 1.55, full: 2.0, cap: 24000, custom: null }, answer: { economy: 0.55, balanced: 0.78, full: 1.01, cap: 10000, custom: null }, once: { economy: 1.27, balanced: 2.1, full: 3.0, cap: 30000, custom: null } },
-  special:  { mode: 'auto', tier: 'balanced', body: { economy: 1.1, balanced: 1.55, full: 2.0, cap: 24000, custom: null }, answer: { economy: 0.55, balanced: 0.78, full: 1.01, cap: 10000, custom: null }, once: { economy: 1.27, balanced: 2.1, full: 3.0, cap: 30000, custom: null } },
-  reading:  { mode: 'auto', tier: 'balanced', body: { economy: 1.25, balanced: 1.8, full: 2.3, cap: 20000, custom: null }, answer: { economy: 0.63, balanced: 0.9, full: 1.15, cap: 10000, custom: null }, once: { economy: 2.4, balanced: 4.0, full: 5.8, cap: 30000, custom: null } },
-  summary:  { mode: 'auto', tier: 'balanced', body: { economy: 1.1, balanced: 1.6, full: 2.0, cap: 20000, custom: null }, answer: { economy: 0.6, balanced: 0.85, full: 1.1, cap: 10000, custom: null }, once: { economy: 2.2, balanced: 3.6, full: 5.1, cap: 36000, custom: null } },
-  review:   { mode: 'auto', tier: 'balanced', body: { economy: 1.3, balanced: 1.85, full: 2.34, cap: 24000, custom: null }, answer: { economy: 0.62, balanced: 0.87, full: 1.18, cap: 10000, custom: null }, once: { economy: 2.0, balanced: 3.2, full: 4.8, cap: 36000, custom: null } },
-  preview:  { mode: 'auto', tier: 'balanced', body: { economy: 1.45, balanced: 2.1, full: 2.7, cap: 12000, custom: null }, answer: { economy: 0.73, balanced: 1.05, full: 1.35, cap: 6000, custom: null }, once: { economy: 2.54, balanced: 4.2, full: 6.18, cap: 24000, custom: null } },
-  dictation: { mode: 'auto', tier: 'balanced', body: { economy: 0.9, balanced: 1.3, full: 1.7, cap: 12000, custom: null }, answer: { economy: 0.46, balanced: 0.65, full: 0.85, cap: 6000, custom: null }, once: { economy: 1.61, balanced: 2.6, full: 3.9, cap: 20000, custom: null } },
-  errorbook: { mode: 'auto', tier: 'balanced', body: { economy: 0.95, balanced: 1.4, full: 1.8, cap: 12000, custom: null }, answer: { economy: 0.5, balanced: 0.7, full: 0.95, cap: 6000, custom: null }, once: { economy: 1.75, balanced: 2.9, full: 4.35, cap: 20000, custom: null } },
+  exam:     { mode: 'auto', tier: 'balanced', body: { economy: 1.17, balanced: 1.7, full: 2.13, cap: 32768, custom: null, baseline: 6000 }, answer: { economy: 0.64, balanced: 0.9, full: 1.16, cap: 16384, custom: null, baseline: 3000 }, once: { economy: 1.7, balanced: 2.8, full: 4.0, cap: 49152, custom: null, baseline: 9000 } },
+  practice: { mode: 'auto', tier: 'balanced', body: { economy: 1.1, balanced: 1.55, full: 2.0, cap: 24000, custom: null, baseline: 5500 }, answer: { economy: 0.55, balanced: 0.78, full: 1.01, cap: 10000, custom: null, baseline: 3000 }, once: { economy: 1.27, balanced: 2.1, full: 3.0, cap: 30000, custom: null, baseline: 8500 } },
+  special:  { mode: 'auto', tier: 'balanced', body: { economy: 1.1, balanced: 1.55, full: 2.0, cap: 24000, custom: null, baseline: 5500 }, answer: { economy: 0.55, balanced: 0.78, full: 1.01, cap: 10000, custom: null, baseline: 3000 }, once: { economy: 1.27, balanced: 2.1, full: 3.0, cap: 30000, custom: null, baseline: 8500 } },
+  reading:  { mode: 'auto', tier: 'balanced', body: { economy: 1.25, balanced: 1.8, full: 2.3, cap: 20000, custom: null, baseline: 6000 }, answer: { economy: 0.63, balanced: 0.9, full: 1.15, cap: 10000, custom: null, baseline: 3000 }, once: { economy: 2.4, balanced: 4.0, full: 5.8, cap: 30000, custom: null, baseline: 8000 } },
+  summary:  { mode: 'auto', tier: 'balanced', body: { economy: 1.1, balanced: 1.6, full: 2.0, cap: 20000, custom: null, baseline: 5000 }, answer: { economy: 0.6, balanced: 0.85, full: 1.1, cap: 10000, custom: null, baseline: 3000 }, once: { economy: 2.2, balanced: 3.6, full: 5.1, cap: 36000, custom: null, baseline: 7000 } },
+  review:   { mode: 'auto', tier: 'balanced', body: { economy: 1.3, balanced: 1.85, full: 2.34, cap: 24000, custom: null, baseline: 6000 }, answer: { economy: 0.62, balanced: 0.87, full: 1.18, cap: 10000, custom: null, baseline: 3000 }, once: { economy: 2.0, balanced: 3.2, full: 4.8, cap: 36000, custom: null, baseline: 9000 } },
+  preview:  { mode: 'auto', tier: 'balanced', body: { economy: 1.45, balanced: 2.1, full: 2.7, cap: 12000, custom: null, baseline: 6000 }, answer: { economy: 0.73, balanced: 1.05, full: 1.35, cap: 6000, custom: null, baseline: 3500 }, once: { economy: 2.54, balanced: 4.2, full: 6.18, cap: 24000, custom: null, baseline: 8000 } },
+  dictation: { mode: 'auto', tier: 'balanced', body: { economy: 0.9, balanced: 1.3, full: 1.7, cap: 12000, custom: null, baseline: 3000 }, answer: { economy: 0.46, balanced: 0.65, full: 0.85, cap: 6000, custom: null, baseline: 2000 }, once: { economy: 1.61, balanced: 2.6, full: 3.9, cap: 20000, custom: null, baseline: 3500 } },
+  errorbook: { mode: 'auto', tier: 'balanced', body: { economy: 0.95, balanced: 1.4, full: 1.8, cap: 12000, custom: null, baseline: 4000 }, answer: { economy: 0.5, balanced: 0.7, full: 0.95, cap: 6000, custom: null, baseline: 2500 }, once: { economy: 1.75, balanced: 2.9, full: 4.35, cap: 20000, custom: null, baseline: 4500 } },
 };
 
 // 🔧 budgetByType 槽位规整唯一实现（生成端读取兜底 + 设置页播种/导入共用；曾与 SettingsModule.normalizeBudgetSlots 同构双份）
@@ -224,6 +232,8 @@ export const normalizeBudgetByType = (bbt) => {
           : Math.max((typeof s.cap === 'number' && s.cap > 0) ? s.cap : 0, d.cap ?? 20000),
         custom: typeof s.custom === 'number' ? s.custom : null,
         locked: s.locked === true,
+        // 结构基线为程序常量（与素材量无关的固定开销），不随存档漂移——旧存档没有该键也一律按代码播种
+        baseline: (typeof d.baseline === 'number' && d.baseline > 0) ? d.baseline : 0,
       };
     };
     out[key] = {

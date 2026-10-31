@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_BUDGET_BY_TYPE, normalizeBudgetByType } from '../../src/config/apiConfig.js';
 
 const SRC = fs.readFileSync(path.join(process.cwd(), 'src', 'composables', 'useAiGenerator.js'), 'utf8');
 
@@ -24,11 +25,32 @@ describe('A19 素材通道 × 输出预算：口径解耦（预算按原文量�
     expect(iRawChapters).toBeLessThan(iChannel);
   });
 
-  it('预算公式 = 原文量 × 系数（不含通道变量）', () => {
-    const line = SRC.split('\n').find((l) => l.includes('bodyNeeded = Math.round(Math.max(floorTok, selectedRawChars'));
-    expect(line, '应存在「max(地板, 原文量×系数)」式预算推导').toBeTruthy();
+  it('预算公式 = max(结构基线, 原文量 × 系数, 地板)（不含通道变量）', () => {
+    // 2026-10-31：公式形态升级为 resolveNeedTokens（基线化）——结构基线同样与素材通道无关，
+    //    A19 的不变量（预算只由"勾选原文量 × 系数 + 与素材无关的固定骨架"决定）保持不变。
+    const idx = SRC.indexOf('let bodyNeeded = resolveNeedTokens(');
+    expect(idx, '应存在基线化预算推导 bodyNeeded = resolveNeedTokens(...)').toBeGreaterThan(-1);
+    const line = SRC.slice(idx, SRC.indexOf(';', idx) + 1);
     expect(line).toContain('selectedRawChars');
+    expect(line).toContain('baselineTokens');
     expect(line).not.toContain('materialChannel');
+  });
+
+  it('结构基线：9 类 × 3 槽齐备，且恒小于本槽 cap（不制造"超上限"误报）', () => {
+    for (const [type, def] of Object.entries(DEFAULT_BUDGET_BY_TYPE)) {
+      for (const slot of ['body', 'answer', 'once']) {
+        const s = def[slot];
+        expect(typeof s.baseline, `${type}.${slot}.baseline 必须是数字`).toBe('number');
+        expect(s.baseline, `${type}.${slot}.baseline 应为正`).toBeGreaterThan(0);
+        expect(s.baseline, `${type}.${slot} 基线不得超过 cap（否则一进就报"超上限"`).toBeLessThanOrEqual(s.cap);
+      }
+    }
+  });
+
+  it('基线随代码播种、不随存档漂移（旧存档没有 baseline 也不会变 0）', () => {
+    const legacy = { preview: { body: { cap: 12000 }, answer: {}, once: {} } };
+    expect(normalizeBudgetByType(legacy).preview.body.baseline).toBe(DEFAULT_BUDGET_BY_TYPE.preview.body.baseline);
+    expect(normalizeBudgetByType(legacy).preview.answer.baseline).toBe(DEFAULT_BUDGET_BY_TYPE.preview.answer.baseline);
   });
 
   it('通道只决定"压缩与注入"（enableFullText），不参与任何预算计算', () => {

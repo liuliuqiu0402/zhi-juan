@@ -15,7 +15,7 @@ import { collectChapterRawText, compressOriginalText, shouldDirectInject } from 
 import { buildCompressionCacheKey, readCompressionCache, writeCompressionCache } from '../utils/compressionCache.js'; // ✅ A4-11：压缩结果按勾选章节组合缓存（同批章节第二次生成直接复用）
 import { formatAnchorListByChapter, anchorListRoleNote, resolveAnchorKind } from '../utils/anchorTreeContract.js'; // ✅ A1-4：锚点清单按章分组（写作期前缀首位，含第3层具体概念 A17/可开关）；🔬 resolveAnchorKind：条目性质双轨判定（显式 kind 优先 + 名字兜底）
 // ✅ A4-9（2026-09-11）：输出额度全推导（单次帽/续写轮次/总额度），链上不再有固定常量与轮次魔数
-import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens } from '../utils/outputQuota.js';
+import { planOutputQuota, nextContinuationBudget, isOverQuota, charsToTokens, resolveNeedTokens, producedToTokens } from '../utils/outputQuota.js';
 // 续写/截断的**唯一实现**（2026-09-24 用户裁定"两套必须根治"）：收敛于 utils/continuationChain.js。
 //    此前 callAI 内两条引擎分支各一份薄层续写（第三份内联去重副本、不检测续写自身再截断），
 //    与 _runPaperOrder 的正文额度链并存 → 同一个截断"正文能补齐、答案页半截放行"。
@@ -4237,18 +4237,29 @@ ${cardAnalysisText.substring(0, 1000)}
         const calCoef = getCalibratedCoef(genType, subject, book?.stage, generateMode, tier, book?.grade, book?.name);
         if (typeof calCoef === 'number' && calCoef > 0) coef = calCoef;
       }
-      return { coef: coef || 1.0, cap: (typeof s.cap === 'number' && s.cap > 0) ? s.cap : 32768 };
+      // 🔧 结构基线（2026-10-31 属主实证修复）：与素材长短无关的固定骨架开销（栏目/表格/导图规格/
+      //    逐题答案与解析）。只按"素材×系数"估 → 一课几百字时必然低估、首轮必截断（误报超额度/超硬顶）。
+      const baseline = (typeof s.baseline === 'number' && s.baseline > 0) ? s.baseline : 0;
+      return { coef: coef || 1.0, cap: (typeof s.cap === 'number' && s.cap > 0) ? s.cap : 32768, baseline };
     };
     const floorTok = apiConfig.generationSettings.budgetClamp?.floorTokens ?? 800;
     // split：正文用 body 槽（系数+cap）；once：正文+答案共用 once 槽
     const bodyCfg = pickSlot(generateMode === 'once' ? 'once' : 'body');
-    let bodyNeeded = Math.round(Math.max(floorTok, selectedRawChars * bodyCfg.coef));
+    let bodyNeeded = resolveNeedTokens({
+      sourceChars: selectedRawChars, coef: bodyCfg.coef, floorTokens: floorTok, baselineTokens: bodyCfg.baseline,
+    });
     // once 一次成型 = 正文+答案区同一输出：所需下限 = 「body 槽估算 + answer 槽估算」两段合计。
     //    一次输出必须覆盖两段内容；once 槽系数若低于两段合计（如 summary once2.2 < body1.6+answer0.85=2.45），
     //    会在写完正文后因预算用尽截断在答案区（历史复现根因）——此处兜底抬升，宁多勿截。
     if (generateMode === 'once') {
-      const splitBodyNeed = Math.round(Math.max(floorTok, selectedRawChars * pickSlot('body').coef));
-      const splitAnsNeed = Math.round(Math.max(floorTok, selectedRawChars * pickSlot('answer').coef));
+      const bodySlotCfg = pickSlot('body');
+      const answerSlotCfg = pickSlot('answer');
+      const splitBodyNeed = resolveNeedTokens({
+        sourceChars: selectedRawChars, coef: bodySlotCfg.coef, floorTokens: floorTok, baselineTokens: bodySlotCfg.baseline,
+      });
+      const splitAnsNeed = resolveNeedTokens({
+        sourceChars: selectedRawChars, coef: answerSlotCfg.coef, floorTokens: floorTok, baselineTokens: answerSlotCfg.baseline,
+      });
       const onceNeedSum = splitBodyNeed + splitAnsNeed;
       if (bodyNeeded < onceNeedSum) {
         bodyNeeded = onceNeedSum;
@@ -4298,7 +4309,9 @@ ${cardAnalysisText.substring(0, 1000)}
     bodyDynamicCap = bodyQuota.perCall;
     // 答案页：split 才有独立答案页调用，用 answer 槽；once 无独立答案页（答案随正文，不走 here）
     const answerCfg = pickSlot('answer');
-    const answerNeeded = Math.round(Math.max(floorTok, selectedRawChars * answerCfg.coef));
+    const answerNeeded = resolveNeedTokens({
+      sourceChars: selectedRawChars, coef: answerCfg.coef, floorTokens: floorTok, baselineTokens: answerCfg.baseline,
+    });
     const answerOverCap = answerNeeded > answerCfg.cap;
     const answerRangeOver = answerOverCap && rangeNeed > answerCfg.cap; // ✅ A14-2：cap 硬顶（仅范围性超限才升级）
     const answerEffectiveCap = answerRangeOver ? Math.min(engineCap, answerNeeded) : answerCfg.cap;
@@ -4557,8 +4570,8 @@ ${cardAnalysisText.substring(0, 1000)}
             label: '整卷正文续写',
             maxRounds: attemptQuota.rounds,
             minChunkLen: 100,   // 正文链口径：碎段/重复收尾不接受（原实现"≤100 视为未补齐"）
-            planRound: ({ round, producedChars }) => {
-              if (!overSoftWarned && isOverQuota({ quota: attemptQuota.softQuota, producedChars })) {
+            planRound: ({ round, producedChars, producedHtml }) => {
+              if (!overSoftWarned && isOverQuota({ quota: attemptQuota.softQuota, producedChars, producedHtml })) {
                 overSoftWarned = true;
                 bodyPathNotes.push(`ℹ️ 正文已超预期额度（预期 ${attemptQuota.softQuota} token，当前 ${producedChars} 字符）——为保证完整继续补齐（硬顶 ${attemptQuota.hardQuota} token）`);
                 console.warn(`⚠️ 整卷正文已超预期额度 ${attemptQuota.softQuota} token → 继续补齐，直至写完或触硬顶 ${attemptQuota.hardQuota}`);
@@ -4566,17 +4579,19 @@ ${cardAnalysisText.substring(0, 1000)}
               // 首轮保底（2026-09-24 实证修复）：模型**单次**输出就可能超过硬顶（实证：13555 字符
               //    ÷1.3 = 10427 token > 硬顶 8532）。旧逻辑此时"余额 ≤ 0 → 返回 0 → 直接 break"，
               //    续写链 0 轮就被锁死，只能整卷重跑（更贵更慢）。硬顶里"多留的那 1 轮余量"必须花得出去。
+              const usedTok = producedToTokens({ producedChars, producedHtml });
               const budget = clampReq(nextContinuationBudget({
                 hardQuota: attemptQuota.hardQuota,
                 producedChars,
+                producedHtml,
                 perCall: attemptQuota.perCall,
                 thinkingMultiplier: contMult,
                 engineCeiling: engineCap,
                 guaranteedRounds: 1,
                 roundsUsed: round - 1,
               }));
-              if (round === 1 && budget > 0 && charsToTokens(producedChars) >= Math.round(attemptQuota.hardQuota)) {
-                bodyPathNotes.push(`ℹ️ 首轮单次输出已超硬顶（${producedChars} 字符 ≈ ${charsToTokens(producedChars)} token > ${attemptQuota.hardQuota}）——启用 1 轮保底续写补齐（不再直接整卷重跑）`);
+              if (round === 1 && budget > 0 && usedTok >= Math.round(attemptQuota.hardQuota)) {
+                bodyPathNotes.push(`ℹ️ 首轮单次输出已超硬顶（${producedChars} 字符 ≈ ${usedTok} token > ${attemptQuota.hardQuota}）——启用 1 轮保底续写补齐（不再直接整卷重跑）`);
                 console.warn(`ℹ️ 首轮单次输出已超硬顶（${producedChars} 字符），启用 1 轮保底续写（本轮帽 ${budget} token）`);
               }
               return budget;

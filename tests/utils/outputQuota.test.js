@@ -7,6 +7,9 @@ import {
   nextContinuationBudget,
   isOverQuota,
   charsToTokens,
+  resolveNeedTokens,
+  estimateHtmlTokens,
+  producedToTokens,
 } from '../../src/utils/outputQuota.js';
 
 const GATE = 196608; // 引擎闸门（192K，2026-09-11 用户裁定默认）
@@ -138,5 +141,52 @@ describe('nextContinuationBudget / isOverQuota：超预期不停止，触硬顶�
     expect(charsToTokens(1301)).toBe(1001); // 向上取整（不足 1 token 进位）
     expect(charsToTokens(0)).toBe(0);
     expect(charsToTokens(-10)).toBe(0);
+  });
+});
+
+// 🔴 2026-10-31 属主实证修复（"一课几百字却触发截断续写/超硬顶告警"）：
+//    ① 需求公式缺「结构基线」→ 小素材必然低估；② 产出是 HTML，却一律按 1.3 字符/token 折算 → 额度被误判耗尽。
+describe('结构基线 + HTML 感知折算（小素材不再被低估）', () => {
+  it('小素材：基线主导（不再只按 素材×系数 得出几百 token）', () => {
+    // 一课 550 字 × 系数 2.1 = 1155 → 旧口径单次帽 ≈ 1444，实际产出 7000+ token → 必截断
+    expect(resolveNeedTokens({ sourceChars: 550, coef: 2.1, floorTokens: 800, baselineTokens: 6000 })).toBe(6000);
+  });
+
+  it('大素材：系数项压过基线 → 行为与改前完全一致（不涨价）', () => {
+    expect(resolveNeedTokens({ sourceChars: 5000, coef: 1.7, floorTokens: 800, baselineTokens: 6000 })).toBe(8500);
+    expect(resolveNeedTokens({ sourceChars: 1000, coef: 1.7, floorTokens: 800, baselineTokens: 0 })).toBe(1700);
+  });
+
+  it('地板仍是三者中最低优先级（基线/系数都更小时取地板）', () => {
+    expect(resolveNeedTokens({ sourceChars: 10, coef: 1, floorTokens: 800, baselineTokens: 0 })).toBe(800);
+    expect(resolveNeedTokens({})).toBe(0);
+  });
+
+  it('HTML 感知：标签段按 4 字符/token、正文按 1.3——同一份产出不再被虚高 3 倍', () => {
+    const text = '正文内容'.repeat(250);                     // 1000 汉字 → 769 token
+    const html = `<p>${text}</p>`.repeat(250);               // 标签占大头
+    expect(estimateHtmlTokens(text)).toBe(Math.ceil(text.length / 1.3));
+    expect(estimateHtmlTokens(html)).toBeLessThan(charsToTokens(html.length));
+    expect(estimateHtmlTokens('')).toBe(0);
+  });
+
+  it('producedToTokens：有 HTML 走 HTML 口径，只有字符数时退回纯文本口径', () => {
+    expect(producedToTokens({ producedChars: 1300 })).toBe(1000);
+    expect(producedToTokens({ producedChars: 999999, producedHtml: '<p>你好</p>' }))
+      .toBe(estimateHtmlTokens('<p>你好</p>'));
+  });
+
+  it('续写余额/超额度告警与正文同一口径（传 producedHtml 即按 HTML 折算）', () => {
+    const html = `<p>${'正文'.repeat(3000)}</p>`;              // 6011 字符，标签仅 7 个
+    const tokHtml = estimateHtmlTokens(html);
+    const tokPlain = charsToTokens(html.length);
+    expect(tokPlain).toBeGreaterThan(tokHtml);                 // 旧口径确实虚高
+    const quota = tokHtml + 2;                                 // 介于两口径之间
+    expect(nextContinuationBudget({ hardQuota: quota, producedChars: html.length, producedHtml: html, perCall: 1000 }))
+      .toBeGreaterThan(0);                                     // HTML 口径：余额仍为正，续写不被锁死
+    expect(nextContinuationBudget({ hardQuota: quota, producedChars: html.length, perCall: 1000 }))
+      .toBe(0);                                                // 旧口径：余额判负 → 误停
+    expect(isOverQuota({ quota, producedChars: html.length, producedHtml: html })).toBe(false);
+    expect(isOverQuota({ quota, producedChars: html.length })).toBe(true);
   });
 });
