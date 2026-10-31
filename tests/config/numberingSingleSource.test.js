@@ -10,7 +10,7 @@
 // 本文件锁三件事：
 //   ① 该定义只在库内写一份，且每份实发里**只出现一次**（考卷随【分值标注】、其余题类随【层级与组织】）；
 //   ② 旧语义判据零出现（不得散回去、不得回潮）；
-//   ③ 起编与样式只在 QOC 写一处，各题类都携带。
+//   ③ 样式只在结构判定写一处，各题类都携带；起编不再由参数注入（2026-10-31 撤开关）。
 // ============================================================
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
@@ -58,15 +58,17 @@ describe('编号判据单源（2026-10-26 结构事实）', () => {
     }
   });
 
-  it('起编与样式只写一处（结构判定），各题类都携带', () => {
+  it('样式只写一处（结构判定），各题类都携带；起编不再注入', () => {
     for (const [sj, st, g] of ALL) {
       expect(count(tpl(sj, st, g), QUESTION_OBJECT_CALIBER), `${g}|${st}|${sj}`).toBe(1);
       expect(count(tpl(sj, st, g), ANSWER_STEM_CALIBER), `${g}|${st}|${sj}`).toBe(1);
     }
     // 2026-10-28：编号样式与起编并入结构判定（判决、段、号一处产出）——
     //   原在 QOC 的"多作答就编号"平推规则是绕过判决的第二条路径，已整句删除。
+    // 2026-10-31（属主"清掉吧"）：起编参数与 UI 开关一并撤除，起编交回模型。
     expect(ANSWER_STEM_CALIBER, '样式单源（题前加小号序号）').toContain('题前加小号序号');
-    expect(ANSWER_STEM_CALIBER, '起编按注入').toContain('{subQuestionNumbering}');
+    expect(ANSWER_STEM_CALIBER, '起编不得再注入').not.toContain('{subQuestionNumbering}');
+    expect(ANSWER_STEM_CALIBER, '起编口径不得回潮').not.toContain('起编按');
     expect(QUESTION_OBJECT_CALIBER, '编号平推规则不得回潮').not.toContain('多作答题干大题下');
     expect(QUESTION_OBJECT_CALIBER, '起编不得在第二处再写').not.toContain('{subQuestionNumbering}');
   });

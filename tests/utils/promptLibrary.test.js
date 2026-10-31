@@ -782,13 +782,16 @@ describe('试卷大类层 / 部分标题 / 自洽判据域（2026-09-26 用户�
   });
 });
 
-describe('小题编号配置注入（每大题从1起 / 全卷连续）', () => {
-  it('默认每大题从1起；显式传全卷连续时替换为全卷连续（只起编方式，不判该不该编号）', () => {
-    const tpl = '· 小题编号：{subQuestionNumbering}';
-    const a = buildInjectionInstruction({ template: tpl, grade: '二年级', subject: '数学', genTypeLabel: '正式考卷' });
-    expect(a).toContain('小题编号：每大题从1起');
-    expect(a, '注入参数不得再判该不该编号').not.toContain('其下没有各自成题的行的组不编号');
-    const b = buildInjectionInstruction({ template: tpl, grade: '二年级', subject: '数学', genTypeLabel: '正式考卷', subQuestionNumbering: '全卷连续' });
-    expect(b).toContain('小题编号：全卷连续');
+describe('小题起编不再由参数注入（2026-10-31 撤开关）', () => {
+  it('旧模板残留的起编占位符整段删掉，不泄漏到实发、不留悬空句', () => {
+    const label = buildInjectionInstruction({ template: '· 小题编号：{subQuestionNumbering}', grade: '二年级', subject: '数学', genTypeLabel: '正式考卷' });
+    expect(label, '占位符不得泄漏').not.toContain('{subQuestionNumbering}');
+    expect(label, '不得留悬空"小题编号："行').not.toContain('小题编号：');
+    const tail = buildInjectionInstruction({ template: '…题前加小号序号，起编按 {subQuestionNumbering}；', grade: '二年级', subject: '数学', genTypeLabel: '正式考卷' });
+    expect(tail).not.toContain('{subQuestionNumbering}');
+    expect(tail, '不得留悬空"起编按"').not.toContain('起编按');
+    const passed = buildInjectionInstruction({ template: '· 小题编号：{subQuestionNumbering}', grade: '二年级', subject: '数学', genTypeLabel: '正式考卷', subQuestionNumbering: '全卷连续' });
+    expect(passed, '传参也不得再产生起编口径').not.toContain('全卷连续');
+    expect(passed).not.toContain('每大题从1起');
   });
 });

@@ -4071,7 +4071,7 @@ ${cardAnalysisText.substring(0, 1000)}
     //   （缺号拦截／形态放行／重启拦截三块）亦于同日按属主裁定**整块删除**（"不以编号连续性判丢题／不回灌／
     //   不重试／不代模型定形态"）⇒ 本变量自那时起**从未被读**（死变量）。现一并删除 ＋ 订正注释。
     //   ⇒ 结论（回应属主）：**程序侧现无任何按学段分叉的题号校验、也无题号回灌/重试**；
-    //     `isPerBigQuestionNumbering` 仍由 `examValidator` 的题号体系探针使用（**只报不改**、不进模型），故留在 gradeStage。
+    //     2026-10-31（属主"清掉吧"）：`examValidator` 里最后两个读它的死变量已删，`isPerBigQuestionNumbering` 随之下线。
     const stageKey = resolveStageKey(book?.stage, book?.grade, book?.name);
 
     // ── 覆盖锚构建（2026-09 P0）：章级层级知识点 → 原文片段绑定，覆盖/检索/缺料诊断的唯一事实源 ──

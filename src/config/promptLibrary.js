@@ -575,8 +575,10 @@ const structNameRole = (stage = '') => (isMidHighStage(stage)
  *     但下方正文早已改回"**遮住大题标题、看成句文字**"（§九.96 补回作用域）——那是**内容形态判定**，
  *     不是数段落。两者不是一回事，正文为准。
  *  · 旧语义判据（"有没有只属于它自己的题干话""一组只做一个动作"）整类清除的理由仍成立：同一行可给出相反解释。
- *  · 注入面：考卷随【分值标注】（定义在使用点之前）；其余题类随【层级与组织】。**同一份实发只出现一次**。 */
-export const ANSWER_STEM_CALIBER = '**遮住大题标题、只看其中一项**：项内**有没有一句成句的表述（陈述或问句；外文完整句算）**——有 ⇒ **逐题独立（多题干）**（每题各自成段、题前加小号序号，起编按 {subQuestionNumbering}）；没有（只有算式、数字、符号、字母词条、待填位）⇒ **整栏合一（单题干）**（整栏只写一段、不加小号序号）；**一栏只取一种形态**：按各项**实际**形态判，形态不统一时按**整栏合一**；**例外：一栏只有一项时按整栏合一**';
+ *  · 注入面：考卷随【分值标注】（定义在使用点之前）；其余题类随【层级与组织】。**同一份实发只出现一次**。
+ *  🔴 2026-10-31（属主"清掉吧"·撤起编开关）：原"起编按 {subQuestionNumbering}"随 UI「小题编号」开关一并删除——
+ *    起编交回模型（序号体系只管"同层同构"）；本条只保留"题前加小号序号"。 */
+export const ANSWER_STEM_CALIBER = '**遮住大题标题、只看其中一项**：项内**有没有一句成句的表述（陈述或问句；外文完整句算）**——有 ⇒ **逐题独立（多题干）**（每题各自成段、题前加小号序号）；没有（只有算式、数字、符号、字母词条、待填位）⇒ **整栏合一（单题干）**（整栏只写一段、不加小号序号）；**一栏只取一种形态**：按各项**实际**形态判，形态不统一时按**整栏合一**；**例外：一栏只有一项时按整栏合一**';
   // 🔴 2026-10-28（属主真机："不该编号的编号了""小题题干后还是未标分"）·**串起来**：
   //   ① **删"要逐题独立就给每项补足自己的成句题干"**——那句在**制造**多题干（模型给口算/竖式每项补一句
   //      就能"合法地"编号），正是"不该编号的编号了"的来源。现改为**按实际形态判**，形态不统一按整栏合一。
@@ -1666,7 +1668,6 @@ export function buildInjectionInstruction(opts = {}) {
     structure = '', fullScore = '', duration = '', extra = '', label = '', semester = '', academic = '',
     stage = '', materialChannel = '',
     genType = '', scopeType = '', paperKind = '',
-    subQuestionNumbering = '',
   } = opts;
   // 1) 任务定位行（系统生成，固定最前——模型第一眼知道要干什么）
   const taskLine = `【任务】生成${genTypeLabel || '资料'}：${subject}${grade}${unit ? `·${unit}` : ''}${fullScore ? `（满分${fullScore}分${duration ? `，时长${duration}` : ''}）` : ''}`;
@@ -1677,7 +1678,6 @@ export function buildInjectionInstruction(opts = {}) {
     '{label}': label || genTypeLabel || '试卷', '{semester}': semester || '', '{academic}': academic || '',
     '{structure}': structure || '（按教材内容合理设计大题）',
     '{fullScore}': fullScore, '{duration}': duration,
-    '{subQuestionNumbering}': subQuestionNumbering || '每大题从1起',
     // 🔧 课标版本兜底：内置模板已按学段替换（buildBuiltinTemplate），此处覆盖用户自定义模板中的 {curriculum}，
     //   未传学段键时保持通用表述（与历史行为一致）
     '{curriculum}': CURRICULUM_BY_STAGE[stage] || '本学段最新课程标准',
@@ -1690,6 +1690,10 @@ export function buildInjectionInstruction(opts = {}) {
     '{material}': MATERIAL_HINT[materialChannel === 'anchor' ? 'anchor' : 'full'],
   };
   for (const [k, v] of Object.entries(map)) body = body.split(k).join(v);
+  // 2026-10-31（撤起编开关）：旧用户模板若仍带已撤除的占位符，整段删掉，避免字面泄漏到实发
+  body = body.replace(/[·\s]*小题编号[：:]\s*\{subQuestionNumbering\}/g, '')
+    .replace(/，?起编按\s*\{subQuestionNumbering\}/g, '')
+    .split('{subQuestionNumbering}').join('');
   // ✅ A18：素材段段头与说明按通道渲染（模板保持通道无关；非 anchor 通道为空操作）
   body = applyMaterialChannel(body, materialChannel);
   // 3) 用户附加要求（最后，优先级最高，可覆盖前序约束）

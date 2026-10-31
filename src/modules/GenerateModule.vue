@@ -1311,22 +1311,6 @@
             </button>
           </div>
         </div>
-        <div class="region-select-section">
-          <label class="option-label">小题编号</label>
-          <div class="region-select-row" style="gap:16px;flex-wrap:wrap;">
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;">
-              <input v-model="subQuestionNumbering" type="radio" value="per-section">
-              每大题从1起（默认）
-            </label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;">
-              <input v-model="subQuestionNumbering" type="radio" value="continuous">
-              全卷连续
-            </label>
-          </div>
-          <div style="margin-top:4px;font-size:11px;color:var(--text-tertiary);line-height:1.5;">
-            只决定小题号的起编方式。
-          </div>
-        </div>
         <div class="modal-actions">
           <button
             class="btn"
@@ -3364,7 +3348,6 @@ const batchCount = ref(1);  // 同类型一次生成份数，默认1
 // 🔧 省市差异化：正式试卷（exam）按省市取考试时长/总分（如江苏中考语数英150分、北京100分制），默认全国通用
 const examRegion = ref('');
 const examRegionOptions = EXAM_REGION_OPTIONS;
-const subQuestionNumbering = ref('per-section');
 
 // 命题范围命名统一由 paperScope.inferPaperScope 处理（选课→课名、整单元→单元名、跨单元/期中/期末/月考/专题→标签词）
 
@@ -6488,7 +6471,6 @@ const loadInstructionFromLibrary = async (genTypeOverride = '', booksOverride = 
     genType,                        // 卷别→学业质量水平（高中·按学科分型，非全科统一）：正式卷按卷别映射、教辅锚毕业合格要求（单源 config/levelMapping）
     scopeType: scopeType.value || '', // 升学卷别（gaokao=高考）→ 高考水平；其余正式卷→合格考水平
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
-    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '全卷连续' : '每大题从1起',
   });
   // 模板正文段文本缓存（分段标注用：在后续追加教辅结构蓝本段之前取前缀）
   const tplBodyText = instructionDraft.value;
@@ -6638,7 +6620,6 @@ const restoreDefaultInstruction = async () => {
     genType,                        // 卷别→学业质量水平（高中）：与 loadInstructionFromLibrary 同源
     scopeType: scopeType.value || '',
     materialChannel: resolveMaterialChannel(genType), // 📚 素材段按通道渲染（A18）
-    subQuestionNumbering: subQuestionNumbering.value === 'continuous' ? '全卷连续' : '每大题从1起',
   });
   // exam 的卷面结构已由 buildStructureText 注入模板【卷面结构】段，此处不重复；非 exam 追加教辅结构（委托正文栏目骨架）
   if (genType !== 'exam') {

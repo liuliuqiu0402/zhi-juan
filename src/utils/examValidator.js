@@ -18,7 +18,6 @@ import { CARRIER_LABELS } from '../config/blueprintSchema.js';
 import { FIGURE_DEPENDENCY_RE, SUBJECT_GRAPH_TYPES, resolveMarkCapability } from '../config/eduRenderContract.js'; // 图依赖词单一事实源（2026-09-12）；图形能力矩阵（2026-09-16 配图一致性校验用）；标记能力（2026-10-22：无能力不报缺图）
 import { CONTENT_GEN_TYPES } from '../config/promptLibrary.js'; // 内容型面集单源（2026-10-22）：该二类不注入图-题一致性条款 ⇒ 图探针不得据此告警（注入什么就验什么）
 import { checkFigurePrompts } from './figurePromptCheck.js'; // 题干 ↔ 配图 PROMPT 数量交叉校验（2026-09-16）
-import { isPerBigQuestionNumbering } from './gradeStage.js'; // 题号编法按学段分叉（与指令侧同源，2026-10-05）
 import { analyzeQuestionNumbering, extractBodyQuestionNumbers, detectCnOrdinalHeadingIssues, spaceBlankWidth, bodyBeforeAnswer, detectCarrierFormMismatch } from './contentCleaner.js'; // 题号计数/编号体系唯一口径（2026-09-17 用户追问后同源：正文/答案区不再各持正则）；extractBodyQuestionNumbers=同一口径的**题号序列**投影（2026-09-29 答案区逐题对应明细取证用，不新造正则）；汉字序号标题守卫检测器（2026-09-28，仅 warn）；括号空位宽度换算（2e0 半角 span 归一目标与归一层同源）
 
 // ---------- 通用正则 ----------
@@ -3084,8 +3083,6 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           const v = arr.filter((s) => s >= 3);
           return v.length ? `${v.length} 段（段长 ${v.join('、')}）` : '无';
         };
-        const perBigNumbering = genType === 'exam' && isPerBigQuestionNumbering(stage);
-        const numberingSegmented = bodyNum.segmented || ansNum.segmented;
         // 🔴 2026-10-10（属主裁定·消噪音）：原 `question-numbering-system`「编号体系与'全卷连续'不符」＋
         //    与之成对的 `answer-coverage`「缺同号题号／题号少于正文」两档**整支删除**——题号计数口径本身
         //    不构成"真缺陷"判据（差 ±1 就报）。（规则条目同步删。）
