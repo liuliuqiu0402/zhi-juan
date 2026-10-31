@@ -3,8 +3,8 @@
  * ============================================================
  * 这一族图的共同前提（2026-09-24 用户裁定）：**给学生看的成品资料，要进 PDF/Word、必须印刷友好**。
  *   · PDF 通道 = puppeteer setContent + page.pdf → 内联 SVG 是矢量，缩放/打印不糊；
- *   · Word 通道 = utils/docxBuilder 的 buildImageRun，只认光栅图（**不支持 svg**）
- *     → 由调用方把 SVG 光栅化成 PNG 再塞进 <img src="data:image/png;base64,…">。
+ *   · Word 通道 = utils/docxBuilder 的 buildImageRun：docx 9 支持 `type:'svg'` + fallback，
+ *     矢量源以 asvg:svgBlip 内嵌（Word 2016+ 原生矢量渲染、任意缩放清晰），同时附 300dpi PNG 供老版本回退。
  *   两条通道都不引入新依赖。
  *
  * ── 每个图种模块必须遵守的契约（新增图种照抄即可）──────────────────────────────

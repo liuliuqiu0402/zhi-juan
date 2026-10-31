@@ -83,3 +83,33 @@ describe('作文格兜底缺格', () => {
     expect(cols).toBeGreaterThanOrEqual(8);
   });
 });
+
+// 🔴 2026-10-31（属主："怎么导出的都是200字的作文格？"）：原实现无条件 max(…,200) → 全学段恒 200。
+//    现以 data-cells 为准；缺失时按学段默认格数（ZUOWEN_CELLS_BY_STAGE）兜底。
+describe('作文格格数按学段（2026-10-31 根治）', () => {
+  // 导出时末行会补空格子排满整行（pad 到 perRow），故按"行数×每行格数"核对实际格数
+  const countCols = (xml) => (xml.match(/<w:gridCol\b/g) || []).length;
+  const countCells = (xml) => (xml.match(/<w:tc>/g) || []).length;
+  const expectCells = (xml, n) => {
+    const perRow = countCols(xml);
+    expect(perRow).toBeGreaterThan(0);
+    expect(countCells(xml)).toBe(Math.ceil(n / perRow) * perRow);
+  };
+
+  it('空作文格 → 各学段默认格数（低160/中360/高480/初800/高1020）', async () => {
+    expectCells(await getDocumentXml('<div class="zuo-wen-ge"></div>', 'primary_low'), 160);
+    expectCells(await getDocumentXml('<div class="zuo-wen-ge"></div>', 'primary_mid'), 360);
+    expectCells(await getDocumentXml('<div class="zuo-wen-ge"></div>', 'primary_high'), 480);
+    expectCells(await getDocumentXml('<div class="zuo-wen-ge"></div>', 'middle'), 800);
+    expectCells(await getDocumentXml('<div class="zuo-wen-ge"></div>', 'high'), 1020);
+  });
+
+  it('data-cells 声明优先（手动插入 360 格 → 导出 360 格，不被 200 抬升）', async () => {
+    expectCells(await getDocumentXml('<div class="zuo-wen-ge" data-cells="360"></div>', 'middle'), 360);
+    expectCells(await getDocumentXml('<div class="zuo-wen-ge" data-cells="160"></div>', 'middle'), 160);
+  });
+
+  it('span 数多于 data-cells 时按实际 span 导出（不缩水）', async () => {
+    expectCells(await getDocumentXml(zwg(30), 'middle'), 30);
+  });
+});

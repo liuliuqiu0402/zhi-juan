@@ -81,9 +81,6 @@ export const blankWriteScale = (stage = '') => {
   return Number.isFinite(m[k3]) ? m[k3] : 2;
 };
 
-/** 空作文格默认补全：<div class="zuo-wen-ge"></div> → 默认 span 数 */
-export const ZUOWEN_DEFAULT_SPAN = 2;
-
 /**
  * 书写载体（学科 × 学段 → 允许的载体 class 列表）
  *  - 语文：低段田字格+米字格+拼音格；中段起正常横线
@@ -817,6 +814,17 @@ export const ZUOWEN_CELLS_PER_SCORE = {
   high: 17,
 };
 
+/** 作文格默认格数（学段五档）——手动插入与导出兜底的**单一事实源**（用户 2026-10-31 裁定：按考试卷惯例）。
+ *  低段写话不规定字数兜底 160；中段 30分×12=360；高段 30分×16=480；初中 40分×20=800；高中 60分×17=1020。
+ *  与 ZUOWEN_CELLS_PER_SCORE（按分值放大）同一换算依据，只是这里给的是**无分值场景**的定值。 */
+export const ZUOWEN_CELLS_BY_STAGE = {
+  primary_low: 160,
+  primary_mid: 360,
+  primary_high: 480,
+  middle: 800,
+  high: 1020,
+};
+
 // ==================== 用户自定义持久化 ====================
 const LAYOUT_SPEC_USER_KEY = 'wisdom_layout_spec_v1';
 
@@ -848,7 +856,7 @@ function mergeDeep(base, override) {
 
 /** 内置默认快照（只读，用于"恢复默认"比对与视图展示） */
 export const LAYOUT_SPEC_DEFAULTS = {
-  ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, ANSWER_REGION, SQUARE_GRID,
+  ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_CELLS_BY_STAGE, BLANK, WRITING_CARRIER, CARRIER_RULES, ANSWER_REGION, SQUARE_GRID,
   BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL, ANSWER_MAX_ROWS_BY_STAGE, ANSWER_NO_SCORE_ROWS,
   ANSWER_MAX_ROWS_BY_SUBJECT, ANSWER_NO_SCORE_ROWS_BY_SUBJECT,
 };
@@ -879,7 +887,7 @@ export const sanitizeBlankSpec = (b = {}) => {
 
 /** 规格组 → 顶级字段映射（LayoutSpecView 启停开关按组控制） */
 export const LAYOUT_SPEC_GROUPS = {
-  zuowen: ['ZUOWEN_CELL', 'ZUOWEN_MARK_STEP', 'ZUOWEN_DEFAULT_SPAN', 'ZUOWEN_CELLS_PER_SCORE'],
+  zuowen: ['ZUOWEN_CELL', 'ZUOWEN_MARK_STEP', 'ZUOWEN_CELLS_BY_STAGE', 'ZUOWEN_CELLS_PER_SCORE'],
   blank: ['BLANK'],
   carrier: ['WRITING_CARRIER', 'GRID_CELL'],
   answer: ['ANSWER_REGION', 'ANSWER_MAX_ROWS_BY_STAGE', 'ANSWER_NO_SCORE_ROWS', 'ANSWER_MAX_ROWS_BY_SUBJECT', 'ANSWER_NO_SCORE_ROWS_BY_SUBJECT'],
@@ -897,7 +905,7 @@ export function getMergedSpec() {
   return {
     ZUOWEN_CELL: mergeDeep(ZUOWEN_CELL, user.ZUOWEN_CELL),
     ZUOWEN_MARK_STEP: { ...ZUOWEN_MARK_STEP, ...(user.ZUOWEN_MARK_STEP || {}) },
-    ZUOWEN_DEFAULT_SPAN: user.ZUOWEN_DEFAULT_SPAN ?? ZUOWEN_DEFAULT_SPAN,
+    ZUOWEN_CELLS_BY_STAGE: { ...ZUOWEN_CELLS_BY_STAGE, ...(user.ZUOWEN_CELLS_BY_STAGE || {}) },
     // 🔧 BLANK 档位消毒（档位缝隙收口）：CSS/编辑器白名单只覆盖 blank-1..24，越界档位无样式=宽度失效；
     //    统一约束 1 ≤ minBlank ≤ maxCap ≤ maxBlank ≤ 24，wordGap 限 1..4（LayoutSpecView 上限同步，见面板 blank 组）
     BLANK: sanitizeBlankSpec({ ...BLANK, ...(user.BLANK || {}) }),
@@ -920,7 +928,7 @@ export function getMergedSpec() {
 }
 
 export default {
-  ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_DEFAULT_SPAN, BLANK, WRITING_CARRIER, CARRIER_RULES, CARRIER_DECLARATION,
+  ZUOWEN_CELL, ZUOWEN_MARK_STEP, ZUOWEN_CELLS_BY_STAGE, BLANK, WRITING_CARRIER, CARRIER_RULES, CARRIER_DECLARATION,
   ANSWER_REGION, SQUARE_GRID,
   BRACKET_GRID, ZUOWEN_FILL_CELLS, ZUOWEN_CELLS_PER_SCORE, GRID_CELL, ANSWER_MAX_ROWS_BY_STAGE, ANSWER_NO_SCORE_ROWS,
   ANSWER_MAX_ROWS_BY_SUBJECT, ANSWER_NO_SCORE_ROWS_BY_SUBJECT,

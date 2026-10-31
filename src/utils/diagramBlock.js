@@ -19,7 +19,7 @@
  * Word 导出前由 utils/docxBuilder 的 rasterizeSvgsForExport 光栅化成 PNG。
  * ============================================================
  */
-import { buildDiagramSvg, DIAGRAM_TYPES } from './diagrams/index.js';
+import { buildDiagramSvg, DIAGRAM_TYPES, paginateMindmapSpec } from './diagrams/index.js';
 import { DEFAULT_FONT } from './diagrams/shared.js';
 
 /** 浏览器内**真实字宽**测量（canvas，按 字重+字号+字体栈 实测）；无 canvas（jsdom/Node）返回 null，
@@ -166,6 +166,76 @@ export const rerenderDiagramFiguresInElement = (el, fitWidth, fontSize) => {
     if (svg) { fig.innerHTML = toResponsiveSvg(svg); done++; }
   }
   return done;
+};
+
+/**
+ * 按单页可容纳高度把正文里的**超高思维导图**拆成若干页（规格是唯一事实源，只重排、不改内容）。
+ * 为什么在 DOM 层做（2026-10-31 属主："一张 A4 纸放不下怎么办？如何分页显示？"）：
+ *   Word 的行内图片不能跨页、PDF 的 figure 又 page-break-inside:avoid —— 只能在结构层按分支拆，
+ *   每页都重画根节点、只带这一页放得下的分支；框和连线永远不被切断，字号也不缩。
+ * @param {Element} el 目标容器（导出 clone；不会影响屏幕预览）
+ * @param {object} opts { fitWidth, fontSize, maxHeightPx }
+ * @returns {number} 新增的页数（0 = 无需分页）
+ */
+export const paginateDiagramFiguresInElement = (el, opts = {}) => {
+  const width = Number(opts.fitWidth);
+  const maxH = Number(opts.maxHeightPx);
+  if (!el || !(width > 0) || !(maxH > 0)) return 0;
+  const figs = Array.from(el.querySelectorAll?.(`figure.${FIGURE_CLASS}`) || []);
+  // 量高必须与出图用**同一套口径**（字宽实测 + 字号）：字号缺省时取当前出图口径（RENDER_OPTS），
+  //   否则"按默认 13px 量、按模板 15px 画"，页高会算少、分页又差出一页。
+  const measurer = opts.measurer || getCanvasMeasurer();
+  const fontPx = Number(opts.fontSize) > 0 ? Number(opts.fontSize) : RENDER_OPTS.fontSize;
+  let extra = 0;
+  for (const fig of figs) {
+    const spec = readSpecAttr(fig.getAttribute(SPEC_ATTR));
+    if (!spec || (spec.type || 'mindmap') !== 'mindmap') continue;
+    const pages = paginateMindmapSpec(spec, {
+      fitWidth: width,
+      ...(fontPx > 0 ? { fontSize: fontPx } : {}),
+      ...(measurer ? { measurer } : {}),
+      maxHeightPx: maxH,
+    });
+    if (pages.length <= 1) continue;
+    const doc = el.ownerDocument || document;
+    const frag = doc.createDocumentFragment();
+    pages.forEach((pageSpec, i) => {
+      if (i > 0) {
+        const br = doc.createElement('div');
+        br.setAttribute('data-page-break', '');
+        br.setAttribute('style', 'page-break-after:always;height:0;overflow:hidden;');
+        frag.appendChild(br);
+      }
+      const svg = svgFromSpecAttr(JSON.stringify(pageSpec), { fitWidth: width, fontSize: fontPx > 0 ? fontPx : undefined });
+      const pageFig = doc.createElement('figure');
+      pageFig.className = FIGURE_CLASS;
+      pageFig.setAttribute('style', 'margin:12px 0;text-align:center;');
+      pageFig.setAttribute(SPEC_ATTR, JSON.stringify(pageSpec));
+      pageFig.innerHTML = toResponsiveSvg(svg);
+      frag.appendChild(pageFig);
+    });
+    fig.parentNode?.replaceChild(frag, fig);
+    extra += pages.length - 1;
+  }
+  return extra;
+};
+
+/** 同上，但作用在 HTML 字符串（PDF/HTML 导出用；片段形态，非整篇文档） */
+export const paginateDiagramsInHtml = (html, opts = {}) => {
+  const src = String(html == null ? '' : html);
+  const width = Number(opts.fitWidth);
+  const maxH = Number(opts.maxHeightPx);
+  if (!src || !(width > 0) || !(maxH > 0)) return src;
+  if (!src.includes(FIGURE_CLASS) || typeof DOMParser === 'undefined') return src;
+  try {
+    const doc = new DOMParser().parseFromString(`<div id="__k_root">${src}</div>`, 'text/html');
+    const root = doc.getElementById('__k_root');
+    if (!root) return src;
+    const extra = paginateDiagramFiguresInElement(root, opts);
+    return extra ? root.innerHTML : src;
+  } catch {
+    return src;
+  }
 };
 
 /** 规格属性 → 结构化 spec 对象（坏数据返回 null，绝不抛错） */

@@ -52,20 +52,18 @@ describe('连线题导出：match-item 方框原样导出', () => {
 
   it('每行表格之间插入空段落，阻止 Word 合并相邻表格；末行后也有间距段落', async () => {
     const xml = await getDocumentXml(MATCH_HTML);
-    const GAP_P = '<w:p><w:pPr><w:spacing w:before="75" w:after="75"/>';
+    // 间距属性顺序随 docx 序列化而变（docx 8 为 before→after，docx 9 为 after→before），断言只认属性值不认顺序
+    const GAP_P_RE = /<w:p><w:pPr><w:spacing (?:w:before="75" w:after="75"|w:after="75" w:before="75")/g;
     // 4 个空段落：3 个行间 + 1 个末行后（与后续正文的间距）
-    const gapParagraphs = [...xml.matchAll(new RegExp(GAP_P.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))];
+    const gapParagraphs = [...xml.matchAll(GAP_P_RE)];
     expect(gapParagraphs.length).toBe(4);
     // 空段落必须位于表格之间（第 i 个 gap 段落前应有 i+1 个表格）
-    let prevIdx = 0;
     for (let i = 0; i < gapParagraphs.length; i++) {
-      const gapIdx = xml.indexOf(GAP_P, prevIdx);
-      const prefixTables = (xml.slice(0, gapIdx).match(/<w:tbl>/g) || []).length;
+      const prefixTables = (xml.slice(0, gapParagraphs[i].index).match(/<w:tbl>/g) || []).length;
       expect(prefixTables).toBe(i + 1);
-      prevIdx = gapIdx + 1;
     }
     // 最后一个空段落之后不应再有表格（它就是末行与后续正文的间距）
-    const lastGapIdx = xml.lastIndexOf(GAP_P);
+    const lastGapIdx = gapParagraphs[gapParagraphs.length - 1].index;
     const suffixTables = (xml.slice(lastGapIdx).match(/<w:tbl>/g) || []).length;
     expect(suffixTables).toBe(0);
   });

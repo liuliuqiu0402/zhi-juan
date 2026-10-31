@@ -7,7 +7,8 @@
  *   diagramToPngDataUrl—— 浏览器侧把 SVG 光栅化成 PNG dataURL（**Word 通道专用**）
  *
  * 为什么要光栅化：PDF 走 puppeteer，内联 SVG 是矢量、最清晰；Word 走
- * utils/docxBuilder 的 ImageRun，**只认光栅图**（不支持 svg），所以 Word 前必须先转 PNG。
+ * utils/docxBuilder 的 ImageRun —— 矢量源以 asvg:svgBlip 内嵌（Word 2016+ 原生矢量渲染），
+ * 这里生成的 300dpi PNG 只作为老版本/不认 SVG 的阅读器的回退图。
  * 两条通道都不新增依赖（canvas 光栅化在本仓库已有用法）。
  * ============================================================
  */
@@ -105,16 +106,89 @@ export const buildDiagramSvg = (spec, opts = {}) => {
 };
 
 /**
+ * 思维导图**按一级分支分页**（规格 → 若干页规格；不改字号、不缩图、不切断框与连线）。
+ * ============================================================
+ * 为什么需要（2026-10-31 属主："一张 A4 纸放不下怎么办？如何分页显示？"）：
+ *   Word 的行内图片不能跨页、PDF 里 figure 又设了 page-break-inside:avoid —— 一幅超高导图
+ *   要么整块溢出纸外被裁、要么被迫缩字号（属主明确"不要缩小字体"）。所以只能在**结构层**拆：
+ *   每一页都重画根节点，只带这一页放得下的若干一级分支；单支自己就超高时，把该支升为这一页的"根"，
+ *   继续按它的子级拆 —— 拆分点永远在分支之间，框和连线不会被打断。
+ *
+ * @param {object} spec 导图规格（含 root）
+ * @param {object} opts 与出图同口径：fitWidth / fontSize / measurer；maxHeightPx = 单页可容纳高度
+ * @returns {Array<object>} 页规格数组；不需要分页时返回 `[spec]`
+ */
+export const paginateMindmapSpec = (spec, opts = {}) => {
+  const maxH = Number(opts.maxHeightPx) > 0 ? Number(opts.maxHeightPx) : 0;
+  const root = spec && (spec.root || spec);
+  if (!maxH || !root || typeof root !== 'object') return [spec];
+  const buildOpts = { ...opts };
+  delete buildOpts.maxHeightPx;
+  if (Number(buildOpts.fontSize) > 0) {
+    buildOpts.rootFontSize = Math.round((Number(buildOpts.fontSize) * 15) / 13);
+  }
+  const heightOf = (s) => buildDiagramSvg(s, buildOpts).height;
+  if (heightOf(spec) <= maxH) return [spec];
+
+  const baseSpec = spec;
+  const pages = [];
+  // 一页 = 根 → （中间单链祖先）→ 拆分节点 → 本页分到的若干分支
+  const pageOf = (node, ancestors, group) => {
+    if (node === root) return { ...baseSpec, root: { ...root, children: group } };
+    let built = { ...node, children: group };
+    for (let i = ancestors.length - 1; i >= 0; i -= 1) built = { ...ancestors[i], children: [built] };
+    return { ...baseSpec, root: { ...root, children: [built] } };
+  };
+  const emitGroups = (node, ancestors, depth) => {
+    const kids = node.children || [];
+    if (!kids.length) { pages.push(pageOf(node, ancestors, [])); return; }
+    let group = [];
+    for (const kid of kids) {
+      const trial = [...group, kid];
+      if (heightOf(pageOf(node, ancestors, trial)) <= maxH) { group = trial; continue; }
+      if (group.length) { pages.push(pageOf(node, ancestors, group)); group = []; }
+      const solo = pageOf(node, ancestors, [kid]);
+      if (heightOf(solo) <= maxH || depth > 16 || !(kid.children && kid.children.length)) {
+        group = [kid];
+      } else {
+        // 这一支单独仍超高 ⇒ 把它升为本页的"根"，按它的子级继续拆（拆分点仍在分支之间）
+        emitGroups(kid, [...ancestors, ...(node === root ? [] : [node])], depth + 1);
+      }
+    }
+    if (group.length) pages.push(pageOf(node, ancestors, group));
+  };
+  emitGroups(root, [], 0);
+  return pages.length ? pages : [spec];
+};
+
+/**
+ * 印刷采样倍率：屏幕 96dpi → 印刷 300dpi，倍率 300/96 ≈ 3.125。
+ * 🔴 2026-10-31（属主："导出来的导图和导图中的字看着有点模糊"·根因）：
+ *   原固定 2 倍 ≈ 192dpi，低于印刷 300dpi 标准，Word 里贴的图先天发虚。
+ */
+export const PRINT_RASTER_SCALE = 300 / 96;
+
+/** 光栅化画布上限（防超高图把内存撑爆；超限时按比例降倍率，仍远高于 200dpi） */
+const MAX_RASTER_SIDE = 8192;
+const MAX_RASTER_PIXELS = 16000000;
+
+/**
  * SVG → PNG dataURL（**Word 通道专用**）。
- * · 放大 `scale` 倍再采样，保证 Word 里贴进去打印不发虚（默认 2 倍）；
+ * · 默认按 300dpi 采样（3.125 倍），Word 里贴进去打印不发虚；画布超上限时自动降倍率；
  * · 先垫白底：SVG 透明底在 Word 里可能被当成黑色背景；
  * · 非浏览器环境（node 单测）返回 null，调用方自行降级（如直接跳过插图）。
  */
-export const diagramToPngDataUrl = (svg, { scale = 2, background = '#ffffff', timeoutMs = 4000 } = {}) => {
+export const diagramToPngDataUrl = (svg, { scale = PRINT_RASTER_SCALE, background = '#ffffff', timeoutMs = 4000 } = {}) => {
   if (typeof document === 'undefined' || typeof Image === 'undefined') return Promise.resolve(null);
   const m = /<svg[^>]*\bwidth="(\d+(?:\.\d+)?)"[^>]*\bheight="(\d+(?:\.\d+)?)"/.exec(String(svg));
   const w = m ? Number(m[1]) : 800;
   const h = m ? Number(m[2]) : 600;
+  const s = Math.max(1, Math.min(
+    Number(scale) > 0 ? Number(scale) : PRINT_RASTER_SCALE,
+    MAX_RASTER_SIDE / Math.max(1, w),
+    MAX_RASTER_SIDE / Math.max(1, h),
+    Math.sqrt(MAX_RASTER_PIXELS / Math.max(1, w * h)),
+  ));
   return new Promise((resolve) => {
     // 必须自带超时：某些环境（如 jsdom、或图片解码静默失败）onload/onerror 都不会触发，
     //    没有超时就会把导出流程**无限挂住**（比"插图失败"糟得多）。
@@ -126,8 +200,8 @@ export const diagramToPngDataUrl = (svg, { scale = 2, background = '#ffffff', ti
       clearTimeout(timer);
       try {
         const cv = document.createElement('canvas');
-        cv.width = Math.max(1, Math.round(w * scale));
-        cv.height = Math.max(1, Math.round(h * scale));
+        cv.width = Math.max(1, Math.round(w * s));
+        cv.height = Math.max(1, Math.round(h * s));
         const ctx = cv.getContext('2d');
         if (!ctx) return finish(null);
         ctx.fillStyle = background;
@@ -143,4 +217,4 @@ export const diagramToPngDataUrl = (svg, { scale = 2, background = '#ffffff', ti
   });
 };
 
-export default { DIAGRAM_TYPES, MINDMAP_LAYOUTS, buildDiagramSvg, diagramToPngDataUrl };
+export default { DIAGRAM_TYPES, MINDMAP_LAYOUTS, buildDiagramSvg, paginateMindmapSpec, diagramToPngDataUrl };

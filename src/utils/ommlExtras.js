@@ -19,7 +19,18 @@
  *    OMML 子元素顺序按 ECMA-376 规定（Properties 在前、必选主体在后），否则 Word 会判为损坏文档。
  * ============================================================
  */
-import { XmlComponent, XmlAttributeComponent, MathBase, MathAccentCharacter } from 'docx';
+import { XmlComponent, XmlAttributeComponent } from 'docx';
+
+/** 形如 `<m:e>子元素…</m:e>` 的数学基体。
+ *  🔴 2026-10-31（docx 9 升级）：上游把 `MathBase` / `MathAccentCharacter` 从公开导出中移除
+ *    （只剩 `createMathBase` 工厂），照旧 import 会拿到 undefined → 构造即抛 → 公式整体降级成文本。
+ *    这里按同一 XML 形态自建，产出与 docx 8.x 一致（`m:e` / `m:chr m:val`）。 */
+class MathBase extends XmlComponent {
+  constructor(children = []) {
+    super('m:e');
+    for (const c of asList(children)) this.root.push(c);
+  }
+}
 
 /** 通用 m:val 字符属性（docx 未导出其 begChr/endChr 属性类） */
 class CharValueAttributes extends XmlAttributeComponent {
@@ -63,7 +74,7 @@ export class MathEquationArray extends XmlComponent {
 export class MathAccent extends XmlComponent {
   constructor({ accent, children }) {
     super('m:acc');
-    this.root.push(container('m:accPr', [new MathAccentCharacter(accent)]));
+    this.root.push(container('m:accPr', [new CharValueElement('m:chr', accent)]));
     this.root.push(new MathBase(asList(children)));
   }
 }

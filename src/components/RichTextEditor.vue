@@ -479,7 +479,17 @@
           class="carrier-panel"
           style="display:inline-flex;align-items:center;gap:4px;margin-left:4px"
         >
-          <span style="font-size:12px;color:#666">{{ carrierPanel.tip }}</span>
+          <!-- 作文格按学段插入：选学段即带出该学段默认格数（考试卷惯例 160/360/480/800/1020），数字仍可手改 -->
+          <select
+            v-if="carrierPanel.kind === 'zuowen'"
+            v-model="carrierStage"
+            class="toolbar-select"
+            title="按学段插入作文格（选中后带出该学段默认格数，仍可手改）"
+            @change="onZuowenStageChange"
+          >
+            <option v-for="o in zuowenStageOptions" :key="o.value" :value="o.value">{{ o.label }}</option>
+          </select>
+          <span style="font-size:12px;color:#666">{{ panelTip }}</span>
           <input
             v-if="carrierPanel.kind !== 'notice'"
             v-model.number="carrierLen"
@@ -983,6 +993,43 @@ const DrawArea = Node.create({
   },
 });
 
+// 作文格：格数由 data-cells 承载（atom 不可编辑）。
+// 🔴 2026-10-31 根因：原 `.zuo-wen-ge` 落在 DivWrapper（content:'block+'）→ 裸 `<span>&emsp;</span>`
+//   被 ProseMirror 当空白文本裁掉，getHTML 只剩空 div（span=0），导出端只能按 200 硬编码兜底 →
+//   "不管哪个学段导出都是 200 格"。改为 atom：解析时把格数记进 cells，渲染时按 cells 还原 N 个 span，
+//   编辑器/预览/导出三处格数一致（探针 tests/utils/_probeD 已验证 160/360/480/1020 往返不丢）。
+const ZuoWenGrid = Node.create({
+  name: 'zuoWenGrid',
+  priority: 160, // > DivWrapper(100)，否则 div 先被通用 divWrapper 吃掉
+  group: 'block',
+  atom: true,
+  selectable: false,
+  parseHTML() { return [{ tag: 'div.zuo-wen-ge' }]; },
+  addAttributes() {
+    return {
+      cells: {
+        default: 0,
+        // 格数优先级：显式 data-cells > 已有 span 数 > 空白字符数（兼容模型/旧数据裸 &emsp; 形态）
+        parseHTML: (el) => {
+          const declared = Math.floor(Number(el.getAttribute('data-cells')) || 0);
+          if (declared > 0) return declared;
+          const spanCount = el.querySelectorAll('span').length;
+          if (spanCount > 0) return spanCount;
+          const text = el.textContent || '';
+          return (text.match(/\u2002|\u2003|\u3000| /g) || []).length;
+        },
+        renderHTML: (attrs) => ({ 'data-cells': String(attrs.cells || 0) }),
+      },
+    };
+  },
+  renderHTML({ node, HTMLAttributes }) {
+    const n = Math.max(0, Math.floor(Number(node.attrs.cells) || 0));
+    const children = [];
+    for (let i = 0; i < n; i++) children.push(['span', {}, '\u2002']);
+    return ['div', { ...HTMLAttributes, class: 'zuo-wen-ge' }, ...children];
+  },
+});
+
 import Paragraph from '@tiptap/extension-paragraph';
 import Heading from '@tiptap/extension-heading';
 
@@ -1227,6 +1274,8 @@ const props = defineProps({
   editable: { type: Boolean, default: true },
   minHeight: { type: String, default: '400px' },
   customCSS: { type: String, default: '' },
+  // 学段（五档键 primary_low~high / 中文别名）：作文格手动插入时按学段带出默认格数（面板内仍可改）
+  stage: { type: String, default: '' },
 });
 
 const emit = defineEmits(['update:modelValue', 'content-change']);
@@ -1349,6 +1398,7 @@ const editor = useEditor({
     SquareGrid,
     BracketGrid,
     DrawArea,
+    ZuoWenGrid,
     DivWrapper,
     DiagramFigure,
   ],
@@ -1636,6 +1686,38 @@ const carrierOptions = CARRIER_INSERT_IDS.map((id) => ({ id, label: carrierLabel
 // 内联面板状态：{ kind: 'carrier' | 'zuowen' | 'notice', id?, tip }
 const carrierPanel = ref(null);
 const carrierLen = ref(1);
+// 作文格插入时选的学段（''=未指定，按规格库兜底）；选中即带出该学段默认格数
+const carrierStage = ref('');
+// 学段下拉：选项与默认格数全部读排版规格库（ZUOWEN_CELLS_BY_STAGE），不在编辑器里写死数字
+const zuowenStageOptions = computed(() => {
+  let spec = {};
+  try { spec = getMergedSpec() || {}; } catch { spec = {}; }
+  const m = spec.ZUOWEN_CELLS_BY_STAGE || {};
+  const fb = Number(spec.ZUOWEN_FILL_CELLS) || 160;
+  const n = (k) => Number(m[k]) || fb;
+  return [
+    { value: '', label: `未指定学段（${fb} 格）` },
+    { value: 'primary_low', label: `小学低段（1–2年级）· ${n('primary_low')} 格` },
+    { value: 'primary_mid', label: `小学中段（3–4年级）· ${n('primary_mid')} 格` },
+    { value: 'primary_high', label: `小学高段（5–6年级）· ${n('primary_high')} 格` },
+    { value: 'middle', label: `初中 · ${n('middle')} 格` },
+    { value: 'high', label: `高中 · ${n('high')} 格` },
+  ];
+});
+// 面板提示：作文格直接显示"格数≈字数"，改数字即时更新（用户要求保留字数数字提示）
+const panelTip = computed(() => {
+  const p = carrierPanel.value;
+  if (!p) return '';
+  if (p.kind === 'zuowen') {
+    const n = Math.max(1, Math.floor(Number(carrierLen.value) || 1));
+    return `作文格·${n} 格（约 ${n} 字）`;
+  }
+  return p.tip;
+});
+const onZuowenStageChange = async () => {
+  const { zuowenCellsForStage } = await import('../utils/zuoWenGrid');
+  carrierLen.value = zuowenCellsForStage(carrierStage.value, 0);
+};
 const cancelCarrier = () => { carrierPanel.value = null; };
 
 const insertCarrier = (e) => {
@@ -1734,9 +1816,11 @@ const insertZuoWenGrid = async () => {
       carrierPanel.value = { kind: 'notice', tip: '此处已有作文格，如需调整请先选中删除再插入' };
       return;
     }
-    const { zuowenCellsForStage } = await import('../utils/zuoWenGrid');
-    carrierLen.value = zuowenCellsForStage('', 0);
-    carrierPanel.value = { kind: 'zuowen', tip: '作文格·格数' };
+    const { zuowenCellsForStage, normalizeStageKey } = await import('../utils/zuoWenGrid');
+    // 默认按文档学段（props.stage）带出格数；未指定时落规格库兜底，仍可在面板里选学段/改数字
+    carrierStage.value = normalizeStageKey(props.stage) || '';
+    carrierLen.value = zuowenCellsForStage(props.stage, 0);
+    carrierPanel.value = { kind: 'zuowen', tip: '' };
   } catch (e) {
     console.warn('插入作文格失败:', (e && e.message) || e);
   }

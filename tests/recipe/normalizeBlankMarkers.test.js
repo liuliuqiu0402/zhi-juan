@@ -16,9 +16,10 @@ describe('normalizeBlankMarkers（后处理排版兜底）', () => {
     expect(normalizeBlankMarkers('＿'.repeat(20))).toBe('<u class="blank-16">&emsp;</u>');
   });
 
-  it('空作文格补默认格', () => {
-    expect(normalizeBlankMarkers('<div class="zuo-wen-ge"></div>')).toContain('zuo-wen-ge');
-    expect(normalizeBlankMarkers('<div class="zuo-wen-ge"></div>')).toContain('&emsp;');
+  it('空作文格不在此补固定格数（交给编辑器节点/导出端按学段默认兜底）', () => {
+    const out = normalizeBlankMarkers('<div class="zuo-wen-ge"></div>');
+    expect(out).toContain('zuo-wen-ge');
+    expect(out).not.toContain('&emsp;');
   });
 
   it('无空白时原样返回', () => {

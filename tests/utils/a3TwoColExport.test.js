@@ -64,6 +64,11 @@ describe('A3 两栏导出（每栏页码按栏计数）', () => {
     expect(footers).not.toContain('= 2*PAGE');
     // 页脚仍是"第X页　共X页"（PAGE + SECTIONPAGES 域）
     expect(footers).toContain('PAGE');
+    // 三段式域必须带缓存结果：不自动刷新域的查看器（WPS/在线预览）也显示数字，而不是"第 页　共 页"
+    expect(footers).toContain('<w:fldChar w:fldCharType="begin" w:dirty="true"/>');
+    expect(footers).toContain('<w:instrText xml:space="preserve"> PAGE </w:instrText>');
+    expect(footers).toContain('<w:instrText xml:space="preserve"> SECTIONPAGES </w:instrText>');
+    expect(footers).toMatch(/<w:fldChar w:fldCharType="separate"\/><w:t xml:space="preserve">1<\/w:t><w:fldChar w:fldCharType="end"\/>/);
   });
 
   it('"本试卷共＿页"：A3 两栏按总栏数 =2*{SECTIONPAGES}（物理页数×2），A4 按 SECTIONPAGES 物理页数', async () => {

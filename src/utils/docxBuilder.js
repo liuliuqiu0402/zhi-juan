@@ -2,15 +2,17 @@
 // 数据源：contentEditable 实时 DOM（预览看到什么就导出什么）
 // 输出：docx 库的 Document 对象 → Packer.toBlob()
 
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, PageNumber, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader, SimpleField } from 'docx';
-// 导图（知识梳理/括号图/流程图/时间轴/鱼骨图/概念关系图）在正文里是**内联 SVG**（PDF 通道靠它保持矢量），
-//    而 docx 的 ImageRun **不支持 svg** → Word 导出前必须把 SVG 光栅化成 PNG，否则图表在 Word 里直接消失。
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, HeadingLevel, BorderStyle, VerticalAlign, HeightRule, ImageRun, PageBreak, LineRuleType, Footer, Header, TableLayoutType, PositionalTab, PositionalTabAlignment, PositionalTabRelativeTo, PositionalTabLeader, SimpleField } from 'docx';
+// 导图（知识梳理/括号图/流程图/时间轴/鱼骨图/概念关系图）在正文里是**内联 SVG**（PDF 通道靠它保持矢量）。
+//    Word 通道：docx 9 的 ImageRun 支持 `type: 'svg'` + `fallback` → 原生矢量内嵌（2016+ 清晰到任意缩放），
+//    老版本/不认 SVG 的阅读器回退到同时生成的 300dpi PNG（见 rasterizeSvgsForExport）。
 import { diagramToPngDataUrl } from './diagrams/index.js';
-import { PRINT_SAFE_WIDTH } from './diagramBlock.js';
+import { PRINT_SAFE_WIDTH, paginateDiagramFiguresInElement } from './diagramBlock.js';
 import { TZG_MARKER, TZG_PINYIN_MARKER, MZG_MARKER, MZG_PINYIN_MARKER, FLT_MARKER, FLT_BLANK_MARKER, RUBY_MARKER, SEAL_MARKER, SEAL_MARKER_LINE, SEAL_MARKER_RIGHT, SEAL_MARKER_LINE_RIGHT, SQUARE_BOX_MARKER, CIRCLE_BOX_MARKER, injectDrawingML, EMU_PER_DXA as _EMU_PER_DXA } from './drawingMLShapes.js';
 import { splitSealContinuation, classifySealTokens, tokenizeSealText } from '../themeConfig.js';
 import { getMergedSpec, normalizeStage3, blankWriteScale } from '../config/layoutSpec.js';
-import { PAPER_PRESETS, normalizeLayout } from '../config/paperPresets.js';
+import { resolveStageKey } from './gradeStage.js'; // 学段→五档键唯一事实源（作文格默认格数按五档取）
+import { PAPER_PRESETS, normalizeLayout, contentWidthPx, diagramPageMaxHeightPx } from '../config/paperPresets.js';
 import { decodeEntities } from './escape.js'; // 实体解码唯一实现 utils/escape（曾 data-image-raw/data-graph-raw 两条同构链 + GenerateModule 副本）
 import { splitMathSegments, MATH_PREVIEW_ATTR, MATH_LATEX_ATTR, MATH_SRC_CLASS } from './mathSyntax.js'; // 公式定界语法与编辑器公式 widget 标记（零依赖，勿从 mathPreview 引以免拖入 Tiptap）
 // 有序列表编号形式的唯一事实源（1/a/A/i/I/（1）/一、/①）：Word 不认 CSS 编号，按字面前缀写；
@@ -348,7 +350,7 @@ const buildTextRuns = (node, styleOverride = {}) => {
                 if (j > 0) {
                   const children = __colCount > 1
                     ? ['本试卷共', new SimpleField(`= ${__colCount}*SECTIONPAGES`, String(__colCount)), '页']
-                    : ['本试卷共', PageNumber.TOTAL_PAGES_IN_SECTION, '页'];
+                    : ['本试卷共', new SimpleField('SECTIONPAGES', '1'), '页'];
                   runs.push(new TextRun(ctxRun({ children })));
                 }
                 if (seg) runs.push(new TextRun(ctxRun({ text: seg })));
@@ -935,7 +937,26 @@ export const buildTianZiGePinyinMarker = (gridChar, pinyin, sizeHp, _fontFamily,
 
 // ============ 图片导出 ============
 
-/** <img> → ImageRun（尺寸限制页宽内，比例不变） */
+/** 字符串 → UTF-8 base64（SVG 源里有中文，不能直接 btoa 原串） */
+const toBase64Utf8 = (str) => {
+  const s = String(str == null ? '' : str);
+  if (typeof TextEncoder !== 'undefined') {
+    const bytes = new TextEncoder().encode(s);
+    let bin = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    return btoa(bin);
+  }
+  return btoa(unescape(encodeURIComponent(s)));
+};
+
+/** <img> → ImageRun（尺寸限制页宽内，比例不变）
+ *  🔴 2026-10-31（属主："还是不够清晰，不像文字直接编辑那种清晰度"·根因）：
+ *    位图再高 DPI 也是"画出来的字"——Word 缩放时由它插值，永远比不过 Word 自己排的矢量文字。
+ *    所以导图（带 `data-k-svg` 矢量源）按 SVG 内嵌：Word 2016+ 原生渲染矢量、任意缩放都清晰，
+ *    不支持的版本自动回退到那张 300dpi PNG（fallback 与 SVG 同尺寸，版面不会跳）。 */
 const buildImageRun = (imgEl) => {
   const src = imgEl.getAttribute('src') || imgEl.getAttribute('_inlined') || '';
   if (!src || !src.startsWith('data:')) return null;
@@ -950,10 +971,19 @@ const buildImageRun = (imgEl) => {
     // 读取渲染尺寸
     let w = imgEl.getBoundingClientRect?.().width || parseInt(imgEl.getAttribute('width')) || 320;
     let h = imgEl.getBoundingClientRect?.().height || parseInt(imgEl.getAttribute('height')) || 240;
-    const maxW = 590; // A4 正文可用像素
+    const maxW = __imageMaxW > 0 ? __imageMaxW : PRINT_SAFE_WIDTH; // 当前纸张每栏版心宽（A4 单栏 643px）
     if (w > maxW) { h = Math.round(h * (maxW / w)); w = maxW; }
     if (w < 10) w = 100;
     if (h < 10) h = 75;
+    const svgSource = imgEl.getAttribute('data-k-svg');
+    if (svgSource) {
+      return new ImageRun({
+        type: 'svg',
+        data: `data:image/svg+xml;base64,${toBase64Utf8(svgSource)}`,
+        fallback: { type: 'png', data: src },
+        transformation: { width: Math.round(w), height: Math.round(h) },
+      });
+    }
     const typeMap = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/webp': 'png' };
     const imgType = typeMap[mimeType] || 'png';
     return new ImageRun({ data: bytes, transformation: { width: Math.round(w), height: Math.round(h) }, type: imgType });
@@ -1133,6 +1163,10 @@ const ANSWER_SPLIT_MARKER = Symbol('answer-section-split');
 let __zwgStage = 'middle';
 let __zwgPerRow = 20;
 let __colCount = 0;
+// 图片最大宽度（px @96dpi）＝当前纸张的**每栏版心宽**，buildDocxFromDom 启动时设置。
+// 🔴 2026-10-31（属主："导出来的导图和导图中的字看着有点模糊"·根因之一）：
+//   原 buildImageRun 写死 590px，而 A4 版心是 643px —— 图片被白缩 8%，既小又虚。
+let __imageMaxW = PRINT_SAFE_WIDTH;
 
 /** 密封线 marker 段落（放页眉，后处理替换为浮动文本框；lineOnly 时仅 虚线+密/封/线；mirror 时偶页镜像到右侧靠书脊） */
 const sealMarkerParagraph = (fields, sizeHp, lineOnly = false, mirror = false) => {
@@ -1146,9 +1180,9 @@ const sealMarkerParagraph = (fields, sizeHp, lineOnly = false, mirror = false) =
 
 /** 页码页脚段落："第X页　共X页"（PAGE + 域，显式纯黑）
  *  totalField 默认 SECTIONPAGES：正文分节"共X页"只计正文（不含答案页），答案分节"共X页"只计答案页自身。 */
-const pageNumberParagraph = (totalField = PageNumber.TOTAL_PAGES_IN_SECTION) => new Paragraph({
+const pageNumberParagraph = (totalField = new SimpleField('SECTIONPAGES', '1')) => new Paragraph({
   alignment: AlignmentType.CENTER,
-  children: [new TextRun({ children: ['第 ', PageNumber.CURRENT, ' 页　共 ', totalField, ' 页'], size: 18, color: '000000' })],
+  children: [new TextRun({ children: ['第 ', new SimpleField('PAGE', '1'), ' 页　共 ', totalField, ' 页'], size: 18, color: '000000' })],
 });
 
 /** 多栏页脚（2026-08）：每栏一个页码、按栏计数——无边框表格，数据列与栏距空隙列交替，
@@ -1278,18 +1312,29 @@ const processBlockNode = (node, ctx = {}) => {
 
   // ===== 作文格 =====
   if (cls.contains('zuo-wen-ge')) {
+    // 🔴 2026-10-31（属主："怎么导出的都是200字的作文格？"）根因：原实现无条件 `Math.max(…,200)`
+    //   → 任何学段、任何实际格数都被抬到 200。现以编辑器节点声明的 data-cells 为准（手动/模型给的格数原样导出）；
+    //   只有 data-cells 缺失/为 0 时才按空白字符数或**该学段默认格数**兜底。
+    const declared = Math.floor(Number(node.getAttribute('data-cells')) || 0);
     let spans = [...node.querySelectorAll('span')];
-    // 🔧 兜底：AI 可能输出直接 &emsp; 文本（无 span 格子）或空方框，导致导出空白——
-    //    按内容中的空白字符数生成格子；完全无内容时默认 20×10 行，保证答题区不空白
     if (spans.length === 0) {
       const text = node.textContent || '';
-      const emCount = (text.match(/\u2003|　| /g) || []).length;
-      const n = Math.max(emCount, 200);
+      // 空白字符口径覆盖 en-space(U+2002，即 &emsp;) / em-space / 全角空格 / 半角空格
+      const wsCount = (text.match(/\u2002|\u2003|\u3000| /g) || []).length;
+      const byStage = (getMergedSpec().ZUOWEN_CELLS_BY_STAGE || {})[resolveStageKey(__zwgStage)] ?? 160;
+      const n = declared > 0 ? declared : Math.max(wsCount, byStage);
       spans = Array.from({ length: n }, () => {
         const s = document.createElement('span');
         s.textContent = ' ';
         return s;
       });
+    } else if (declared > spans.length) {
+      // data-cells 声明数大于实际 span（历史数据被旧 schema 裁过）：按声明补齐，不再缩水
+      while (spans.length < declared) {
+        const s = document.createElement('span');
+        s.textContent = ' ';
+        spans.push(s);
+      }
     }
     if (spans.length > 0) {
       // 🔧 格子尺寸按学段（来自排版规格库 mm → DXA；解析时 __zwgStage 已由 buildDocxFromDom 设置）
@@ -2231,6 +2276,7 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
   const pageH = Math.round(preset.hMm * MM2DXA);
   const columnCount = preset.cols;
   __colCount = isMultiCol ? columnCount : 0; // "本试卷共X页"按总栏数 =N*SECTIONPAGES 填充（buildTextRuns 读取）
+  __imageMaxW = contentWidthPx(layout); // 图片按每栏版心收敛（A4 单栏 643px，与导图重排口径一致）
   // 🔧 作文格学段（来自排版规格库 ZUOWEN_CELL：小学12/初中10/高中7.5mm），buildDocxFromDom 启动时设置
   __zwgStage = stage || 'middle';
   // 🔧 作文格每行格子数按「每栏可用宽度」放最多整数格子——必须在 processBlockNode 之前计算
@@ -2409,12 +2455,11 @@ export const buildDocxFromDom = (containerEl, stage = 'middle', layout = 'a4') =
 
 
 /**
- * 内联 `<svg>` → `<img src="data:image/png;base64,…">`（**Word 通道专用**）
- * 为什么必须做：正文里的导图是内联 SVG（PDF 走 puppeteer，矢量最清晰），但 docx 的
- *    ImageRun 只认光栅图（见 buildImageRun 的 typeMap：png/jpg/gif/bmp），不转就整张图消失。
- * 做法：把每个 `<svg>` 序列化 → canvas 光栅化（2 倍采样，印刷不发虚）→ 用 `<img>` 替换原节点。
- *    这样 buildImageRun 与整棵 walker 都不用改；调用方传的都是 clone（临时挂在 body 上），
- *    替换不会影响屏幕上的预览。
+ * 内联 `<svg>` → `<img src="data:image/png;base64,…" data-k-svg="<矢量源>">`（**Word 通道专用**）
+ * 为什么必须做：Word 的 walker 只处理 `<img>`。这里把每个 `<svg>` 序列化后：
+ *   ① 光栅化成 300dpi PNG（老版本 Word / 不认 SVG 的阅读器的回退图）；
+ *   ② 把矢量源挂在 `data-k-svg` 上 → buildImageRun 据此按 `type:'svg'` 内嵌（Word 2016+ 矢量渲染）。
+ * 调用方传的都是 clone（临时挂在 body 上），替换不会影响屏幕上的预览。
  * 失败（无 canvas / 解码超时）时**保留原 SVG 并只警告**：宁可 Word 里缺这一张图，
  *    也绝不能让整个导出失败或挂死。
  */
@@ -2425,7 +2470,7 @@ const rasterizeSvgsForExport = async (container, maxWidthPx = PRINT_SAFE_WIDTH) 
   for (const svgEl of svgs) {
     try {
       const svgText = new XMLSerializer().serializeToString(svgEl);
-      const dataUrl = await diagramToPngDataUrl(svgText, { scale: 2 });
+      const dataUrl = await diagramToPngDataUrl(svgText);
       if (!dataUrl) throw new Error('光栅化未返回数据');
       const w0 = Number(svgEl.getAttribute('width')) || 600;
       const h0 = Number(svgEl.getAttribute('height')) || 400;
@@ -2441,13 +2486,17 @@ const rasterizeSvgsForExport = async (container, maxWidthPx = PRINT_SAFE_WIDTH) 
       img.setAttribute('src', dataUrl);
       img.setAttribute('width', String(w));
       img.setAttribute('height', String(h));
+      // 🔴 2026-10-31（属主："不像文字直接编辑那种清晰度"）：把矢量源一并带上，
+      //   buildImageRun 据此按 SVG 内嵌（Word 2016+ 矢量渲染）；这里的 PNG 只当老版本回退。
+      //   去掉屏幕用的响应式 style（Word 的 SVG 渲染器不需要百分比宽度，留着反而可能算错尺寸）。
+      img.setAttribute('data-k-svg', svgText.replace(/^<svg\s+style="max-width:100%;height:auto"\s/, '<svg '));
       svgEl.parentNode?.replaceChild(img, svgEl);
       done++;
     } catch (e) {
       console.warn('⚠️ 导图转 PNG 失败，Word 里这张图会缺失：', e?.message || e);
     }
   }
-  if (done) console.log(`🖼️ Word 导出：已把 ${done} 张导图从 SVG 光栅化为 PNG`);
+  if (done) console.log(`🖼️ Word 导出：${done} 张导图已内嵌矢量 SVG（附 300dpi PNG 回退）`);
   return done;
 };
 
@@ -2455,11 +2504,21 @@ const rasterizeSvgsForExport = async (container, maxWidthPx = PRINT_SAFE_WIDTH) 
  *  stage: primary_low~high/primary/middle/high/中文 —— 作文格格子尺寸按学段归一化
  *  （小学 12mm / 初中 10mm / 高中 7.5×8mm，来自排版规格库 ZUOWEN_CELL）
  *  layout: 'a4'（默认，单栏）/ 'a3-2col'（A3 横向两栏 + 每栏页码按栏计数） */
-export const htmlToDocxBlob = async (containerEl, stage = 'middle', layout = 'a4') => {
+export const htmlToDocxBlob = async (containerEl, stage = 'middle', layout = 'a4', opts = {}) => {
   // 🔧 预内联外部图片：fetch → dataURL 写入 _inlined 属性
   await inlineImagesForExport(containerEl);
-  // 🔧 导图是内联 SVG（PDF 通道要矢量），Word 只认光栅图 → 先光栅化成 PNG 替成 <img>
-  await rasterizeSvgsForExport(containerEl);
+  // 🔴 2026-10-31（属主："一张 A4 纸放不下怎么办？如何分页显示？"）：
+  //   Word 的行内图片**不能跨页**，超高一页的导图只能整块溢出/被裁 → 先按一级分支拆成若干页
+  //   （每页重画根节点、只带这一页放得下的分支，字号不缩、框与连线不断）。
+  const contentW = contentWidthPx(layout);
+  paginateDiagramFiguresInElement(containerEl, {
+    fitWidth: contentW,
+    fontSize: opts.diagramFontSize,
+    maxHeightPx: diagramPageMaxHeightPx(layout),
+  });
+  // 🔧 导图是内联 SVG（PDF 通道直接用矢量）；Word 的 walker 只处理 <img> → 先光栅化成 PNG 替成 <img>，
+  //    同时把矢量源挂到 data-k-svg，供 buildImageRun 按 SVG 内嵌（PNG 只当老版本回退）
+  await rasterizeSvgsForExport(containerEl, contentW);
   const doc = buildDocxFromDom(containerEl, stage, layout);
   const blob = await Packer.toBlob(doc);
   const buffer = await blob.arrayBuffer();

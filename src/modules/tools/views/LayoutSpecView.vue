@@ -392,7 +392,12 @@ const SPEC_GROUPS = [
       { path: 'ZUOWEN_MARK_STEP.primary', label: '小学标注步长', unit: '格/标', type: 'number', min: 10, max: 200, step: 10 },
       { path: 'ZUOWEN_MARK_STEP.middle', label: '初中标注步长', unit: '格/标', type: 'number', min: 10, max: 200, step: 10 },
       { path: 'ZUOWEN_MARK_STEP.high', label: '高中标注步长', unit: '格/标', type: 'number', min: 10, max: 200, step: 10 },
-      { path: 'ZUOWEN_DEFAULT_SPAN', label: '空格默认补全', unit: '格', type: 'number', min: 1, max: 10, step: 1 },
+      // 作文格默认格数（无分值场景的定值；手动插入与导出兜底同读此表）
+      { path: 'ZUOWEN_CELLS_BY_STAGE.primary_low', label: '低段默认格数', unit: '格', type: 'number', min: 50, max: 400, step: 10 },
+      { path: 'ZUOWEN_CELLS_BY_STAGE.primary_mid', label: '中段默认格数', unit: '格', type: 'number', min: 50, max: 500, step: 10 },
+      { path: 'ZUOWEN_CELLS_BY_STAGE.primary_high', label: '高段默认格数', unit: '格', type: 'number', min: 50, max: 600, step: 10 },
+      { path: 'ZUOWEN_CELLS_BY_STAGE.middle', label: '初中默认格数', unit: '格', type: 'number', min: 50, max: 900, step: 10 },
+      { path: 'ZUOWEN_CELLS_BY_STAGE.high', label: '高中默认格数', unit: '格', type: 'number', min: 50, max: 1200, step: 10 },
       { path: 'ZUOWEN_CELLS_PER_SCORE.primary_low', label: '低段每分格数', unit: '格/分', type: 'number', min: 2, max: 20, step: 1 },
       { path: 'ZUOWEN_CELLS_PER_SCORE.primary_mid', label: '中段每分格数', unit: '格/分', type: 'number', min: 2, max: 25, step: 1 },
       { path: 'ZUOWEN_CELLS_PER_SCORE.primary_high', label: '高段每分格数', unit: '格/分', type: 'number', min: 2, max: 30, step: 1 },

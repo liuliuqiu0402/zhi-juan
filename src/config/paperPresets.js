@@ -36,3 +36,19 @@ export const contentWidthMm = (layout) => {
 
 /** 单栏版心宽度（px @96dpi）——导图"折行上限"按它算（不再写死像素常数） */
 export const contentWidthPx = (layout) => Math.round((contentWidthMm(layout) * 96) / 25.4);
+
+/**
+ * 导图分页安全余量（mm）：页眉页脚、图前图后的段距之外再留一点，
+ * 保证每一页的导图都能**完整落在同一页**（Word 的行内图片不能跨页，超一点就整块溢出）。
+ */
+export const DIAGRAM_PAGE_RESERVE_MM = 10;
+
+/**
+ * 单页可容纳的导图最大高度（px @96dpi）。
+ * 口径 = 纸高 − 上下页边距 − 安全余量；A4 竖版 (297−20×2−10)mm ≈ 933px。
+ * 导图超过它时按一级分支分页（见 utils/diagrams/index.js 的 paginateMindmapSpec）。
+ */
+export const diagramPageMaxHeightPx = (layout) => {
+  const p = PAPER_PRESETS[normalizeLayout(layout)];
+  return Math.round(((p.hMm - PAGE_MARGIN_MM * 2 - DIAGRAM_PAGE_RESERVE_MM) * 96) / 25.4);
+};

@@ -28,13 +28,13 @@ describe('排版规格库：规格组启停开关（停用 = 该组用户覆盖�
     saveLayoutSpecOverride({
       ZUOWEN_CELL: { primary: { widthMm: 30 } },
       ZUOWEN_MARK_STEP: { primary: 99 },
-      ZUOWEN_DEFAULT_SPAN: 9,
+      ZUOWEN_CELLS_BY_STAGE: { middle: 900 },
     });
     setLibToggle('layout-spec', 'zuowen', false);
     const spec = getMergedSpec();
     expect(spec.ZUOWEN_CELL.primary.widthMm).not.toBe(30);
     expect(spec.ZUOWEN_MARK_STEP.primary).not.toBe(99);
-    expect(spec.ZUOWEN_DEFAULT_SPAN).not.toBe(9);
+    expect(spec.ZUOWEN_CELLS_BY_STAGE.middle).not.toBe(900);
   });
 
   it('停用一组不影响其他组（解答区用户覆盖仍合并）', () => {

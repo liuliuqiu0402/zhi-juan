@@ -330,6 +330,7 @@
               v-model="rawHtmlContent"
               :custom-c-s-s="themeCSS || ''"
               :min-height="'auto'"
+              :stage="effStage"
               @content-change="onRichEditorChange"
             />
           </div>
@@ -497,8 +498,8 @@ import {
 } from '../themeConfig.js';
 import { APP_EVENTS } from '../constants/events.js';
 import { PAPER_PRESETS } from '../config/paperPresets.js';
-import { contentWidthPx } from '../config/paperPresets.js';
-import { rerenderDiagramsForWidth, rerenderDiagramFiguresInElement, setDiagramRenderOptions, diagramFontPxFromPt } from '../utils/diagramBlock.js'; // 导图按纸张栏宽/模板字号重排（折行上限交给排版版面）
+import { contentWidthPx, diagramPageMaxHeightPx } from '../config/paperPresets.js';
+import { rerenderDiagramsForWidth, rerenderDiagramFiguresInElement, setDiagramRenderOptions, diagramFontPxFromPt, paginateDiagramsInHtml } from '../utils/diagramBlock.js'; // 导图按纸张栏宽/模板字号重排 + 超高导图按分支分页
 import { normalizeGenType } from '../config/expertKnowledge.js'; // 资料类型 key 归一（门控唯一判据：key/显示名两值域）
 import { getMergedSpec, normalizeStage3, blankWriteScale } from '../config/layoutSpec.js'; // 作文格/书写格尺寸按学段（排版规格库）＋ 空位手写系数
 import RichTextEditor from '../components/RichTextEditor.vue';
@@ -1238,6 +1239,14 @@ const exportDocument = async () => {
       wrapped = stripSealStructure(wrapped);
       wrapped = wrapped.replace(/(答题前，请将)密封线内的(学校、班级、姓名、学号填写清楚。)/, '$1$2');
     }
+    // 🔴 2026-10-31（属主："一张 A4 纸放不下怎么办？如何分页显示？"）：
+    //   PDF/HTML 通道里 figure 是 page-break-inside:avoid（不能跨页），超高一页的导图会被裁/溢出。
+    //   这里按**一级分支**拆成若干页（每页重画根节点、字号不缩、框与连线不断），页间插分页符。
+    wrapped = paginateDiagramsInHtml(wrapped, {
+      fitWidth: contentWidthPx(paperLayout.value),
+      fontSize: diagramFontPx.value,
+      maxHeightPx: diagramPageMaxHeightPx(paperLayout.value),
+    });
     previewContentForExport = applyThemeToContent(wrapped, effectiveThemeFor(exportSrc), {
       isHtmlContent: true,
       forceImportant: true,
@@ -1425,7 +1434,9 @@ const exportDocument = async () => {
       try {
         // 只传 clone（不含 style 标签），避免 CSS 被当成正文
          // 🔧 作文格格子按学段尺寸（排版规格库 ZUOWEN_CELL），学段 = 文档学段/手动选择（未选择→中性默认）
-        const blob = await htmlToDocxBlob(clone, effStage.value || STAGE_NEUTRAL, paperLayout.value);
+        const blob = await htmlToDocxBlob(clone, effStage.value || STAGE_NEUTRAL, paperLayout.value, {
+          diagramFontSize: diagramFontPx.value, // 分页重画导图时与正文模板字号同口径
+        });
         document.body.removeChild(wrapper);
         downloadBlob(blob, `${exportBaseName.value}.docx`);
       } finally {

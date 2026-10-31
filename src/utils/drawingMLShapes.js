@@ -849,6 +849,12 @@ export const injectDrawingML = async (zipBuffer) => {
     const rawInstr = instrMatch ? instrMatch[1] : '';
     const cachedMatch = /<w:t[^>]*>([^<]*)<\/w:t>/.exec(inner);
     const cached = cachedMatch ? cachedMatch[1] : '1';
+    // 单一页字段（PAGE / NUMPAGES / SECTIONPAGES / SECTION）：直接平铺三段式。
+    //   不能走下面的公式拆分——拆分会把整条指令包成"内层嵌套域"，外层域没有 instrText（空指令），Word 解析异常。
+    const bareInstr = rawInstr.trim();
+    if (/^(PAGE|NUMPAGES|SECTIONPAGES|SECTION)$/.test(bareInstr)) {
+      return `<w:fldChar w:fldCharType="begin" w:dirty="true"/><w:instrText xml:space="preserve"> ${bareInstr} </w:instrText><w:fldChar w:fldCharType="separate"/><w:t xml:space="preserve">${cached}</w:t><w:fldChar w:fldCharType="end"/>`;
+    }
     // 拆分公式指令，把 PAGE/SECTIONPAGES/NUMPAGES/SECTION 域引用转为嵌套域（{ PAGE } 语法）
     const segments = rawInstr.split(/\b(PAGE|SECTIONPAGES|NUMPAGES|SECTION)\b/);
     let innerXml = '';

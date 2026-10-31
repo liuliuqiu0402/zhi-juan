@@ -3251,6 +3251,9 @@ import { createDefaultSectionProperties, getPrintCss } from '../utils/wordExport
 //    （PDF 走 page.setContent，无 base URL / 无网络 → 相对字体解析不到，必须内联）
 import { renderMathInHtml, withKatexStyles } from '../utils/mathRender.js';
 import { htmlToDocxBlob } from '../utils/docxBuilder.js';
+// 超高思维导图按分支分页（PDF/HTML 通道的 figure 不能跨页；与排版模块同口径）
+import { paginateDiagramsInHtml } from '../utils/diagramBlock.js';
+import { contentWidthPx, diagramPageMaxHeightPx } from '../config/paperPresets.js';
 import { GEN_CONST } from '../config/generationConstants.js';
 import storage from '../utils/storage';
 import { normalizeSealStructure, wrapContentForTheme, applyThemeToContent } from '../themeConfig.js';  // 🔧 密封线结构归一化 + 试卷主题包装（导出与排版模块一致）
@@ -9250,6 +9253,12 @@ const downloadDoc = async (doc, format) => {
       const decoded = decodeEntities(raw); // 实体解码唯一实现 utils/escape（曾本地 4 段 split/join 链）
       const pm = decoded.match(/PROMPT:\s*(.+)/);
       return pm ? `〔配图位置：${pm[1].trim()}〕` : '〔配图位置〕';
+    });
+    // 🔴 2026-10-31（属主："一张 A4 纸放不下怎么办？如何分页显示？"）：
+    //   PDF 通道 figure 是 page-break-inside:avoid（不能跨页）→ 超高导图按一级分支拆页。
+    pdfSrc = paginateDiagramsInHtml(pdfSrc, {
+      fitWidth: contentWidthPx('a4'),
+      maxHeightPx: diagramPageMaxHeightPx('a4'),
     });
     // 公式渲染：$…$ / $$…$$ → KaTeX 印刷形态（分式叠排、根号、积分号）。
     //    原 convertFormulasInHtml 只把它降级成 "a/b" 文本，与契约"公式禁止用文本堆砌"相矛盾。

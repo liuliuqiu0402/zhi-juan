@@ -1166,7 +1166,8 @@ export function markSoloBlankLines(html = '') {
 /**
  * 空白规范化（normalizeBlankMarkers）：后处理排版兜底——AI 输出为"一大段文本"时由代码补排版要素：
  *   1) <u>＿＿＿</u> / 纯文本 ＿N 个 → 带宽度等级的填空横线 blank-N（宽度换算唯一事实源 = blankWidthForChars）
- *   2) 空作文格 <div class="zuo-wen-ge"></div> → 补默认格
+ *   2) 空作文格 <div class="zuo-wen-ge"></div> 保持原样——格数由编辑器节点（data-cells）与导出端按学段默认兜底，
+ *      此处补固定格数会把所有学段钉成同一个值
  * 排版要素（田字格/四线三格/图区）若 AI 未输出则保持原样，由导出层按学科排版兜底。
  * ============================================================
  * 入口顺序：① 数字实体解码 → ② 密封信息栏 ＿ 保护 → ③ 各空白/括号/下划线归一 → ④ 还原密封占位。
@@ -1334,7 +1335,8 @@ export function normalizeBlankMarkers(html = '') {
     const em = (m.match(/＿/g) || []).length + (m.match(/_/g) || []).length * 0.5;
     return `<u class="blank-${blankWidthForChars(em)}">&emsp;</u>`;
   });
-  out = out.replace(/<div class="zuo-wen-ge">\s*<\/div>/g, `<div class="zuo-wen-ge">${'<span>&emsp;</span>'.repeat(Math.max(1, getMergedSpec().ZUOWEN_DEFAULT_SPAN))}</div>`);
+  // 🔴 2026-10-31：删除「空作文格补 N 个 span」规则——空 div 交给编辑器节点（data-cells=0）与导出端
+  //   按**学段默认格数**兜底；此处补固定格数会让所有学段都被钉成同一个值（正是"导出都是 200 格"的来源之一）。
   // 🔧 空格宽+括号空 双载体剥除（2026-09 实证：0.09＝　　（　　）——模型按"答案宽度换算"先输出
   //    全角空格串、其后又叠一个括号空 → 同一答案空两种载体（导出成"方框后括号"）。
   //    括号空已在上方归一为 <span class="blank-N">&emsp;</span>，此处剥除其前 ≥2 字符的冗余空白宽，

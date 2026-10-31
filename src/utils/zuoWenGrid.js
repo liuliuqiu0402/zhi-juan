@@ -7,10 +7,11 @@
  *     · buildZuoWenGridHtml —— 作文格 HTML（**与渲染端/导出端认的 class 一致**）
  *
  * 格数口径（layoutSpec，非本文件定义，勿在此硬编码数值）：
- *   格数 = max( ZUOWEN_FILL_CELLS , 分值 × ZUOWEN_CELLS_PER_SCORE[学段] )
+ *   格数 = max( ZUOWEN_CELLS_BY_STAGE[学段] , 分值 × ZUOWEN_CELLS_PER_SCORE[学段] )
+ *   - ZUOWEN_CELLS_BY_STAGE：无分值场景的定值（低160/中360/高480/初800/高1020，考试卷惯例）
  *   - ZUOWEN_CELLS_PER_SCORE：每分格数，按学段五档（低8/中12/高16/初20/高17）
- *   - ZUOWEN_FILL_CELLS：兜底格数（低段写话不规定字数，兜底足够）
- *   手动场景通常无分值 → score 缺省 0，即取兜底格数；如需按分值给，传入 score 即可。
+ *   - ZUOWEN_FILL_CELLS：学段未指定时的最终兜底（160）
+ *   手动场景通常无分值 → score 缺省 0，即取该学段定值；如需按分值给，传入 score 即可。
  *
  * 形态约束（与 contentCleaner「空格默认补全」一致）：
  *   <div class="zuo-wen-ge"><span>&emsp;</span>…</div>（每格一个 span；渲染/导出按 ZUOWEN_CELL 画格）
@@ -44,8 +45,10 @@ export function normalizeStageKey(stage) {
  */
 export function zuowenCellsForStage(stageKey, score = 0) {
   const spec = getMergedSpec() || {};
-  const base = Number(spec.ZUOWEN_FILL_CELLS) || 160;
-  const perScore = (spec.ZUOWEN_CELLS_PER_SCORE || {})[normalizeStageKey(stageKey)] || 10;
+  const key = normalizeStageKey(stageKey);
+  const byStage = (spec.ZUOWEN_CELLS_BY_STAGE || {})[key];
+  const base = Number(byStage) || Number(spec.ZUOWEN_FILL_CELLS) || 160;
+  const perScore = (spec.ZUOWEN_CELLS_PER_SCORE || {})[key] || 10;
   const byScore = Math.max(0, Number(score) || 0) * perScore;
   return Math.max(base, byScore);
 }

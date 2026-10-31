@@ -2128,8 +2128,12 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
           // 讲解表/非题干命中（或答案区外无编号无分值说明）→ debug 级留痕，不进用户问题列表
           silentCount('writing-grid', '关键词仅命中讲解/表内说明（无编号且无分值的写话字样），非作答写话题，不补格不报告', 'debug');
         } else {
-          const fillCellsBase = getMergedSpec().ZUOWEN_FILL_CELLS || 160;
-          const perScore = (getMergedSpec().ZUOWEN_CELLS_PER_SCORE || {})[normalizeStage(stage)] || 10;
+          const stageKey5 = normalizeStage(stage);
+          // 🔴 2026-10-31：兜底基线按**学段定值**（ZUOWEN_CELLS_BY_STAGE：低160/中360/高480/初800/高1020），
+          //   不再全学段统一 160 —— 无分值的写话题也要给够该学段的格子。
+          const fillCellsBase = (getMergedSpec().ZUOWEN_CELLS_BY_STAGE || {})[stageKey5]
+            ?? (getMergedSpec().ZUOWEN_FILL_CELLS || 160);
+          const perScore = (getMergedSpec().ZUOWEN_CELLS_PER_SCORE || {})[stageKey5] || 10;
           let added = 0;
           for (let i = 0; i < kwPs.length; i++) {
             const p = kwPs[i];
@@ -2150,9 +2154,9 @@ export const auditExamPaper = (html, { subject = '', stage = '', genType = '' } 
             //    答案区含括号空位时同样误判）。
             const secEnd2 = headsSec2.find(h => p.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING) || null;
             if (!endP || (secEnd2 && !(endP.compareDocumentPosition(secEnd2) & Node.DOCUMENT_POSITION_FOLLOWING))) endP = secEnd2;
-            // 🔧 补格数按学段×分值动态（低段8格/分…初中20、高中17；低于兜底160取兜底）：
-            //    小学二年级15分写话→max(160,120)=160；初中40分作文→max(160,800)=800；高中60分→max(160,1020)=1020。
-            //    不再全学段统一 160（低段足够、高段作文格子不够；字数依据见 layoutSpec ZUOWEN_CELLS_PER_SCORE）
+            // 🔧 补格数按学段×分值动态（每分格数：低段8…初中20、高中17；基线取该学段默认格数）：
+            //    小学二年级15分写话→max(160,120)=160；初中40分作文→max(800,800)=800；高中60分→max(1020,1020)=1020。
+            //    不再全学段统一 160（低段足够、高段作文格子不够；数值依据见 layoutSpec ZUOWEN_CELLS_BY_STAGE / ZUOWEN_CELLS_PER_SCORE）
             const scoreM = (p.textContent || '').match(/[（(][^）)]*?(\d{1,3})\s*分/);
             const score = scoreM ? parseInt(scoreM[1], 10) : 0;
             const fillCells = Math.max(fillCellsBase, score * perScore);
